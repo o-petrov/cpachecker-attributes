@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import org.eclipse.cdt.core.dom.ast.DOMException;
+import org.eclipse.cdt.core.dom.ast.IASTAttribute;
 import org.eclipse.cdt.core.dom.ast.IASTDeclSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTElaboratedTypeSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
@@ -507,7 +508,17 @@ class ASTTypeConverter {
       name = scope.getFileSpecificTypeName(name);
     }
 
-    return new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
+    // TODO packed can be specified only for definitions, not forward declarations
+    boolean isPacked = realType != null && realType.isPacked();
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String attributeName = ASTConverter.getAttributeString(attribute.getName());
+      if (attributeName.equals("packed")) {
+        isPacked = true;
+      }
+    }
+
+    return new CElaboratedType(
+        d.isConst(), d.isVolatile(), isPacked, type, name, origName, realType);
   }
 
   /** returns a pointerType, that wraps the type. */

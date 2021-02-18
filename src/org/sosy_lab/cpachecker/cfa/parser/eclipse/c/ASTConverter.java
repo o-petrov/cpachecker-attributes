@@ -1643,11 +1643,10 @@ class ASTConverter {
     IASTDeclarator[] declarators = d.getDeclarators();
     List<CDeclaration> result = new ArrayList<>();
 
-    if (type instanceof CCompositeType
-        || type instanceof CEnumType) {
+    if (type instanceof CCompositeType || type instanceof CEnumType) {
       // struct, union, or enum declaration
       // split type definition from eventual variable declaration
-      CComplexType complexType = (CComplexType)type;
+      CComplexType complexType = (CComplexType) type;
 
       // in case of struct declarations with variable declarations we
       // need to add the struct declaration as sideeffect, so that
@@ -1834,7 +1833,7 @@ class ASTConverter {
     IASTSimpleDeclaration sd = (IASTSimpleDeclaration)d;
 
     Pair<CStorageClass, ? extends CType> specifier = convert(sd.getDeclSpecifier());
-    //TODO: add knowledge about sd.DeclSpecifier.alignmentSpecifiers
+    // TODO: add knowledge about sd.DeclSpecifier.alignmentSpecifiers
     if (specifier.getFirst() != CStorageClass.AUTO) {
       throw parseContext.parseError("Unsupported storage class inside composite type", d);
     }
@@ -2128,7 +2127,7 @@ class ASTConverter {
   }
 
   /** Return normalized string for a name etc. in an attribute context. */
-  private static String getAttributeString(char[] chars) {
+  static String getAttributeString(char[] chars) {
     String s = String.valueOf(chars);
     if (s.startsWith("__") && s.endsWith("__")) {
       // For attribute names and parameters, foo may also be written as __foo__.
@@ -2352,7 +2351,17 @@ class ASTConverter {
         }
       }
     }
-    CCompositeType compositeType = new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
+
+    boolean isPacked = false;
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String attributeName = getAttributeString(attribute.getName());
+      if (attributeName.equals("packed")) {
+        isPacked = true;
+      }
+    }
+
+    CCompositeType compositeType =
+        new CCompositeType(d.isConst(), d.isVolatile(), isPacked, kind, list, name, origName);
 
     // in cases like struct s { (struct s)* f }
     // we need to fill in the binding from the inner "struct s" type to the outer
@@ -2373,7 +2382,6 @@ class ASTConverter {
       }
     }
 
-
     String name = convert(d.getName());
     String origName = name;
 
@@ -2383,7 +2391,15 @@ class ASTConverter {
       name = "__anon_type_" + anonTypeCounter++;
     }
 
-    CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), list, name, origName);
+    boolean isPacked = false;
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String attributeName = getAttributeString(attribute.getName());
+      if (attributeName.equals("packed")) {
+        isPacked = true;
+      }
+    }
+
+    CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), isPacked, list, name, origName);
     CSimpleType integerType = getEnumerationType(enumType);
     for (CEnumerator enumValue : enumType.getEnumerators()) {
       enumValue.setEnum(enumType);

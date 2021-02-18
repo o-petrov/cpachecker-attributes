@@ -135,7 +135,16 @@ SPDX-License-Identifier: Apache-2.0
             <ant antfile="src/org/sosy_lab/cpachecker/util/ltl/AntlrParser.xml" inheritAll="false"/>
     </target>
 
-    <target name="build-dependencies" depends="init, resolve-dependencies, build-subprojects"/>
+	<target name="replace-cdt">
+		<copy verbose="true" overwrite="true"
+			file="cdt/org.eclipse.cdt.core_7.1.100.202012020953.jar"
+			tofile="lib/java/runtime/org.eclipse.cdt.core.jar" />
+		<copy verbose="true" overwrite="true"
+			file="cdt/org.eclipse.cdt.core.source_7.1.100.202012020953.jar"
+			tofile="lib/java-contrib/org.eclipse.cdt.core-sources.jar" />
+	</target>
+
+    <target name="build-dependencies" depends="init, resolve-dependencies, replace-cdt, build-subprojects"/>
 
     <available file=".factorypath" property="factorypath.present"/>
     <target name="-warn-factorypath" unless="factorypath.present">
