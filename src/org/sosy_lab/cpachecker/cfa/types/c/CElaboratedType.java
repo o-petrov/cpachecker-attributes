@@ -23,20 +23,45 @@ public final class CElaboratedType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final boolean isPacked;
 
   private int hashCache = 0;
 
   private @Nullable CComplexType realType = null;
 
-  public CElaboratedType(boolean pConst, final boolean pVolatile,
-      final ComplexTypeKind pKind, final String pName, final String pOrigName,
+  public CElaboratedType(
+      final boolean pConst,
+      final boolean pVolatile,
+      final boolean pPacked,
+      final ComplexTypeKind pKind,
+      final String pName,
+      final String pOrigName,
       final @Nullable CComplexType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    isPacked = pPacked;
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();
     realType = pRealType;
+    assert realType == null || realType.isPacked() == isPacked;
+  }
+
+  public CElaboratedType(
+      final boolean pConst,
+      final boolean pVolatile,
+      final ComplexTypeKind pKind,
+      final String pName,
+      final String pOrigName,
+      final @Nullable CComplexType pRealType) {
+    this(
+        pConst,
+        pVolatile,
+        pRealType != null && pRealType.isPacked(),
+        pKind,
+        pName,
+        pOrigName,
+        pRealType);
   }
 
   @Override
@@ -114,6 +139,7 @@ public final class CElaboratedType implements CComplexType {
 
     return lASTString.toString();
   }
+
   @Override
   public String toString() {
     return getKind().toASTString() + " " + getName();
@@ -127,6 +153,11 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public boolean isPacked() {
+    return isPacked;
   }
 
   @Override
@@ -146,7 +177,7 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, kind, name, realType);
+      hashCache = Objects.hash(isConst, isVolatile, isPacked, kind, name, realType);
     }
     return hashCache;
   }
@@ -168,9 +199,12 @@ public final class CElaboratedType implements CComplexType {
 
     CElaboratedType other = (CElaboratedType) obj;
 
-    return isConst == other.isConst && isVolatile == other.isVolatile
-           && kind == other.kind && Objects.equals(name, other.name)
-           && Objects.equals(realType, other.realType);
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && isPacked == other.isPacked
+        && kind == other.kind
+        && Objects.equals(name, other.name)
+        && Objects.equals(realType, other.realType);
   }
 
   @Override
@@ -186,10 +220,11 @@ public final class CElaboratedType implements CComplexType {
     CElaboratedType other = (CElaboratedType) obj;
 
     return isConst == other.isConst
-           && isVolatile == other.isVolatile
-           && kind == other.kind
-           && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
-           && Objects.equals(realType, other.realType);
+        && isVolatile == other.isVolatile
+        && isPacked == other.isPacked
+        && kind == other.kind
+        && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
+        && Objects.equals(realType, other.realType);
   }
 
   @Override
@@ -203,7 +238,14 @@ public final class CElaboratedType implements CComplexType {
       if ((isConst == pForceConst) && (isVolatile == pForceVolatile)) {
         return this;
       }
-      return new CElaboratedType(isConst || pForceConst, isVolatile || pForceVolatile, kind, name, origName, null);
+      return new CElaboratedType(
+          isConst || pForceConst,
+          isVolatile || pForceVolatile,
+          isPacked,
+          kind,
+          name,
+          origName,
+          null);
     } else {
       return realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
     }

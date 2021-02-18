@@ -33,15 +33,22 @@ public final class CEnumType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final boolean isPacked;
   private int hashCache = 0;
 
-  public CEnumType(final boolean pConst, final boolean pVolatile,
+  public CEnumType(final boolean pConst, final boolean pVolatile, final boolean pPacked,
       final List<CEnumerator> pEnumerators, final String pName, final String pOrigName) {
     isConst = pConst;
     isVolatile = pVolatile;
+    isPacked = pPacked;
     enumerators = ImmutableList.copyOf(pEnumerators);
     name = pName.intern();
     origName = pOrigName.intern();
+  }
+
+  public CEnumType(final boolean pConst, final boolean pVolatile,
+      final List<CEnumerator> pEnumerators, final String pName, final String pOrigName) {
+    this(pConst, pVolatile, false, pEnumerators, pName, pOrigName);
   }
 
   @Override
@@ -52,6 +59,11 @@ public final class CEnumType implements CComplexType {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public boolean isPacked() {
+    return isPacked;
   }
 
   @Override
@@ -96,8 +108,12 @@ public final class CEnumType implements CComplexType {
     }
 
     lASTString.append("enum ");
-    lASTString.append(name);
 
+    if (isPacked()) {
+      lASTString.append("__attribute__ ((__packed__)) ");
+    }
+
+    lASTString.append(name);
     lASTString.append(" {\n  ");
     Joiner.on(",\n  ").appendTo(lASTString, transform(enumerators, CEnumerator::toASTString));
     lASTString.append("\n} ");
@@ -108,9 +124,11 @@ public final class CEnumType implements CComplexType {
 
   @Override
   public String toString() {
-    return (isConst() ? "const " : "") +
-           (isVolatile() ? "volatile " : "") +
-           "enum " + name;
+    return (isConst() ? "const " : "")
+        + (isVolatile() ? "volatile " : "")
+        + "enum "
+        + (isPacked() ? "__attribute__ ((packed)) " : "")
+        + name;
   }
 
   public static final class CEnumerator extends AbstractSimpleDeclaration
@@ -118,9 +136,9 @@ public final class CEnumType implements CComplexType {
 
     private static final long serialVersionUID = -2526725372840523651L;
 
-    private final @Nullable Long  value;
+    private final @Nullable Long value;
     private @Nullable CEnumType enumType;
-    private final String         qualifiedName;
+    private final String qualifiedName;
 
     public CEnumerator(
         final FileLocation pFileLocation,
@@ -245,9 +263,11 @@ public final class CEnumType implements CComplexType {
 
     CEnumType other = (CEnumType) obj;
 
-    return isConst == other.isConst && isVolatile == other.isVolatile
-           && Objects.equals(name, other.name)
-           && Objects.equals(enumerators, other.enumerators);
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && isPacked == other.isPacked
+        && Objects.equals(name, other.name)
+        && Objects.equals(enumerators, other.enumerators);
   }
 
   @Override
@@ -263,9 +283,10 @@ public final class CEnumType implements CComplexType {
     CEnumType other = (CEnumType) obj;
 
     return isConst == other.isConst
-           && isVolatile == other.isVolatile
-           && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
-           && Objects.equals(enumerators, other.enumerators);
+        && isVolatile == other.isVolatile
+        && isPacked == other.isPacked
+        && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
+        && Objects.equals(enumerators, other.enumerators);
   }
 
   @Override
@@ -279,6 +300,11 @@ public final class CEnumType implements CComplexType {
       return this;
     }
     return new CEnumType(
-        isConst || pForceConst, isVolatile || pForceVolatile, enumerators, name, origName);
+        isConst || pForceConst,
+        isVolatile || pForceVolatile,
+        isPacked,
+        enumerators,
+        name,
+        origName);
   }
 }
