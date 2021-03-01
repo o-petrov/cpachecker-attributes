@@ -18,6 +18,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.OptionalInt;
 import org.eclipse.cdt.core.dom.ast.DOMException;
 import org.eclipse.cdt.core.dom.ast.IASTAttribute;
 import org.eclipse.cdt.core.dom.ast.IASTDeclSpecifier;
@@ -277,7 +278,8 @@ class ASTTypeConverter {
 
         // TODO why is there no isConst() and isVolatile() here?
         return new CSimpleType(false, false, type, c.isLong(), c.isShort(),
-            c.isSigned(), c.isUnsigned(), c.isComplex(), c.isImaginary(), c.isLongLong());
+            c.isSigned(), c.isUnsigned(), c.isComplex(), c.isImaginary(),
+            c.isLongLong(), OptionalInt.empty());
 
       } else {
         throw new CFAGenerationRuntimeException("Unknown type " + t);
@@ -432,7 +434,30 @@ class ASTTypeConverter {
 
     return new CSimpleType(dd.isConst(), dd.isVolatile(), type,
         dd.isLong(), dd.isShort(), dd.isSigned(), dd.isUnsigned(),
-        dd.isComplex(), dd.isImaginary(), dd.isLongLong());
+        dd.isComplex(), dd.isImaginary(), dd.isLongLong(), handleAlignmentAttribute(dd));
+  }
+
+  private OptionalInt handleAlignmentAttribute(IASTSimpleDeclSpecifier d) {
+    // TODO use alignSpecifier?
+
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String name = ASTConverter.getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        try {
+          char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
+          String clause = ASTConverter.getAttributeString(tokenCharImage);
+          return OptionalInt.of(Integer.valueOf(clause));
+        } catch (NullPointerException e) {
+          // default alignment as clause was not specified
+          // TODO default is dependent on machine model
+          return OptionalInt.of(8);
+        } catch (NumberFormatException e) {
+          // clause must be integer
+          throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
+        }
+      }
+    }
+    return OptionalInt.empty();
   }
 
   CType convert(final IASTNamedTypeSpecifier d) {
@@ -457,8 +482,36 @@ class ASTTypeConverter {
     if (d.isVolatile()) {
       type = CTypes.withVolatile(type);
     }
+    type = handleTypeAttributes(d, type);
 
     return type;
+  }
+
+  private CType handleTypeAttributes(IASTNamedTypeSpecifier d, CType type) {
+    boolean packed = false;
+    OptionalInt alignment = OptionalInt.empty();
+
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String name = ASTConverter.getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        try {
+          char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
+          String clause = ASTConverter.getAttributeString(tokenCharImage);
+          alignment = OptionalInt.of(Integer.valueOf(clause));
+        } catch (NullPointerException e) {
+          // default alignment as clause was not specified
+          // TODO default is dependent on machine model
+          alignment = OptionalInt.of(8);
+        } catch (NumberFormatException e) {
+          // clause must be integer
+          throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
+        }
+      } else if (name.equals("packed")) {
+        packed = true;
+      }
+    }
+
+    return CTypes.withAttributes(type, packed, alignment);
   }
 
   CStorageClass convertCStorageClass(final IASTDeclSpecifier d) {

@@ -157,7 +157,8 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !ignoreSignedness && t.isUnsigned(),
               t.isComplex(),
               t.isImaginary(),
-              t.isLongLong());
+              t.isLongLong(),
+              t.getAlignment());
     }
 
     @Override

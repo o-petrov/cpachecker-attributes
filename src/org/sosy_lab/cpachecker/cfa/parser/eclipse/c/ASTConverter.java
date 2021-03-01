@@ -651,14 +651,16 @@ class ASTConverter {
       type = new CPointerType(false, false, type);
     }
 
-    CVariableDeclaration decl = new CVariableDeclaration(loc,
-                                               scope.isGlobalScope(),
-                                               CStorageClass.AUTO,
-                                               type,
-                                               name,
-                                               name,
-                                               scope.createScopedNameOf(name),
-                                               initializer);
+    CVariableDeclaration decl =
+        new CVariableDeclaration(
+            loc,
+            scope.isGlobalScope(),
+            CStorageClass.AUTO,
+            type,
+            name,
+            name,
+            scope.createScopedNameOf(name),
+            initializer);
 
     scope.registerDeclaration(decl);
     sideAssignmentStack.addPreSideAssignment(decl);
@@ -1665,12 +1667,15 @@ class ASTConverter {
       }
 
       // now replace type with an elaborated type referencing the new type
-      type = new CElaboratedType(type.isConst(),
-                                 type.isVolatile(),
-                                 complexType.getKind(),
-                                 complexType.getName(),
-                                 complexType.getOrigName(),
-                                 complexType);
+      type =
+          new CElaboratedType(
+              type.isConst(),
+              type.isVolatile(),
+              complexType.isPacked(),
+              complexType.getKind(),
+              complexType.getName(),
+              complexType.getOrigName(),
+              complexType);
 
     } else if (type instanceof CElaboratedType) {
       boolean typeAlreadyKnown = scope.lookupType(((CElaboratedType) type).getQualifiedName()) != null;
@@ -2195,17 +2200,12 @@ class ASTConverter {
     }
 
     // Copy const, volatile, and signedness from original type, rest from newType
-    return new CSimpleType(
-        type.isConst(),
-        type.isVolatile(),
-        newType.getType(),
-        newType.isLong(),
-        newType.isShort(),
-        type.isSigned(),
-        type.isUnsigned(),
+    return new CSimpleType(type.isConst(), type.isVolatile(), newType.getType(),
+        newType.isLong(), newType.isShort(), type.isSigned(), type.isUnsigned(),
         false, // checked above
         false, // checked above
-        newType.isLongLong());
+        newType.isLongLong(),
+        type.getAlignment());
   }
 
   private CType convert(IASTArrayModifier am, CType type) {
@@ -2237,7 +2237,7 @@ class ASTConverter {
         // type of functions is implicitly int it not specified
         returnType = new CSimpleType(t.isConst(), t.isVolatile(), CBasicType.INT,
             t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(), t.isComplex(),
-            t.isImaginary(), t.isLongLong());
+            t.isImaginary(), t.isLongLong(), t.getAlignment());
       }
     }
 
