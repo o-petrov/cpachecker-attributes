@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.types.c;
 
+import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.types.Type;
 
@@ -37,6 +38,11 @@ public interface CType extends Type {
    * and for example their size cannot be computed.
    */
   boolean isIncomplete();
+
+  /** @return alignment if specified in attributes or via _Alignas */
+  default OptionalInt getAlignment() {
+    return OptionalInt.empty();
+  }
 
   /**
    * Will throw a UnsupportedOperationException

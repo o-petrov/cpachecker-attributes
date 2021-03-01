@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.Objects;
+import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -37,6 +38,11 @@ public final class CProblemType implements CType {
 
   @Override
   public boolean isVolatile() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
     throw new UnsupportedOperationException();
   }
 

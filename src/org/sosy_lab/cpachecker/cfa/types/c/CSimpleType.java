@@ -18,6 +18,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 @Immutable
@@ -35,8 +36,27 @@ public final class CSimpleType implements CType, Serializable {
   private final boolean isLongLong;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final OptionalInt alignment;
 
   @LazyInit private int hashCache = 0;
+
+  public CSimpleType(final boolean pConst, final boolean pVolatile,
+      final CBasicType pType, final boolean pIsLong, final boolean pIsShort,
+      final boolean pIsSigned, final boolean pIsUnsigned,
+      final boolean pIsComplex, final boolean pIsImaginary,
+      final boolean pIsLongLong, final OptionalInt pAlignment) {
+    isConst = pConst;
+    isVolatile = pVolatile;
+    type = checkNotNull(pType);
+    isLong = pIsLong;
+    isShort = pIsShort;
+    isSigned = pIsSigned;
+    isUnsigned = pIsUnsigned;
+    isComplex = pIsComplex;
+    isImaginary = pIsImaginary;
+    isLongLong = pIsLongLong;
+    alignment = pAlignment;
+  }
 
   public CSimpleType(final boolean pConst, final boolean pVolatile,
       final CBasicType pType, final boolean pIsLong, final boolean pIsShort,
@@ -53,6 +73,7 @@ public final class CSimpleType implements CType, Serializable {
     isComplex = pIsComplex;
     isImaginary = pIsImaginary;
     isLongLong = pIsLongLong;
+    alignment = OptionalInt.empty();
   }
 
   @Override
@@ -63,6 +84,11 @@ public final class CSimpleType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
+    return alignment;
   }
 
   public CBasicType getType() {
@@ -104,21 +130,14 @@ public final class CSimpleType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-      if (hashCache == 0) {
+    if (hashCache == 0) {
       hashCache =
-          Objects.hash(
-              isComplex,
-              isConst,
-              isVolatile,
-              isImaginary,
-              isLong,
-              isLongLong,
-              isShort,
-              isSigned,
-              isUnsigned,
-              type);
-      }
-      return hashCache;
+          Objects.hash(isConst, isVolatile, type,
+              isComplex, isImaginary,
+              isLong, isLongLong, isShort,
+              isSigned, isUnsigned, alignment);
+    }
+    return hashCache;
   }
 
   /**
@@ -138,11 +157,12 @@ public final class CSimpleType implements CType, Serializable {
 
     CSimpleType other = (CSimpleType) obj;
 
-    return isComplex == other.isComplex && isConst == other.isConst
-           && isVolatile == other.isVolatile && isImaginary == other.isImaginary
-           && isLong == other.isLong && isLongLong == other.isLongLong
-           && isShort == other.isShort && isSigned == other.isSigned
-           && isUnsigned == other.isUnsigned && type == other.type;
+    return isConst == other.isConst && isVolatile == other.isVolatile
+        && isComplex == other.isComplex && isImaginary == other.isImaginary
+        && isSigned == other.isSigned && isUnsigned == other.isUnsigned 
+        && isLong == other.isLong && isLongLong == other.isLongLong
+        && isShort == other.isShort && type == other.type
+        && alignment.equals(other.alignment);
   }
 
   @Override
@@ -189,6 +209,11 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     parts.add(Strings.emptyToNull(type.toASTString()));
+
+    if (alignment.isPresent()) {
+      parts.add("__attribute__ ((__aligned__ (" + alignment.getAsInt() + ")))");
+    }
+
     parts.add(Strings.emptyToNull(pDeclarator));
 
     return Joiner.on(' ').skipNulls().join(parts);
@@ -219,15 +244,8 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     return new CSimpleType(
-        isConst || pForceConst,
-        isVolatile || pForceVolatile,
-        newType,
-        isLong,
-        isShort,
-        newIsSigned,
-        isUnsigned,
-        isComplex,
-        isImaginary,
-        isLongLong);
+        isConst || pForceConst, isVolatile || pForceVolatile, newType,
+        isLong, isShort, newIsSigned, isUnsigned,
+        isComplex, isImaginary, isLongLong, alignment);
   }
 }

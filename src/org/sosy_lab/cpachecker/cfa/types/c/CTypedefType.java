@@ -12,6 +12,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.Serializable;
 import java.util.Objects;
+import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -24,6 +25,7 @@ public final class CTypedefType implements CType, Serializable {
   private final CType realType; // the real type this typedef points to
   private final boolean isConst;
   private final boolean isVolatile;
+  private final OptionalInt alignment;
   private int hashCache = 0;
 
   public CTypedefType(final boolean pConst, final boolean pVolatile,
@@ -31,6 +33,17 @@ public final class CTypedefType implements CType, Serializable {
 
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = OptionalInt.empty();
+    name = pName.intern();
+    realType = checkNotNull(pRealType);
+  }
+
+  public CTypedefType(final boolean pConst, final boolean pVolatile,
+      final OptionalInt pAlignment, final String pName, CType pRealType) {
+
+    isConst = pConst;
+    isVolatile = pVolatile;
+    alignment = pAlignment;
     name = pName.intern();
     realType = checkNotNull(pRealType);
   }
@@ -54,7 +67,10 @@ public final class CTypedefType implements CType, Serializable {
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
         + name
-        + " " + pDeclarator;
+        + (alignment.isPresent()
+            ? " __attribute__((__aligned__(" + alignment.getAsInt() + "))) "
+            : " ")
+        + pDeclarator;
   }
 
   @Override
@@ -65,6 +81,11 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
+    return alignment;
   }
 
   @Override
@@ -103,7 +124,7 @@ public final class CTypedefType implements CType, Serializable {
     CTypedefType other = (CTypedefType) obj;
 
     return Objects.equals(name, other.name) && isConst == other.isConst
-           && isVolatile == other.isVolatile
+           && isVolatile == other.isVolatile && alignment.equals(other.alignment)
            && Objects.equals(realType, other.realType);
   }
 
@@ -114,6 +135,9 @@ public final class CTypedefType implements CType, Serializable {
 
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
-    return realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+    return CTypes.withAttributes(
+        realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile),
+        false, // TODO __packed__?
+        alignment);
   }
 }

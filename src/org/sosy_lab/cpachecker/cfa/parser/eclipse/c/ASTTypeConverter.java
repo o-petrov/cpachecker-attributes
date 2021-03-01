@@ -18,6 +18,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.OptionalInt;
 import org.eclipse.cdt.core.dom.ast.DOMException;
 import org.eclipse.cdt.core.dom.ast.IASTAttribute;
 import org.eclipse.cdt.core.dom.ast.IASTDeclSpecifier;
@@ -221,22 +222,22 @@ class ASTTypeConverter {
   }
 
   private CType conv(final IBasicType t) {
-      // The IBasicType has to be an ICBasicType or
-      // an IBasicType of type "void" (then it is an ICPPBasicType)
-      if (t.getKind() == org.eclipse.cdt.core.dom.ast.IBasicType.Kind.eVoid) {
-        if (t.isComplex() || t.isImaginary()
-            || t.isLong() || t.isLongLong() || t.isShort()
-            || t.isSigned() || t.isUnsigned()) {
-          throw new CFAGenerationRuntimeException("Void type with illegal modifier: " + t);
-        }
-        return CVoidType.VOID;
+    // The IBasicType has to be an ICBasicType or
+    // an IBasicType of type "void" (then it is an ICPPBasicType)
+    if (t.getKind() == org.eclipse.cdt.core.dom.ast.IBasicType.Kind.eVoid) {
+      if (t.isComplex() || t.isImaginary()
+          || t.isLong() || t.isLongLong() || t.isShort()
+          || t.isSigned() || t.isUnsigned()) {
+        throw new CFAGenerationRuntimeException("Void type with illegal modifier: " + t);
+      }
+      return CVoidType.VOID;
 
-      } else if (t instanceof org.eclipse.cdt.core.dom.ast.c.ICBasicType) {
-        final org.eclipse.cdt.core.dom.ast.c.ICBasicType c =
-            (org.eclipse.cdt.core.dom.ast.c.ICBasicType) t;
+    } else if (t instanceof org.eclipse.cdt.core.dom.ast.c.ICBasicType) {
+      final org.eclipse.cdt.core.dom.ast.c.ICBasicType c =
+          (org.eclipse.cdt.core.dom.ast.c.ICBasicType) t;
 
-        CBasicType type;
-        switch (t.getKind()) {
+      CBasicType type;
+      switch (t.getKind()) {
         case eBoolean:
           type = CBasicType.BOOL;
           break;
@@ -265,19 +266,23 @@ class ASTTypeConverter {
           throw new AssertionError();
         default:
           throw new CFAGenerationRuntimeException("Unknown basic type " + t.getKind());
-        }
+      }
 
-        // the three values isComplex, isImaginary, isLongLong are initialized
-        // with FALSE, because we do not know about them
-        if ((c.isShort() && c.isLong())
-            || (c.isShort() && c.isLongLong())
-            || (c.isLong() && c.isLongLong())
-            || (c.isSigned() && c.isUnsigned())) { throw new CFAGenerationRuntimeException(
-            "Illegal combination of type identifiers"); }
+      // the three values isComplex, isImaginary, isLongLong are initialized
+      // with FALSE, because we do not know about them
+      if ((c.isShort() && c.isLong())
+          || (c.isShort() && c.isLongLong())
+          || (c.isLong() && c.isLongLong())
+          || (c.isSigned() && c.isUnsigned())) {
+        throw new CFAGenerationRuntimeException("Illegal combination of type identifiers");
+      }
 
-        // TODO why is there no isConst() and isVolatile() here?
-        return new CSimpleType(false, false, type, c.isLong(), c.isShort(),
-            c.isSigned(), c.isUnsigned(), c.isComplex(), c.isImaginary(), c.isLongLong());
+      // TODO why is there no isConst() and isVolatile() here?
+      return new CSimpleType(false, false, type,
+          c.isLong(), c.isShort(),
+          c.isSigned(), c.isUnsigned(),
+          c.isComplex(), c.isImaginary(),
+          c.isLongLong(), OptionalInt.empty());
 
       } else {
         throw new CFAGenerationRuntimeException("Unknown type " + t.toString());
@@ -432,7 +437,30 @@ class ASTTypeConverter {
 
     return new CSimpleType(dd.isConst(), dd.isVolatile(), type,
         dd.isLong(), dd.isShort(), dd.isSigned(), dd.isUnsigned(),
-        dd.isComplex(), dd.isImaginary(), dd.isLongLong());
+        dd.isComplex(), dd.isImaginary(), dd.isLongLong(), handleAlignmentAttribute(dd));
+  }
+
+  private OptionalInt handleAlignmentAttribute(IASTSimpleDeclSpecifier d) {
+    // TODO use alignSpecifier?
+
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String name = ASTConverter.getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        try {
+          char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
+          String clause = ASTConverter.getAttributeString(tokenCharImage);
+          return OptionalInt.of(Integer.valueOf(clause));
+        } catch (NullPointerException e) {
+          // default alignment as clause was not specified
+          // TODO default is dependent on machine model
+          return OptionalInt.of(8);
+        } catch (NumberFormatException e) {
+          // clause must be integer
+          throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
+        }
+      }
+    }
+    return OptionalInt.empty();
   }
 
   CType convert(final IASTNamedTypeSpecifier d) {
@@ -457,8 +485,36 @@ class ASTTypeConverter {
     if (d.isVolatile()) {
       type = CTypes.withVolatile(type);
     }
+    type = handleTypeAttributes(d, type);
 
     return type;
+  }
+
+  private CType handleTypeAttributes(IASTNamedTypeSpecifier d, CType type) {
+    boolean packed = false;
+    OptionalInt alignment = OptionalInt.empty();
+
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String name = ASTConverter.getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        try {
+          char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
+          String clause = ASTConverter.getAttributeString(tokenCharImage);
+          alignment = OptionalInt.of(Integer.valueOf(clause));
+        } catch (NullPointerException e) {
+          // default alignment as clause was not specified
+          // TODO default is dependent on machine model
+          alignment = OptionalInt.of(8);
+        } catch (NumberFormatException e) {
+          // clause must be integer
+          throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
+        }
+      } else if (name.equals("packed")) {
+        packed = true;
+      }
+    }
+
+    return CTypes.withAttributes(type, packed, alignment);
   }
 
   CStorageClass convertCStorageClass(final IASTDeclSpecifier d) {

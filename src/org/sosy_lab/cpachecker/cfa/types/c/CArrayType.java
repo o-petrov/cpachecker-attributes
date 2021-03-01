@@ -24,6 +24,7 @@ public final class CArrayType extends AArrayType implements CType {
   private final @Nullable CExpression length;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final OptionalInt alignment;
 
   public CArrayType(boolean pConst, boolean pVolatile,
       CType pType, @Nullable CExpression pLength) {
@@ -31,6 +32,20 @@ public final class CArrayType extends AArrayType implements CType {
     isConst = pConst;
     isVolatile = pVolatile;
     length = pLength;
+    alignment = OptionalInt.empty();
+  }
+
+  public CArrayType(
+      boolean pConst,
+      boolean pVolatile,
+      OptionalInt pAlignment,
+      CType pType,
+      @Nullable CExpression pLength) {
+    super(pType);
+    isConst = pConst;
+    isVolatile = pVolatile;
+    length = pLength;
+    alignment = pAlignment;
   }
 
   @Override
@@ -54,6 +69,7 @@ public final class CArrayType extends AArrayType implements CType {
    * the method {@link CTypes#adjustFunctionOrArrayType(CType)} should be used instead, which
    * implements this conversion properly and also the similar conversion for function types.
    */
+  // TODO conversion with alignment?
   public CPointerType asPointerType() {
     return new CPointerType(isConst, isVolatile, getType());
   }
@@ -92,6 +108,11 @@ public final class CArrayType extends AArrayType implements CType {
   }
 
   @Override
+  public OptionalInt getAlignment() {
+    return alignment;
+  }
+
+  @Override
   public String toString() {
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
@@ -105,7 +126,7 @@ public final class CArrayType extends AArrayType implements CType {
 
   @Override
   public int hashCode() {
-    return Objects.hash(length, isConst, isVolatile) * 31 + super.hashCode();
+    return Objects.hash(length, isConst, isVolatile, alignment) * 31 + super.hashCode();
   }
 
 
@@ -136,7 +157,7 @@ public final class CArrayType extends AArrayType implements CType {
       }
     }
 
-    return isConst == other.isConst && isVolatile == other.isVolatile;
+    return isConst == other.isConst && isVolatile == other.isVolatile && alignment.equals(other.alignment);
   }
 
   @Override
@@ -149,9 +170,11 @@ public final class CArrayType extends AArrayType implements CType {
     // C11 standard 6.7.3 (9) specifies that qualifiers like const and volatile
     // on an array type always refer to the element type, not the array type.
     // So we push these modifiers down to the element type here.
-    return new CArrayType(false, false,
-        getType().getCanonicalType(isConst || pForceConst,
-                                   isVolatile || pForceVolatile),
+    return new CArrayType(
+        false,
+        false,
+        alignment,
+        getType().getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile),
         length);
   }
 
