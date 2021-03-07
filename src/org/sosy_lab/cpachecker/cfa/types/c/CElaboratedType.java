@@ -13,6 +13,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import java.util.Objects;
+import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class CElaboratedType implements CComplexType {
@@ -23,7 +24,6 @@ public final class CElaboratedType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
-  private final boolean isPacked;
 
   private int hashCache = 0;
 
@@ -32,36 +32,16 @@ public final class CElaboratedType implements CComplexType {
   public CElaboratedType(
       final boolean pConst,
       final boolean pVolatile,
-      final boolean pPacked,
       final ComplexTypeKind pKind,
       final String pName,
       final String pOrigName,
       final @Nullable CComplexType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
-    isPacked = pPacked;
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();
     realType = pRealType;
-    assert realType == null || realType.isPacked() == isPacked;
-  }
-
-  public CElaboratedType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName,
-      final @Nullable CComplexType pRealType) {
-    this(
-        pConst,
-        pVolatile,
-        pRealType != null && pRealType.isPacked(),
-        pKind,
-        pName,
-        pOrigName,
-        pRealType);
   }
 
   @Override
@@ -157,7 +137,12 @@ public final class CElaboratedType implements CComplexType {
 
   @Override
   public boolean isPacked() {
-    return isPacked;
+    return realType != null && realType.isPacked();
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
+    return realType == null ? OptionalInt.empty() : realType.getAlignment();
   }
 
   @Override
@@ -177,7 +162,7 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, isPacked, kind, name, realType);
+      hashCache = Objects.hash(isConst, isVolatile, kind, name, realType);
     }
     return hashCache;
   }
@@ -201,7 +186,6 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
-        && isPacked == other.isPacked
         && kind == other.kind
         && Objects.equals(name, other.name)
         && Objects.equals(realType, other.realType);
@@ -221,7 +205,6 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
-        && isPacked == other.isPacked
         && kind == other.kind
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(realType, other.realType);
@@ -241,7 +224,6 @@ public final class CElaboratedType implements CComplexType {
       return new CElaboratedType(
           isConst || pForceConst,
           isVolatile || pForceVolatile,
-          isPacked,
           kind,
           name,
           origName,

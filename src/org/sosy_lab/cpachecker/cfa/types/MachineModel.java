@@ -706,13 +706,13 @@ public enum MachineModel {
       switch (t.getKind()) {
         case STRUCT:
         case UNION:
-          // TODO align and packed
-          int alignof = 1;
+          // TODO packed
+          int alignof = t.getAlignment().orElse(1);
           int alignOfType = 0;
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : t.getMembers()) {
             alignOfType = decl.getType().accept(this);
-            alignof = Math.max(alignof, alignOfType);
+            alignof = Math.max(alignof, alignOfType); // TODO whatif __aligned__ both?
           }
           return alignof;
 
