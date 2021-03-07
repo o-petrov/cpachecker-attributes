@@ -21,6 +21,7 @@ import java.util.Map.Entry;
 import java.util.OptionalInt;
 import org.eclipse.cdt.core.dom.ast.DOMException;
 import org.eclipse.cdt.core.dom.ast.IASTAttribute;
+import org.eclipse.cdt.core.dom.ast.IASTAttributeOwner;
 import org.eclipse.cdt.core.dom.ast.IASTDeclSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTElaboratedTypeSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
@@ -151,7 +152,13 @@ class ASTTypeConverter {
       // We have seen this type already.
       // Replace it with a CElaboratedType.
       if (oldType != null) {
-        return new CElaboratedType(false, false, kind, oldType.getName(), oldType.getOrigName(), oldType);
+        return new CElaboratedType(
+            false,
+            false,
+            kind,
+            oldType.getName(),
+            oldType.getOrigName(),
+            oldType);
       }
 
       // empty linkedList for the Fields of the struct, they are created afterwards
@@ -278,15 +285,21 @@ class ASTTypeConverter {
       }
 
       // TODO why is there no isConst() and isVolatile() here?
-      return new CSimpleType(false, false, type,
-          c.isLong(), c.isShort(),
-          c.isSigned(), c.isUnsigned(),
-          c.isComplex(), c.isImaginary(),
-          c.isLongLong(), OptionalInt.empty());
+      return new CSimpleType(
+          false,
+          false,
+          type,
+          c.isLong(),
+          c.isShort(),
+          c.isSigned(),
+          c.isUnsigned(),
+          c.isComplex(),
+          c.isImaginary(),
+          c.isLongLong());
 
-      } else {
-        throw new CFAGenerationRuntimeException("Unknown type " + t.toString());
-      }
+    } else {
+      throw new CFAGenerationRuntimeException("Unknown type " + t.toString());
+    }
   }
 
   private CPointerType conv(final IPointerType t) {
@@ -435,32 +448,21 @@ class ASTTypeConverter {
       throw parseContext.parseError("Illegal combination of type identifiers", dd);
     }
 
-    return new CSimpleType(dd.isConst(), dd.isVolatile(), type,
-        dd.isLong(), dd.isShort(), dd.isSigned(), dd.isUnsigned(),
-        dd.isComplex(), dd.isImaginary(), dd.isLongLong(), handleAlignmentAttribute(dd));
-  }
+    CType ctype =
+        new CSimpleType(
+            dd.isConst(),
+            dd.isVolatile(),
+            type,
+            dd.isLong(),
+            dd.isShort(),
+            dd.isSigned(),
+            dd.isUnsigned(),
+            dd.isComplex(),
+            dd.isImaginary(),
+            dd.isLongLong());
+    ctype = handleTypeAttributes(dd, ctype);
 
-  private OptionalInt handleAlignmentAttribute(IASTSimpleDeclSpecifier d) {
-    // TODO use alignSpecifier?
-
-    for (IASTAttribute attribute : d.getAttributes()) {
-      String name = ASTConverter.getAttributeString(attribute.getName());
-      if (name.equals("aligned")) {
-        try {
-          char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
-          String clause = ASTConverter.getAttributeString(tokenCharImage);
-          return OptionalInt.of(Integer.valueOf(clause));
-        } catch (NullPointerException e) {
-          // default alignment as clause was not specified
-          // TODO default is dependent on machine model
-          return OptionalInt.of(8);
-        } catch (NumberFormatException e) {
-          // clause must be integer
-          throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
-        }
-      }
-    }
-    return OptionalInt.empty();
+    return ctype;
   }
 
   CType convert(final IASTNamedTypeSpecifier d) {
@@ -490,9 +492,19 @@ class ASTTypeConverter {
     return type;
   }
 
-  private CType handleTypeAttributes(IASTNamedTypeSpecifier d, CType type) {
+  CType handleTypeAttributes(IASTAttributeOwner d, CType type) {
+    if (!(d instanceof IASTDeclSpecifier || d instanceof IASTPointerOperator)) {
+      throw new UnsupportedOperationException("Unexpected attribute owner: " + d);
+    }
+
+    if (d instanceof IASTElaboratedTypeSpecifier) {
+      // attributes can be specified only for definitions, not forward declarations
+      throw new UnsupportedOperationException("Elaborated types can not have attributes");
+    }
+
     boolean packed = false;
     OptionalInt alignment = OptionalInt.empty();
+    // TODO handle alignSpecifiers
 
     for (IASTAttribute attribute : d.getAttributes()) {
       String name = ASTConverter.getAttributeString(attribute.getName());
@@ -564,25 +576,17 @@ class ASTTypeConverter {
       name = scope.getFileSpecificTypeName(name);
     }
 
-    // TODO packed can be specified only for definitions, not forward declarations
-    boolean isPacked = realType != null && realType.isPacked();
-    for (IASTAttribute attribute : d.getAttributes()) {
-      String attributeName = ASTConverter.getAttributeString(attribute.getName());
-      if (attributeName.equals("packed")) {
-        isPacked = true;
-      }
-    }
-
-    return new CElaboratedType(
-        d.isConst(), d.isVolatile(), isPacked, type, name, origName, realType);
+    return new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
   }
 
   /** returns a pointerType, that wraps the type. */
   CPointerType convert(final IASTPointerOperator po, final CType type) {
     if (po instanceof IASTPointer) {
       IASTPointer p = (IASTPointer) po;
-      return new CPointerType(p.isConst(), p.isVolatile(), type);
-
+      CPointerType ctype = new CPointerType(p.isConst(), p.isVolatile(), type);
+      // doesn't work because attributes between pointer operators are lost in cdt
+      ctype = (CPointerType) handleTypeAttributes(po, ctype);
+      return ctype;
     } else {
       throw parseContext.parseError("Unknown pointer operator", po);
     }

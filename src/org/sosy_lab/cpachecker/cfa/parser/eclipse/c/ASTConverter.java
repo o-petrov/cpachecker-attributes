@@ -1666,7 +1666,6 @@ class ASTConverter {
           new CElaboratedType(
               type.isConst(),
               type.isVolatile(),
-              complexType.isPacked(),
               complexType.getKind(),
               complexType.getName(),
               complexType.getOrigName(),
@@ -2193,7 +2192,7 @@ class ASTConverter {
         throw parseContext.parseError("Unsupported mode " + mode, context);
     }
 
-    // Copy const, volatile, and signedness from original type, rest from newType
+    // Copy const, volatile, alignment and signedness from original type, rest from newType
     return new CSimpleType(type.isConst(), type.isVolatile(), newType.getType(),
         newType.isLong(), newType.isShort(), type.isSigned(), type.isUnsigned(),
         false, // checked above
@@ -2352,16 +2351,9 @@ class ASTConverter {
       }
     }
 
-    boolean isPacked = false;
-    for (IASTAttribute attribute : d.getAttributes()) {
-      String attributeName = getAttributeString(attribute.getName());
-      if (attributeName.equals("packed")) {
-        isPacked = true;
-      }
-    }
-
     CCompositeType compositeType =
-        new CCompositeType(d.isConst(), d.isVolatile(), isPacked, kind, list, name, origName);
+        new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
+    compositeType = (CCompositeType) typeConverter.handleTypeAttributes(d, compositeType);
 
     // in cases like struct s { (struct s)* f }
     // we need to fill in the binding from the inner "struct s" type to the outer
@@ -2391,15 +2383,8 @@ class ASTConverter {
       name = "__anon_type_" + anonTypeCounter++;
     }
 
-    boolean isPacked = false;
-    for (IASTAttribute attribute : d.getAttributes()) {
-      String attributeName = getAttributeString(attribute.getName());
-      if (attributeName.equals("packed")) {
-        isPacked = true;
-      }
-    }
-
-    CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), isPacked, list, name, origName);
+    CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), list, name, origName);
+    enumType = (CEnumType) typeConverter.handleTypeAttributes(d, enumType);
     CSimpleType integerType = getEnumerationType(enumType);
     for (CEnumerator enumValue : enumType.getEnumerators()) {
       enumValue.setEnum(enumType);

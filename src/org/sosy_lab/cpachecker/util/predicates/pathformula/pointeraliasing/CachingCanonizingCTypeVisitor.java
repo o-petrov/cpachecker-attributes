@@ -45,11 +45,16 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
     public CType visit(final CArrayType t) {
       final CType oldType = t.getType();
       final CType type = oldType.accept(CachingCanonizingCTypeVisitor.this);
-      return type == oldType && (!t.isConst() || !ignoreConst) && (!t.isVolatile() || !ignoreVolatile) ? t :
-        new CArrayType(!ignoreConst && t.isConst(),
-                       !ignoreVolatile && t.isVolatile(),
-                       type,
-                       t.getLength());
+      return type == oldType
+              && (!t.isConst() || !ignoreConst)
+              && (!t.isVolatile() || !ignoreVolatile)
+          ? t
+          : new CArrayType(
+              !ignoreConst && t.isConst(),
+              !ignoreVolatile && t.isVolatile(),
+              t.getAlignment(),
+              type,
+              t.getLength());
     }
 
     @Override
@@ -64,13 +69,17 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
                                       (CComplexType) oldRealType.accept(CachingCanonizingCTypeVisitor.this) :
                                       null;
 
-      return realType == oldRealType && (!ignoreConst || !t.isConst()) && (!ignoreVolatile || !t.isVolatile()) ? t :
-             new CElaboratedType(!ignoreConst && t.isConst(),
-                                 !ignoreVolatile && t.isVolatile(),
-                                 t.getKind(),
-                                 t.getName(),
-                                 t.getOrigName(),
-                                 realType);
+      return realType == oldRealType
+              && (!ignoreConst || !t.isConst())
+              && (!ignoreVolatile || !t.isVolatile())
+          ? t
+          : new CElaboratedType(
+              !ignoreConst && t.isConst(),
+              !ignoreVolatile && t.isVolatile(),
+              t.getKind(),
+              t.getName(),
+              t.getOrigName(),
+              realType);
     }
 
     @Override
@@ -201,6 +210,8 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
           new CCompositeType(
               !typeVisitor.ignoreConst && canonicalType.isConst(),
               !typeVisitor.ignoreVolatile && canonicalType.isVolatile(),
+              canonicalType.isPacked(),
+              canonicalType.getAlignment(),
               canonicalType.getKind(),
               canonicalType.getName(),
               canonicalType.getOrigName());

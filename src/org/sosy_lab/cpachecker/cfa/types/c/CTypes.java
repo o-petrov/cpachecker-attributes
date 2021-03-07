@@ -456,7 +456,8 @@ public final class CTypes {
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(constValue, t.isVolatile(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+      return new CCompositeType(
+          constValue, t.isVolatile(), t.isPacked(), t.getAlignment(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
@@ -531,7 +532,7 @@ public final class CTypes {
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(t.isConst(), volatileValue, t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+      return new CCompositeType(t.isConst(), volatileValue, t.isPacked(), t.getAlignment(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
@@ -620,19 +621,15 @@ public final class CTypes {
     public CCompositeType visit(CCompositeType t) {
       return new CCompositeType(
           t.isConst(), t.isVolatile(),
-          packed,
+          packed, alignment,
           t.getKind(), t.getMembers(),
           t.getName(), t.getOrigName());
     }
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return new CElaboratedType(
-          t.isConst(), t.isVolatile(),
-          packed,
-          t.getKind(),
-          t.getName(), t.getOrigName(),
-          t.getRealType());
+      // XXX t.realType.accept(this)?
+      return t;
     }
 
     @Override
