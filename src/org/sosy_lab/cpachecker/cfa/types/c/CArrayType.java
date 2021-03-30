@@ -81,11 +81,14 @@ public final class CArrayType extends AArrayType implements CType {
 
   private String toASTString(String pDeclarator, boolean pQualified) {
     checkNotNull(pDeclarator);
+    final String aligned =
+        getAlignment().isPresent()
+            ? "__attribute__((__aligned__(" + getAlignment().getAsInt() + "))) "
+            : "";
+    final String arrayModifier = "[" + (length != null ? length.toASTString(pQualified) : "") + "]";
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
-        + getType()
-            .toASTString(
-                pDeclarator + ("[" + (length != null ? length.toASTString(pQualified) : "") + "]"));
+        + getType().toASTString(aligned + pDeclarator + arrayModifier);
   }
 
   public String toQualifiedASTString(String pDeclarator) {

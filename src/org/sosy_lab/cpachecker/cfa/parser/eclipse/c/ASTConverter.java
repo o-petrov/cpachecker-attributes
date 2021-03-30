@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.eclipse.cdt.core.dom.ast.IASTArrayDeclarator;
@@ -2214,7 +2215,14 @@ class ASTConverter {
       if (lengthExp != null) {
         lengthExp = simplifyExpressionRecursively(lengthExp);
       }
-      return new CArrayType(a.isConst(), a.isVolatile(), type, lengthExp);
+      // move alignment from element type to array type
+      CArrayType arrayType =
+          new CArrayType(
+              a.isConst(),
+              a.isVolatile(),
+              CTypes.withAttributes(type, false, OptionalInt.empty()),
+              lengthExp);
+      return CTypes.withAttributes(arrayType, false, type.getAlignment());
 
     } else {
       throw parseContext.parseError("Unknown array modifier", am);
