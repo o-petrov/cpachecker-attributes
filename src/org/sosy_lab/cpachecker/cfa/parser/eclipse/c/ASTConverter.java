@@ -2134,7 +2134,8 @@ class ASTConverter {
         type = handleModeAttribute((CSimpleType) type, mode, d);
       }
     }
-    return type;
+
+    return typeConverter.handleTypeAttributes(d, type);
   }
 
   /** Return normalized string for a name etc. in an attribute context. */
@@ -2216,13 +2217,15 @@ class ASTConverter {
         lengthExp = simplifyExpressionRecursively(lengthExp);
       }
       // move alignment from element type to array type
+      // FIXME does correct thing only for type got explicit __aligned__ in line with [].
+      OptionalInt al = type.getAlignment();
       CArrayType arrayType =
           new CArrayType(
               a.isConst(),
               a.isVolatile(),
               CTypes.withAttributes(type, false, OptionalInt.empty()),
               lengthExp);
-      return CTypes.withAttributes(arrayType, false, type.getAlignment());
+      return CTypes.withAttributes(arrayType, al);
 
     } else {
       throw parseContext.parseError("Unknown array modifier", am);

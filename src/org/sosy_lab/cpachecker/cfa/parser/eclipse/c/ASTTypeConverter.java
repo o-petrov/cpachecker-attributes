@@ -23,6 +23,7 @@ import org.eclipse.cdt.core.dom.ast.DOMException;
 import org.eclipse.cdt.core.dom.ast.IASTAttribute;
 import org.eclipse.cdt.core.dom.ast.IASTAttributeOwner;
 import org.eclipse.cdt.core.dom.ast.IASTDeclSpecifier;
+import org.eclipse.cdt.core.dom.ast.IASTDeclarator;
 import org.eclipse.cdt.core.dom.ast.IASTElaboratedTypeSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
 import org.eclipse.cdt.core.dom.ast.IASTNamedTypeSpecifier;
@@ -484,7 +485,9 @@ class ASTTypeConverter {
   }
 
   CType handleTypeAttributes(IASTAttributeOwner d, CType type) {
-    if (!(d instanceof IASTDeclSpecifier || d instanceof IASTPointerOperator)) {
+    if (!(d instanceof IASTDeclSpecifier
+        || d instanceof IASTPointerOperator
+        || d instanceof IASTDeclarator)) {
       throw new UnsupportedOperationException("Unexpected attribute owner: " + d);
     }
 
@@ -507,9 +510,10 @@ class ASTTypeConverter {
         } catch (NullPointerException e) {
           // default alignment as clause was not specified
           // TODO default is dependent on machine model
-          alignment = OptionalInt.of(8);
+          alignment = OptionalInt.of(16);
         } catch (NumberFormatException e) {
           // clause must be integer
+          // XXX might be _BIGGEST_ALIGNMENT_ or smth like that?
           throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
         }
       } else if (name.equals("packed")) {
@@ -517,7 +521,21 @@ class ASTTypeConverter {
       }
     }
 
-    return CTypes.withAttributes(type, packed, alignment);
+    if (packed && !(type instanceof CComplexType)) {
+      // TODO warning
+      packed = false;
+    }
+
+    if (packed && alignment.isPresent()) {
+      return CTypes.withAttributes(type, packed, alignment);
+    }
+    if (packed) {
+      return CTypes.withAttributes(type, packed);
+    }
+    if (alignment.isPresent()) {
+      return CTypes.withAttributes(type, alignment);
+    }
+    return type;
   }
 
   CStorageClass convertCStorageClass(final IASTDeclSpecifier d) {
