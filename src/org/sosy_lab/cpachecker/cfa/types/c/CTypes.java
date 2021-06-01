@@ -226,18 +226,57 @@ public final class CTypes {
       return type;
     }
 
+    boolean needUpdAlign = !type.getAlignment().equals(alignment);
+
     if (type instanceof CComplexType) {
-      if (packed == ((CComplexType) type).isPacked() && type.getAlignment().equals(alignment)) {
+      boolean needUpdPacked = packed != ((CComplexType) type).isPacked();
+      if (!needUpdPacked && !needUpdAlign) {
         return type;
       }
+
     } else if (packed) {
-      throw new UnsupportedOperationException("Cant forse __packed__ on type " + type);
-    } else if (type.getAlignment().equals(alignment)) {
+      throw new UnsupportedOperationException("Cant force __packed__ on type " + type);
+    } else if (!needUpdAlign) {
       return type;
     }
 
     @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
     T result = (T) type.accept(ForceAttributesVisitor.create(packed, alignment));
+    return result;
+  }
+
+  public static <T extends CType> T withAttributes(T type, final boolean packed) {
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    if (!(type instanceof CComplexType)) {
+      throw new UnsupportedOperationException("Cant force __packed__ on type " + type);
+    }
+
+    boolean needUpdPacked = packed != ((CComplexType) type).isPacked();
+    if (!needUpdPacked) {
+      return type;
+    }
+
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAttributesVisitor.create(packed, type.getAlignment()));
+    return result;
+  }
+
+  public static <T extends CType> T withAttributes(T type, final OptionalInt alignment) {
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    boolean needUpdAlign = !type.getAlignment().equals(alignment);
+    if (!needUpdAlign) {
+      return type;
+    }
+
+    boolean isPacked = (type instanceof CComplexType) && ((CComplexType) type).isPacked();
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAttributesVisitor.create(isPacked, alignment));
     return result;
   }
 
