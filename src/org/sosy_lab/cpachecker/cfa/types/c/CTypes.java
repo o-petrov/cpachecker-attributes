@@ -667,8 +667,15 @@ public final class CTypes {
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      // XXX t.realType.accept(this)?
-      return t;
+      return new CElaboratedType(
+          t.isConst(),
+          t.isVolatile(),
+          // packed,
+          alignment,
+          t.getKind(),
+          t.getName(),
+          t.getOrigName(),
+          t.getRealType());
     }
 
     @Override

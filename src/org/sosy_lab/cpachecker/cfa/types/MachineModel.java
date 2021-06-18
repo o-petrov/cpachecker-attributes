@@ -725,6 +725,10 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CElaboratedType t) throws IllegalArgumentException {
+      if (t.getAlignment().isPresent()) {
+        return t.getAlignment().getAsInt();
+      }
+
       CType def = t.getRealType();
       if (def != null) {
         return def.accept(this);
