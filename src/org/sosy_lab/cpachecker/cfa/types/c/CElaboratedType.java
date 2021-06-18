@@ -24,6 +24,7 @@ public final class CElaboratedType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final OptionalInt alignment;
 
   private int hashCache = 0;
 
@@ -32,16 +33,29 @@ public final class CElaboratedType implements CComplexType {
   public CElaboratedType(
       final boolean pConst,
       final boolean pVolatile,
+      final OptionalInt pAlignment,
       final ComplexTypeKind pKind,
       final String pName,
       final String pOrigName,
       final @Nullable CComplexType pRealType) {
+    checkArgument(pRealType != null || pAlignment.isEmpty());
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();
     realType = pRealType;
+  }
+
+  public CElaboratedType(
+      final boolean pConst,
+      final boolean pVolatile,
+      final ComplexTypeKind pKind,
+      final String pName,
+      final String pOrigName,
+      final @Nullable CComplexType pRealType) {
+    this(pConst, pVolatile, OptionalInt.empty(), pKind, pName, pOrigName, pRealType);
   }
 
   @Override
@@ -77,7 +91,7 @@ public final class CElaboratedType implements CComplexType {
   public @Nullable CComplexType getRealType() {
     if (realType instanceof CElaboratedType) {
       // resolve chains of elaborated types
-      return ((CElaboratedType)realType).getRealType();
+      return ((CElaboratedType) realType).getRealType(); // XXX with alignment
     }
     return realType;
   }
@@ -113,6 +127,11 @@ public final class CElaboratedType implements CComplexType {
 
     lASTString.append(kind.toASTString());
     lASTString.append(" ");
+    if (alignment.isPresent()) {
+      lASTString.append("__attribute__ ((__aligned__(");
+      lASTString.append(alignment.getAsInt());
+      lASTString.append("))) ");
+    }
     lASTString.append(name);
     lASTString.append(" ");
     lASTString.append(pDeclarator);
@@ -142,7 +161,7 @@ public final class CElaboratedType implements CComplexType {
 
   @Override
   public OptionalInt getAlignment() {
-    return realType == null ? OptionalInt.empty() : realType.getAlignment();
+    return realType == null ? OptionalInt.empty() : alignment;
   }
 
   @Override
