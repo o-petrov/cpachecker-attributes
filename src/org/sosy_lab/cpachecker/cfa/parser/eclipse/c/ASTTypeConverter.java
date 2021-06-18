@@ -526,6 +526,14 @@ class ASTTypeConverter {
       packed = false;
     }
 
+    if (alignment.isPresent() && type.getAlignment().isPresent()) {
+      if (type.getAlignment().getAsInt() >= alignment.getAsInt()
+          && !(type instanceof CElaboratedType)) {
+        // the alignment remains
+        alignment = OptionalInt.empty();
+      }
+    }
+
     if (packed && alignment.isPresent()) {
       return CTypes.withAttributes(type, packed, alignment);
     }
