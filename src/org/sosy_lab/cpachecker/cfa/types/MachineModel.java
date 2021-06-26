@@ -570,7 +570,7 @@ public enum MachineModel {
     }
 
     private BigInteger handleSizeOfUnion(CCompositeType pCompositeType) {
-      BigInteger size = BigInteger.ZERO;
+      BigInteger size = BigInteger.valueOf(pCompositeType.getAlignment().orElse(1));
       BigInteger sizeOfType = BigInteger.ZERO;
       // TODO: Take possible padding into account
       for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
@@ -702,17 +702,21 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CCompositeType t) throws IllegalArgumentException {
-
       switch (t.getKind()) {
         case STRUCT:
         case UNION:
           // TODO packed
           int alignof = t.getAlignment().orElse(1);
-          int alignOfType = 0;
+          int align1 = 0;
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : t.getMembers()) {
-            alignOfType = decl.getType().accept(this);
-            alignof = Math.max(alignof, alignOfType); // TODO whatif __aligned__ both?
+            CType mt = decl.getType();
+            align1 = decl.getType().accept(this);
+            if (mt.getAlignment().isPresent()) {
+              int align2 = CTypes.withAttributes(mt, OptionalInt.empty()).accept(this);
+              align1 = align2 > align1 ? align2 : align1;
+            }
+            alignof = Math.max(alignof, align1);
           }
           return alignof;
 
