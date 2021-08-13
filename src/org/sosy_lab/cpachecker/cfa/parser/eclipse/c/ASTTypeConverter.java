@@ -496,13 +496,9 @@ class ASTTypeConverter {
   CType handleTypeAttributes(IASTAttributeOwner d, CType type) {
     if (!(d instanceof IASTDeclSpecifier
         || d instanceof IASTPointerOperator
-        || d instanceof IASTDeclarator)) {
+        || d instanceof IASTDeclarator
+        || d instanceof IASTElaboratedTypeSpecifier)) {
       throw new UnsupportedOperationException("Unexpected attribute owner: " + d);
-    }
-
-    if (d instanceof IASTElaboratedTypeSpecifier) {
-      // attributes can be specified only for definitions, not forward declarations
-      throw new UnsupportedOperationException("Elaborated types can not have attributes");
     }
 
     boolean packed = false;
@@ -602,7 +598,9 @@ class ASTTypeConverter {
       name = scope.getFileSpecificTypeName(name);
     }
 
-    return new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
+    CElaboratedType ctype =
+        new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
+    return (CElaboratedType) handleTypeAttributes(d, ctype);
   }
 
   /** returns a pointerType, that wraps the type. */
