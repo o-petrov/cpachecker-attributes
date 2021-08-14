@@ -16,6 +16,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.AbstractSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
@@ -35,6 +36,7 @@ public final class CEnumType implements CComplexType {
   private final boolean isVolatile;
   private final boolean isPacked;
   private int hashCache = 0;
+  private CSimpleType integerType; // used for size and align
 
   public CEnumType(final boolean pConst, final boolean pVolatile, final boolean pPacked,
       final List<CEnumerator> pEnumerators, final String pName, final String pOrigName) {
@@ -306,5 +308,18 @@ public final class CEnumType implements CComplexType {
         enumerators,
         name,
         origName);
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
+    return OptionalInt.empty();
+  }
+
+  public void setType(CSimpleType pIntegerType) {
+    integerType = pIntegerType;
+  }
+
+  public CSimpleType getType() {
+    return integerType;
   }
 }
