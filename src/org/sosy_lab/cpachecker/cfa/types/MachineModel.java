@@ -11,7 +11,6 @@ package org.sosy_lab.cpachecker.cfa.types;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigInteger;
@@ -587,20 +586,13 @@ public enum MachineModel {
       if (def != null) {
         return def.accept(this);
       }
-
-      if (pElaboratedType.getKind() == ComplexTypeKind.ENUM) {
-        return BigInteger.valueOf(model.getSizeofInt());
-      }
-
       throw new IllegalArgumentException(
           "Cannot compute size of incomplete type " + pElaboratedType);
     }
 
     @Override
     public BigInteger visit(CEnumType pEnumType) throws IllegalArgumentException {
-      // We assume that all enumerator types are identical, and that there is at least one enum.
-      Preconditions.checkState(!pEnumType.getEnumerators().isEmpty());
-      return model.getSizeof(pEnumType.getEnumerators().get(0).getType());
+      return BigInteger.valueOf(model.getSizeof(pEnumType.getType()));
     }
 
     @Override
@@ -729,27 +721,24 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CElaboratedType t) throws IllegalArgumentException {
-      if (t.getAlignment().isPresent()) {
-        return t.getAlignment().getAsInt();
-      }
-
+      Integer defaultAlign = 1;
       CType def = t.getRealType();
       if (def != null) {
-        return def.accept(this);
+        defaultAlign = def.accept(this);
+      } else {
+        throw new IllegalArgumentException("Cannot compute alignment of incomplete type " + t);
       }
-
-      if (t.getKind() == ComplexTypeKind.ENUM) {
-        // TODO packed
-        return model.getSizeofInt();
+      if (t.getAlignment().isPresent()) {
+        return t.getAlignment.getAsInt();
+      } else {
+        return defaultAlignment;
       }
-
-      throw new IllegalArgumentException("Cannot compute alignment of incomplete type " + t);
     }
 
     @Override
     public Integer visit(CEnumType t) throws IllegalArgumentException {
-      // enums are always ints // TODO packed are not
-      return model.getAlignofInt();
+      // enums can't be aligned, but can be packed (or just bigger than int)
+      return alignofSimpleType(t.getType());
     }
 
     @Override
@@ -774,7 +763,10 @@ public enum MachineModel {
       if (attr.isPresent()) {
         return attr.getAsInt();
       }
+      return alignofSimpleType(t);
+    }
 
+    private Integer alignofSimpleType(CSimpleType t) throws AssertionError {
       switch (t.getType()) {
         case BOOL:
           return model.getAlignofBool();

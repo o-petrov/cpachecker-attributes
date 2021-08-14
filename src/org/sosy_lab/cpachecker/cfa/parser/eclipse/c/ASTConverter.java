@@ -2407,7 +2407,10 @@ class ASTConverter {
   private static final ImmutableList<CSimpleType> ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size
           CNumericTypes.SIGNED_INT, CNumericTypes.UNSIGNED_INT, CNumericTypes.SIGNED_LONG_LONG_INT);
-
+  private static final ImmutableList<CSimpleType> PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES =
+      ImmutableList.of( // these are used only for packed enums
+          CNumericTypes.SIGNED_CHAR, CNumericTypes.UNSIGNED_CHAR,
+          CNumericTypes.SHORT_INT, CNumericTypes.UNSIGNED_SHORT_INT);
   /**
    * Compute a matching integer type for an enumeration. We use SIGNED_INT and switch to larger type
    * if needed.
@@ -2427,10 +2430,21 @@ class ASTConverter {
         enumStatistics.getCount() > 0, "enumeration does not provide any values: %s", enumType);
     final BigInteger minValue = BigInteger.valueOf(enumStatistics.getMin());
     final BigInteger maxValue = BigInteger.valueOf(enumStatistics.getMax());
+    if (enumType.isPacked()) {
+      for (CSimpleType integerType : PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES) {
+        if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
+            && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
+          enumType.setType(integerType);
+          // all enumeration values are matching into the smaller range, but are still int
+          return CNumericTypes.SIGNED_INT;
+        }
+      }
+    }
     for (CSimpleType integerType : ENUM_REPRESENTATION_CANDIDATE_TYPES) {
       if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
           && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
         // if all enumeration values are matching into the range, we use it
+        enumType.setType(integerType);
         return integerType;
       }
     }
