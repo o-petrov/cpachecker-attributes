@@ -14,6 +14,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 
 /**
  * This class represents the type "void".
@@ -100,5 +101,15 @@ public final class CVoidType implements CType {
 
   private Object readResolve() {
     return create(isConst, isVolatile);
+  }
+
+  @Override
+  public boolean isMember() {
+    throw new UnsupportedOperationException("Void cant be member");
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
+    throw new UnsupportedOperationException("Void cant be aligned");
   }
 }

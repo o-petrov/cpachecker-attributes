@@ -47,6 +47,11 @@ public final class CProblemType implements CType {
   }
 
   @Override
+  public boolean isMember() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public boolean isIncomplete() {
     throw new UnsupportedOperationException();
   }

@@ -27,20 +27,19 @@ public final class CPointerType implements CType, Serializable {
   private final boolean isConst;
   private final boolean isVolatile;
   private final OptionalInt alignment;
+  private final boolean isMember;
 
-  public CPointerType(final boolean pConst, final boolean pVolatile,
-      final OptionalInt pAlignment, final CType pType) {
+  public CPointerType(
+      boolean pConst, boolean pVolatile, OptionalInt pAlignment, boolean pMember, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
     alignment = pAlignment;
+    isMember = pMember;
     type = checkNotNull(pType);
   }
 
-  public CPointerType(final boolean pConst, final boolean pVolatile, final CType pType) {
-    isConst = pConst;
-    isVolatile = pVolatile;
-    alignment = OptionalInt.empty();
-    type = checkNotNull(pType);
+  public CPointerType(boolean pConst, boolean pVolatile, CType pType) {
+    this(pConst, pVolatile, OptionalInt.empty(), false, pType);
   }
 
   @Override
@@ -56,6 +55,11 @@ public final class CPointerType implements CType, Serializable {
   @Override
   public OptionalInt getAlignment() {
     return alignment;
+  }
+
+  @Override
+  public boolean isMember() {
+    return isMember;
   }
 
   public CType getType() {
@@ -114,7 +118,7 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(isConst, isVolatile, alignment, type);
+    return Objects.hash(isConst, isVolatile, isMember, alignment, type);
   }
 
   /**
@@ -136,6 +140,7 @@ public final class CPointerType implements CType, Serializable {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && isMember == other.isMember
         && alignment.equals(other.alignment)
         && Objects.equals(type, other.type);
   }
@@ -148,6 +153,10 @@ public final class CPointerType implements CType, Serializable {
   @Override
   public CPointerType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     return new CPointerType(
-        isConst || pForceConst, isVolatile || pForceVolatile, alignment, type.getCanonicalType());
+        isConst || pForceConst,
+        isVolatile || pForceVolatile,
+        alignment,
+        isMember,
+        type.getCanonicalType());
   }
 }

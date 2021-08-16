@@ -25,10 +25,10 @@ import org.sosy_lab.cpachecker.cfa.types.Type;
 @SuppressWarnings("serial")
 public interface CType extends Type {
 
-  boolean isConst();
-
   @Override
   String toString();
+
+  boolean isConst();
 
   boolean isVolatile();
 
@@ -39,10 +39,11 @@ public interface CType extends Type {
    */
   boolean isIncomplete();
 
+  /** Alignment rules differ for struct members and variables */
+  boolean isMember();
+
   /** @return alignment if specified in attributes or via _Alignas */
-  default OptionalInt getAlignment() {
-    return OptionalInt.empty();
-  }
+  OptionalInt getAlignment();
 
   /**
    * Will throw a UnsupportedOperationException

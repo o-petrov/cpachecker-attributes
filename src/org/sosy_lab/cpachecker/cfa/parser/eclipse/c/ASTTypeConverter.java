@@ -487,8 +487,7 @@ class ASTTypeConverter {
   CType handleTypeAttributes(IASTAttributeOwner d, CType type) {
     if (!(d instanceof IASTDeclSpecifier
         || d instanceof IASTPointerOperator
-        || d instanceof IASTDeclarator
-        || d instanceof IASTElaboratedTypeSpecifier)) {
+        || d instanceof IASTDeclarator)) {
       throw new UnsupportedOperationException("Unexpected attribute owner: " + d);
     }
 
