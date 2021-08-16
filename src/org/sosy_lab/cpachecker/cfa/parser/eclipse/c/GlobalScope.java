@@ -355,8 +355,9 @@ class GlobalScope extends AbstractScope {
           new CCompositeType(
               oldType.isConst(),
               oldType.isVolatile(),
-              oldType.isPacked(),
               oldType.getAlignment(),
+              oldType.isPacked(),
+              oldType.isMember(),
               oldType.getKind(),
               newName,
               oldType.getOrigName());

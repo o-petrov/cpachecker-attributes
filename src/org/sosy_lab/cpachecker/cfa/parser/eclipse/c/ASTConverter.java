@@ -645,7 +645,8 @@ class ASTConverter {
       // This should actually be handled by Eclipse, because the C standard says in §5.4.2.1 (3)
       // that array types of operands are converted to pointer types except in a very few
       // specific cases (for which there will never be a temporary variable).
-      type = new CPointerType(type.isConst(), type.isVolatile(), type.getAlignment(), ((CArrayType) type).getType());
+      type = new CPointerType(
+          type.isConst(), type.isVolatile(), type.getAlignment(), false, ((CArrayType) type).getType());
     }
 
     CVariableDeclaration decl =
@@ -2194,13 +2195,20 @@ class ASTConverter {
         throw parseContext.parseError("Unsupported mode " + mode, context);
     }
 
-    // Copy const, volatile, alignment and signedness from original type, rest from newType
-    return new CSimpleType(type.isConst(), type.isVolatile(), newType.getType(),
-        newType.isLong(), newType.isShort(), type.isSigned(), type.isUnsigned(),
+    // Copy const, volatile and signedness from original type, rest from newType
+    return new CSimpleType(
+        type.isConst(),
+        type.isVolatile(),
+        type.getAlignment(),
+        type.isMember(),
+        newType.getType(),
+        newType.isLong(),
+        newType.isShort(),
+        type.isSigned(),
+        type.isUnsigned(),
         false, // checked above
         false, // checked above
-        newType.isLongLong(),
-        type.getAlignment());
+        newType.isLongLong());
   }
 
   private CType convert(IASTArrayModifier am, CType type) {
@@ -2238,10 +2246,10 @@ class ASTConverter {
     if (returnType instanceof CSimpleType) {
       CSimpleType t = (CSimpleType)returnType;
       if (t.getType() == CBasicType.UNSPECIFIED) {
-        // type of functions is implicitly int it not specified
-        returnType = new CSimpleType(t.isConst(), t.isVolatile(), CBasicType.INT,
-            t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(), t.isComplex(),
-            t.isImaginary(), t.isLongLong(), t.getAlignment());
+        // type of functions is implicitly int if not specified
+        returnType = new CSimpleType(t.isConst(), t.isVolatile(), t.getAlignment(), t.isMember(),
+            CBasicType.INT, t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+            t.isComplex(), t.isImaginary(), t.isLongLong());
       }
     }
 

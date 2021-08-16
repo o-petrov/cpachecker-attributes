@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.types.c;
 
 import com.google.common.base.Preconditions;
+import java.util.OptionalInt;
 import org.sosy_lab.cpachecker.cfa.types.c.CComplexType.ComplexTypeKind;
 
 /** Instances of this class represent C bit-field types. */
@@ -150,4 +151,13 @@ public class CBitFieldType implements CType {
     return false;
   }
 
+  @Override
+  public boolean isMember() {
+    return true;
+  }
+
+  @Override
+  public OptionalInt getAlignment() {
+    throw new UnsupportedOperationException();
+  }
 }

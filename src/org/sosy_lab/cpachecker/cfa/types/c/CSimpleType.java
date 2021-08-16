@@ -37,16 +37,27 @@ public final class CSimpleType implements CType, Serializable {
   private final boolean isConst;
   private final boolean isVolatile;
   private final OptionalInt alignment;
+  private final boolean isMember;
 
   @LazyInit private int hashCache = 0;
 
-  public CSimpleType(final boolean pConst, final boolean pVolatile,
-      final CBasicType pType, final boolean pIsLong, final boolean pIsShort,
-      final boolean pIsSigned, final boolean pIsUnsigned,
-      final boolean pIsComplex, final boolean pIsImaginary,
-      final boolean pIsLongLong, final OptionalInt pAlignment) {
+  public CSimpleType(
+      boolean pConst,
+      boolean pVolatile,
+      OptionalInt pAlignment,
+      boolean pMember,
+      CBasicType pType,
+      boolean pIsLong,
+      boolean pIsShort,
+      boolean pIsSigned,
+      boolean pIsUnsigned,
+      boolean pIsComplex,
+      boolean pIsImaginary,
+      boolean pIsLongLong) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
+    isMember = pMember;
     type = checkNotNull(pType);
     isLong = pIsLong;
     isShort = pIsShort;
@@ -55,25 +66,37 @@ public final class CSimpleType implements CType, Serializable {
     isComplex = pIsComplex;
     isImaginary = pIsImaginary;
     isLongLong = pIsLongLong;
-    alignment = pAlignment;
   }
 
-  public CSimpleType(final boolean pConst, final boolean pVolatile,
-      final CBasicType pType, final boolean pIsLong, final boolean pIsShort,
-      final boolean pIsSigned, final boolean pIsUnsigned,
-      final boolean pIsComplex, final boolean pIsImaginary,
-      final boolean pIsLongLong) {
-    isConst = pConst;
-    isVolatile = pVolatile;
-    type = checkNotNull(pType);
-    isLong = pIsLong;
-    isShort = pIsShort;
-    isSigned = pIsSigned;
-    isUnsigned = pIsUnsigned;
-    isComplex = pIsComplex;
-    isImaginary = pIsImaginary;
-    isLongLong = pIsLongLong;
-    alignment = OptionalInt.empty();
+  public CSimpleType(boolean pConst, boolean pVolatile,
+      OptionalInt pAlignment,
+      CBasicType pType,
+      boolean pIsLong,
+      boolean pIsShort,
+      boolean pIsSigned,
+      boolean pIsUnsigned,
+      boolean pIsComplex,
+      boolean pIsImaginary,
+      boolean pIsLongLong) {
+    this(pConst, pVolatile, pAlignment, false, pType,
+        pIsLong, pIsShort, pIsSigned, pIsUnsigned,
+        pIsComplex, pIsImaginary, pIsLongLong);
+  }
+
+  public CSimpleType(
+      boolean pConst,
+      boolean pVolatile,
+      CBasicType pType,
+      boolean pIsLong,
+      boolean pIsShort,
+      boolean pIsSigned,
+      boolean pIsUnsigned,
+      boolean pIsComplex,
+      boolean pIsImaginary,
+      boolean pIsLongLong) {
+    this(pConst, pVolatile, OptionalInt.empty(), false, pType,
+        pIsLong, pIsShort, pIsSigned, pIsUnsigned,
+        pIsComplex, pIsImaginary, pIsLongLong);
   }
 
   @Override
@@ -89,6 +112,11 @@ public final class CSimpleType implements CType, Serializable {
   @Override
   public OptionalInt getAlignment() {
     return alignment;
+  }
+
+  @Override
+  public boolean isMember() {
+    return isMember;
   }
 
   public CBasicType getType() {
@@ -135,7 +163,8 @@ public final class CSimpleType implements CType, Serializable {
           Objects.hash(isConst, isVolatile, type,
               isComplex, isImaginary,
               isLong, isLongLong, isShort,
-              isSigned, isUnsigned, alignment);
+              isSigned, isUnsigned,
+              alignment, isMember);
     }
     return hashCache;
   }
@@ -157,11 +186,17 @@ public final class CSimpleType implements CType, Serializable {
 
     CSimpleType other = (CSimpleType) obj;
 
-    return isConst == other.isConst && isVolatile == other.isVolatile
-        && isComplex == other.isComplex && isImaginary == other.isImaginary
-        && isSigned == other.isSigned && isUnsigned == other.isUnsigned 
-        && isLong == other.isLong && isLongLong == other.isLongLong
-        && isShort == other.isShort && type == other.type
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && isComplex == other.isComplex
+        && isImaginary == other.isImaginary
+        && isSigned == other.isSigned
+        && isUnsigned == other.isUnsigned
+        && isLong == other.isLong
+        && isLongLong == other.isLongLong
+        && isShort == other.isShort
+        && type == other.type
+        && isMember == other.isMember
         && alignment.equals(other.alignment);
   }
 
@@ -244,8 +279,9 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     return new CSimpleType(
-        isConst || pForceConst, isVolatile || pForceVolatile, newType,
+        isConst || pForceConst, isVolatile || pForceVolatile,
+        alignment, isMember, newType,
         isLong, isShort, newIsSigned, isUnsigned,
-        isComplex, isImaginary, isLongLong, alignment);
+        isComplex, isImaginary, isLongLong);
   }
 }

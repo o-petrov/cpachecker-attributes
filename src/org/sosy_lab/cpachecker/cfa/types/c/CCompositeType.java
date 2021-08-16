@@ -14,6 +14,7 @@ import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
@@ -30,63 +31,88 @@ public final class CCompositeType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
-  private final boolean isPacked;
   private final OptionalInt alignment;
+  private final boolean isPacked;
+  private final boolean isMember;
 
   public CCompositeType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final boolean pPacked,
-      final OptionalInt pAlignment,
-      final CComplexType.ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName) {
-
+      boolean pConst,
+      boolean pVolatile,
+      OptionalInt pAlignment,
+      boolean pPacked,
+      boolean pMember,
+      CComplexType.ComplexTypeKind pKind,
+      String pName,
+      String pOrigName) {
     checkNotNull(pKind);
     checkArgument(pKind == ComplexTypeKind.STRUCT || pKind == ComplexTypeKind.UNION);
     isConst= pConst;
     isVolatile = pVolatile;
-    isPacked = pPacked;
     alignment = pAlignment;
+    isPacked = pPacked;
+    isMember = pMember;
     kind = pKind;
     name = pName.intern();
     origName = pOrigName.intern();
   }
 
   public CCompositeType(
+      boolean pConst,
+      boolean pVolatile,
+      OptionalInt pAlignment,
+      boolean pPacked,
+      boolean pMember,
+      CComplexType.ComplexTypeKind pKind,
+      List<CCompositeTypeMemberDeclaration> pMembers,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, pAlignment, pPacked, pMember, pKind, pName, pOrigName);
+    setMembers(pMembers);
+  }
+
+  public CCompositeType(
       final boolean pConst,
       final boolean pVolatile,
-      final boolean pPacked,
       final OptionalInt pAlignment,
+      final boolean pPacked,
       final CComplexType.ComplexTypeKind pKind,
       final List<CCompositeTypeMemberDeclaration> pMembers,
       final String pName,
       final String pOrigName) {
-    this(pConst, pVolatile, pPacked, pAlignment, pKind, pName, pOrigName);
-    checkMembers(pMembers);
-    members = ImmutableList.copyOf(pMembers);
+    this(pConst, pVolatile, pAlignment, pPacked, false, pKind, pMembers, pName, pOrigName);
   }
 
   public CCompositeType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final CComplexType.ComplexTypeKind pKind,
-      final List<CCompositeTypeMemberDeclaration> pMembers,
-      final String pName,
-      final String pOrigName) {
-    this(pConst, pVolatile, false, OptionalInt.empty(), pKind, pMembers, pName, pOrigName);
+      boolean pConst,
+      boolean pVolatile,
+      OptionalInt pAlignment,
+      boolean pPacked,
+      CComplexType.ComplexTypeKind pKind,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, pAlignment, pPacked, false, pKind, pName, pOrigName);
   }
 
   public CCompositeType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final CComplexType.ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName) {
-    this(pConst, pVolatile, false, OptionalInt.empty(), pKind, pName, pOrigName);
+      boolean pConst,
+      boolean pVolatile,
+      CComplexType.ComplexTypeKind pKind,
+      List<CCompositeTypeMemberDeclaration> pMembers,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, OptionalInt.empty(), false, false, pKind, pMembers, pName, pOrigName);
   }
 
-  private void checkMembers(List<CCompositeTypeMemberDeclaration> pMembers) {
+  public CCompositeType(boolean pConst, boolean pVolatile,
+      CComplexType.ComplexTypeKind pKind, String pName, String pOrigName) {
+    this(pConst, pVolatile, OptionalInt.empty(), false, false, pKind, pName, pOrigName);
+  }
+
+  public void setMembers(List<CCompositeTypeMemberDeclaration> pMembers) {
+    checkState(members == null, "list of CCompositeType members already initialized");
+
+    Builder<CCompositeTypeMemberDeclaration> builder = ImmutableList.builder();
+
     for (Iterator<CCompositeTypeMemberDeclaration> it = pMembers.iterator(); it.hasNext();) {
       CCompositeTypeMemberDeclaration member = it.next();
       if (member.getType().isIncomplete()) {
@@ -97,7 +123,13 @@ public final class CCompositeType implements CComplexType {
         checkArgument(member.getType().getCanonicalType() instanceof CArrayType,
             "incomplete non-array member %s in last position of %s", member, this);
       }
+      CType t = CTypes.asMember(member.getType());
+      member = new CCompositeTypeMemberDeclaration(t, member.name);
+
+      builder.add(member);
     }
+
+    members = builder.build();
   }
 
   @Override
@@ -108,12 +140,6 @@ public final class CCompositeType implements CComplexType {
   public List<CCompositeTypeMemberDeclaration> getMembers() {
     checkState(members != null, "list of CCompositeType members not yet initialized");
     return members;
-  }
-
-  public void setMembers(List<CCompositeTypeMemberDeclaration> list) {
-    checkState(members == null, "list of CCompositeType members already initialized");
-    checkMembers(list);
-    members = ImmutableList.copyOf(list);
   }
 
   @Override
@@ -262,13 +288,18 @@ public final class CCompositeType implements CComplexType {
   }
 
   @Override
+  public OptionalInt getAlignment() {
+    return alignment;
+  }
+
+  @Override
   public boolean isPacked() {
     return isPacked;
   }
 
   @Override
-  public OptionalInt getAlignment() {
-    return alignment;
+  public boolean isMember() {
+    return isMember;
   }
 
   @Override
@@ -301,8 +332,9 @@ public final class CCompositeType implements CComplexType {
     return isConst == other.isConst
         && isVolatile == other.isVolatile
         && isPacked == other.isPacked
-        && alignment.equals(other.alignment)
+        && isMember == other.isMember
         && kind == other.kind
+        && alignment.equals(other.alignment)
         && Objects.equals(name, other.name);
   }
 
@@ -337,10 +369,8 @@ public final class CCompositeType implements CComplexType {
       return this;
     }
     CCompositeType result =
-        new CCompositeType(
-            isConst || pForceConst, isVolatile || pForceVolatile,
-            isPacked, alignment,
-            kind, name, origName);
+        new CCompositeType(isConst || pForceConst, isVolatile || pForceVolatile,
+            alignment, isPacked, isMember, kind, name, origName);
     if (members != null) {
       result.setMembers(members);
     }

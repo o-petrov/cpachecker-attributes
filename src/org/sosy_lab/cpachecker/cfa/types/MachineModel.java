@@ -679,6 +679,14 @@ public enum MachineModel {
       this.model = model;
     }
 
+    private Integer getAlign(CType t, int defaultAlign) {
+      if (t.getAlignment().isEmpty()) {
+        return defaultAlign;
+      }
+      int specifiedAlign = t.getAlignment().getAsInt();
+      return t.isMember() && defaultAlign > specifiedAlign ? defaultAlign : specifiedAlign;
+    }
+
     @Override
     public Integer visit(CArrayType t) throws IllegalArgumentException {
       OptionalInt alignOfArray = t.getAlignment();
@@ -728,11 +736,7 @@ public enum MachineModel {
       } else {
         throw new IllegalArgumentException("Cannot compute alignment of incomplete type " + t);
       }
-      if (t.getAlignment().isPresent()) {
-        return t.getAlignment.getAsInt();
-      } else {
-        return defaultAlignment;
-      }
+      return getAlign(t, defaultAlign);
     }
 
     @Override
@@ -749,7 +753,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CPointerType t) throws IllegalArgumentException {
-      return t.getAlignment().orElse(model.getAlignofPtr());
+      return getAlign(t, model.getAlignofPtr());
     }
 
     @Override
@@ -759,11 +763,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CSimpleType t) throws IllegalArgumentException {
-      OptionalInt attr = t.getAlignment();
-      if (attr.isPresent()) {
-        return attr.getAsInt();
-      }
-      return alignofSimpleType(t);
+      return getAlign(t, alignofSimpleType(t));
     }
 
     private Integer alignofSimpleType(CSimpleType t) throws AssertionError {
@@ -802,7 +802,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CTypedefType t) throws IllegalArgumentException {
-      return t.getAlignment().orElse(t.getRealType().accept(this));
+      return getAlign(t, t.getRealType().accept(this));
     }
 
     @Override

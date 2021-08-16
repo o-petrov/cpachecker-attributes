@@ -259,8 +259,10 @@ public final class CTypes {
       return type;
     }
 
+    OptionalInt alignment = type instanceof CEnumType ? OptionalInt.empty() : type.getAlignment();
+
     @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
-    T result = (T) type.accept(ForceAttributesVisitor.create(packed, type.getAlignment()));
+    T result = (T) type.accept(ForceAttributesVisitor.create(packed, alignment));
     return result;
   }
 
@@ -278,6 +280,16 @@ public final class CTypes {
     @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
     T result = (T) type.accept(ForceAttributesVisitor.create(isPacked, alignment));
     return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends CType> T asMember(T type) {
+    return type.isMember() ? type : (T) type.accept(ForceMemberVisitor.TRUE);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends CType> T asNotMember(T type) {
+    return !type.isMember() ? type : (T) type.accept(ForceMemberVisitor.FALSE);
   }
 
   /**
@@ -490,23 +502,27 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(constValue, t.isVolatile(), t.getType(), t.getLength());
+      return new CArrayType(
+          constValue, t.isVolatile(), t.getAlignment(), t.isMember(), t.getType(), t.getLength());
     }
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(
-          constValue, t.isVolatile(), t.isPacked(), t.getAlignment(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+      return new CCompositeType(constValue, t.isVolatile(),
+          t.getAlignment(), t.isPacked(), t.isMember(),
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return new CElaboratedType(constValue, t.isVolatile(), t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+      return new CElaboratedType(constValue, t.isVolatile(), t.getAlignment(), t.isMember(),
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
-      return new CEnumType(constValue, t.isVolatile(), t.getEnumerators(), t.getName(), t.getOrigName());
+      return new CEnumType(constValue, t.isVolatile(), t.isPacked(),
+          t.getEnumerators(), t.getName(), t.getOrigName());
     }
 
     @Override
@@ -517,7 +533,8 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(constValue, t.isVolatile(), t.getType());
+      return new CPointerType(
+          constValue, t.isVolatile(), t.getAlignment(), t.isMember(), t.getType());
     }
 
     @Override
@@ -527,17 +544,15 @@ public final class CTypes {
 
     @Override
     public CSimpleType visit(CSimpleType t) {
-      return new CSimpleType(
-          constValue, t.isVolatile(), t.getType(),
-          t.isLong(), t.isShort(),
-          t.isSigned(), t.isUnsigned(),
-          t.isComplex(), t.isImaginary(),
-          t.isLongLong(), t.getAlignment());
+      return new CSimpleType(constValue, t.isVolatile(), t.getAlignment(), t.isMember(),
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
     }
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(constValue, t.isVolatile(), t.getName(), t.getRealType());
+      return new CTypedefType(
+          constValue, t.isVolatile(), t.getAlignment(), t.isMember(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -566,22 +581,27 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(t.isConst(), volatileValue, t.getType(), t.getLength());
+      return new CArrayType(
+          t.isConst(), volatileValue, t.getAlignment(), t.isMember(), t.getType(), t.getLength());
     }
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(t.isConst(), volatileValue, t.isPacked(), t.getAlignment(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+      return new CCompositeType(t.isConst(), volatileValue,
+          t.getAlignment(), t.isPacked(), t.isMember(),
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return new CElaboratedType(t.isConst(), volatileValue, t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+      return new CElaboratedType(t.isConst(), volatileValue, t.getAlignment(), t.isMember(),
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
-      return new CEnumType(t.isConst(), volatileValue, t.getEnumerators(), t.getName(), t.getOrigName());
+      return new CEnumType(t.isConst(), volatileValue, t.isPacked(),
+          t.getEnumerators(), t.getName(), t.getOrigName());
     }
 
     @Override
@@ -592,7 +612,8 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(t.isConst(), volatileValue, t.getType());
+      return new CPointerType(
+          t.isConst(), volatileValue, t.getAlignment(), t.isMember(), t.getType());
     }
 
     @Override
@@ -602,17 +623,15 @@ public final class CTypes {
 
     @Override
     public CSimpleType visit(CSimpleType t) {
-      return new CSimpleType(
-          t.isConst(), volatileValue, t.getType(),
-          t.isLong(), t.isShort(),
-          t.isSigned(), t.isUnsigned(),
-          t.isComplex(), t.isImaginary(),
-          t.isLongLong(), t.getAlignment());
+      return new CSimpleType(t.isConst(), volatileValue, t.getAlignment(), t.isMember(),
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
     }
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(t.isConst(), volatileValue, t.getName(), t.getRealType());
+      return new CTypedefType(
+          t.isConst(), volatileValue, t.getAlignment(), t.isMember(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -634,7 +653,7 @@ public final class CTypes {
     private static HashMap<Pair<Boolean, OptionalInt>, ForceAttributesVisitor> instances =
         new HashMap<>(10);
 
-    public static ForceAttributesVisitor create(final boolean packed, final OptionalInt alignment) {
+    public static ForceAttributesVisitor create(boolean packed, OptionalInt alignment) {
       Pair<Boolean, OptionalInt> key = Pair.of(packed, alignment);
       ForceAttributesVisitor v = instances.get(key);
       if (v == null) {
@@ -644,7 +663,7 @@ public final class CTypes {
       return v;
     }
 
-    private ForceAttributesVisitor(final boolean pPacked, final OptionalInt pAlignment) {
+    private ForceAttributesVisitor(boolean pPacked, OptionalInt pAlignment) {
       packed = pPacked;
       alignment = pAlignment;
     }
@@ -653,29 +672,20 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(t.isConst(), t.isVolatile(), alignment, t.getType(), t.getLength());
+      return new CArrayType(
+          t.isConst(), t.isVolatile(), alignment, t.isMember(), t.getType(), t.getLength());
     }
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(
-          t.isConst(), t.isVolatile(),
-          packed, alignment,
-          t.getKind(), t.getMembers(),
-          t.getName(), t.getOrigName());
+      return new CCompositeType(t.isConst(), t.isVolatile(), alignment, packed, t.isMember(),
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return new CElaboratedType(
-          t.isConst(),
-          t.isVolatile(),
-          // packed,
-          alignment,
-          t.getKind(),
-          t.getName(),
-          t.getOrigName(),
-          t.getRealType());
+      return new CElaboratedType(t.isConst(), t.isVolatile(), alignment, t.isMember(),
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
     }
 
     @Override
@@ -693,7 +703,7 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(t.isConst(), t.isVolatile(), alignment, t.getType());
+      return new CPointerType(t.isConst(), t.isVolatile(), alignment, t.isMember(), t.getType());
     }
 
     @Override
@@ -703,17 +713,15 @@ public final class CTypes {
 
     @Override
     public CSimpleType visit(CSimpleType t) {
-      return new CSimpleType(
-          t.isConst(), t.isVolatile(), t.getType(),
-          t.isLong(), t.isShort(),
-          t.isSigned(), t.isUnsigned(),
-          t.isComplex(), t.isImaginary(),
-          t.isLongLong(), alignment);
+      return new CSimpleType(t.isConst(), t.isVolatile(), alignment, t.isMember(),
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
     }
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(t.isConst(), t.isVolatile(), alignment, t.getName(), t.getRealType());
+      return new CTypedefType(
+          t.isConst(), t.isVolatile(), alignment, t.isMember(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -726,6 +734,80 @@ public final class CTypes {
     @Override
     public CType visit(CBitFieldType t) {
       return t; // TODO
+    }
+  }
+
+  private enum ForceMemberVisitor implements CTypeVisitor<CType, NoException> {
+    FALSE(false),
+    TRUE(true);
+
+    private final boolean isMember;
+
+    ForceMemberVisitor(boolean pMember) {
+      isMember = pMember;
+    }
+
+    // Make sure to always return instances of exactly the same classes!
+
+    @Override
+    public CArrayType visit(CArrayType t) {
+      return new CArrayType(
+          t.isConst(), t.isVolatile(), t.getAlignment(), isMember, t.getType(), t.getLength());
+    }
+
+    @Override
+    public CCompositeType visit(CCompositeType t) {
+      return new CCompositeType(t.isConst(), t.isVolatile(), t.getAlignment(), t.isPacked(), isMember,
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+    }
+
+    @Override
+    public CElaboratedType visit(CElaboratedType t) {
+      return new CElaboratedType(t.isConst(), t.isVolatile(), t.getAlignment(), isMember,
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+    }
+
+    @Override
+    public CEnumType visit(CEnumType t) {
+      return t;
+    }
+
+    @Override
+    public CFunctionType visit(CFunctionType t) {
+      return t; // XXX
+    }
+
+    @Override
+    public CPointerType visit(CPointerType t) {
+      return new CPointerType(t.isConst(), t.isVolatile(), t.getAlignment(), isMember, t.getType());
+    }
+
+    @Override
+    public CProblemType visit(CProblemType t) {
+      return t;
+    }
+
+    @Override
+    public CSimpleType visit(CSimpleType t) {
+      return new CSimpleType(t.isConst(), t.isVolatile(), t.getAlignment(), isMember,
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
+    }
+
+    @Override
+    public CTypedefType visit(CTypedefType t) {
+      return new CTypedefType(
+          t.isConst(), t.isVolatile(), t.getAlignment(), isMember, t.getName(), t.getRealType());
+    }
+
+    @Override
+    public CType visit(CVoidType t) {
+      return CVoidType.create(t.isConst(), t.isVolatile());
+    }
+
+    @Override
+    public CType visit(CBitFieldType t) {
+      return t;
     }
   }
 }

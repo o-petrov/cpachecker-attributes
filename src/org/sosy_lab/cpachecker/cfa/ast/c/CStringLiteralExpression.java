@@ -119,10 +119,12 @@ public final class CStringLiteralExpression extends AStringLiteralExpression imp
 
   public CArrayType transformTypeToArrayType() throws UnrecognizedCodeException {
 
-    CExpression length = new CIntegerLiteralExpression(getFileLocation(),
-        new CSimpleType(false, false, CBasicType.INT, false, false, false,false,
-            false, false, false), BigInteger
-        .valueOf(getValue().length() -1));
+    CExpression length =
+        new CIntegerLiteralExpression(
+            getFileLocation(),
+            new CSimpleType(
+                false, false, CBasicType.INT, false, false, false, false, false, false, false),
+            BigInteger.valueOf(getValue().length() - 1));
 
     if (getExpressionType() instanceof CArrayType) {
       CArrayType arrayType = (CArrayType) getExpressionType();

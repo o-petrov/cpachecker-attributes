@@ -64,8 +64,18 @@ public final class CEnumType implements CComplexType {
   }
 
   @Override
+  public OptionalInt getAlignment() {
+    throw new UnsupportedOperationException("Enums cant have __aligned__");
+  }
+
+  @Override
   public boolean isPacked() {
     return isPacked;
+  }
+
+  @Override
+  public boolean isMember() {
+    throw new UnsupportedOperationException("Enums cant have __aligned__");
   }
 
   @Override
@@ -301,18 +311,8 @@ public final class CEnumType implements CComplexType {
     if ((isConst == pForceConst) && (isVolatile == pForceVolatile)) {
       return this;
     }
-    return new CEnumType(
-        isConst || pForceConst,
-        isVolatile || pForceVolatile,
-        isPacked,
-        enumerators,
-        name,
-        origName);
-  }
-
-  @Override
-  public OptionalInt getAlignment() {
-    return OptionalInt.empty();
+    return new CEnumType(isConst || pForceConst, isVolatile || pForceVolatile,
+        isPacked, enumerators, name, origName);
   }
 
   public void setType(CSimpleType pIntegerType) {
