@@ -166,6 +166,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CTypedefType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
 import org.sosy_lab.cpachecker.cfa.types.c.DefaultCTypeVisitor;
+import org.sosy_lab.cpachecker.cfa.types.c.Membership;
 import org.sosy_lab.cpachecker.exceptions.NoException;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 import org.sosy_lab.cpachecker.util.BuiltinOverflowFunctions;
@@ -645,8 +646,13 @@ class ASTConverter {
       // This should actually be handled by Eclipse, because the C standard says in §5.4.2.1 (3)
       // that array types of operands are converted to pointer types except in a very few
       // specific cases (for which there will never be a temporary variable).
-      type = new CPointerType(
-          type.isConst(), type.isVolatile(), type.getAlignment(), false, ((CArrayType) type).getType());
+      type =
+          new CPointerType(
+              type.isConst(),
+              type.isVolatile(),
+              type.getAlignment(),
+              Membership.NOTAMEMBER,
+              ((CArrayType) type).getType());
     }
 
     CVariableDeclaration decl =
@@ -2200,7 +2206,7 @@ class ASTConverter {
         type.isConst(),
         type.isVolatile(),
         type.getAlignment(),
-        type.isMember(),
+        type.getMembership(),
         newType.getType(),
         newType.isLong(),
         newType.isShort(),
@@ -2247,7 +2253,7 @@ class ASTConverter {
       CSimpleType t = (CSimpleType)returnType;
       if (t.getType() == CBasicType.UNSPECIFIED) {
         // type of functions is implicitly int if not specified
-        returnType = new CSimpleType(t.isConst(), t.isVolatile(), t.getAlignment(), t.isMember(),
+        returnType = new CSimpleType(t.isConst(), t.isVolatile(), t.getAlignment(), t.getMembership(),
             CBasicType.INT, t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
             t.isComplex(), t.isImaginary(), t.isLongLong());
       }

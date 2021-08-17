@@ -104,7 +104,7 @@ public final class CVoidType implements CType {
   }
 
   @Override
-  public boolean isMember() {
+  public Membership getMembership() {
     throw new UnsupportedOperationException("Void cant be member");
   }
 

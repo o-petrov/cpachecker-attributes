@@ -40,6 +40,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CTypeVisitor;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypedefType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
+import org.sosy_lab.cpachecker.cfa.types.c.Membership;
 
 /** This enum stores the sizes for all the basic types that exist. */
 public enum MachineModel {
@@ -680,11 +681,16 @@ public enum MachineModel {
     }
 
     private Integer getAlign(CType t, int defaultAlign) {
+      if (t.getMembership() == Membership.MEMBEROFPACKED) {
+        return t.getAlignment().orElse(1);
+      }
       if (t.getAlignment().isEmpty()) {
         return defaultAlign;
       }
       int specifiedAlign = t.getAlignment().getAsInt();
-      return t.isMember() && defaultAlign > specifiedAlign ? defaultAlign : specifiedAlign;
+      return (t.getMembership() == Membership.REGULARMEMBER) && defaultAlign > specifiedAlign
+          ? defaultAlign
+          : specifiedAlign;
     }
 
     @Override
@@ -706,18 +712,10 @@ public enum MachineModel {
       switch (t.getKind()) {
         case STRUCT:
         case UNION:
-          // TODO packed
-          int alignof = t.getAlignment().orElse(1);
-          int align1 = 0;
+          int alignof = getAlign(t, 1);
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : t.getMembers()) {
-            CType mt = decl.getType();
-            align1 = decl.getType().accept(this);
-            if (mt.getAlignment().isPresent()) {
-              int align2 = CTypes.withAttributes(mt, OptionalInt.empty()).accept(this);
-              align1 = align2 > align1 ? align2 : align1;
-            }
-            alignof = Math.max(alignof, align1);
+            alignof = Math.max(alignof, decl.getType().accept(this));
           }
           return alignof;
 

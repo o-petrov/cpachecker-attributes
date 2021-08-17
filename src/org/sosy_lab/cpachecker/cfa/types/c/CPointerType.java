@@ -27,19 +27,19 @@ public final class CPointerType implements CType, Serializable {
   private final boolean isConst;
   private final boolean isVolatile;
   private final OptionalInt alignment;
-  private final boolean isMember;
+  private final Membership member;
 
   public CPointerType(
-      boolean pConst, boolean pVolatile, OptionalInt pAlignment, boolean pMember, CType pType) {
+      boolean pConst, boolean pVolatile, OptionalInt pAlignment, Membership pMember, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
     alignment = pAlignment;
-    isMember = pMember;
+    member = pMember;
     type = checkNotNull(pType);
   }
 
   public CPointerType(boolean pConst, boolean pVolatile, CType pType) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, pType);
+    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pType);
   }
 
   @Override
@@ -58,8 +58,8 @@ public final class CPointerType implements CType, Serializable {
   }
 
   @Override
-  public boolean isMember() {
-    return isMember;
+  public Membership getMembership() {
+    return member;
   }
 
   public CType getType() {
@@ -118,7 +118,7 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(isConst, isVolatile, isMember, alignment, type);
+    return Objects.hash(isConst, isVolatile, member, alignment, type);
   }
 
   /**
@@ -140,7 +140,7 @@ public final class CPointerType implements CType, Serializable {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
-        && isMember == other.isMember
+        && member == other.member
         && alignment.equals(other.alignment)
         && Objects.equals(type, other.type);
   }
@@ -156,7 +156,7 @@ public final class CPointerType implements CType, Serializable {
         isConst || pForceConst,
         isVolatile || pForceVolatile,
         alignment,
-        isMember,
+        member,
         type.getCanonicalType());
   }
 }

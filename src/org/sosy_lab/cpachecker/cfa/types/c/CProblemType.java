@@ -47,7 +47,7 @@ public final class CProblemType implements CType {
   }
 
   @Override
-  public boolean isMember() {
+  public Membership getMembership() {
     throw new UnsupportedOperationException();
   }
 

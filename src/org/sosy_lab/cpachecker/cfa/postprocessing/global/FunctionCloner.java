@@ -593,7 +593,7 @@ class FunctionCloner implements CFAVisitor {
               type.isVolatile(),
               type.getAlignment(),
               type.isPacked(),
-              type.isMember(),
+              type.getMembership(),
               type.getKind(),
               type.getName(),
               type.getOrigName());

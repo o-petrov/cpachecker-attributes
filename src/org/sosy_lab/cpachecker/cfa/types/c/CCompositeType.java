@@ -33,14 +33,14 @@ public final class CCompositeType implements CComplexType {
   private final boolean isVolatile;
   private final OptionalInt alignment;
   private final boolean isPacked;
-  private final boolean isMember;
+  private final Membership isMember;
 
   public CCompositeType(
       boolean pConst,
       boolean pVolatile,
       OptionalInt pAlignment,
       boolean pPacked,
-      boolean pMember,
+      Membership pMember,
       CComplexType.ComplexTypeKind pKind,
       String pName,
       String pOrigName) {
@@ -61,7 +61,7 @@ public final class CCompositeType implements CComplexType {
       boolean pVolatile,
       OptionalInt pAlignment,
       boolean pPacked,
-      boolean pMember,
+      Membership pMember,
       CComplexType.ComplexTypeKind pKind,
       List<CCompositeTypeMemberDeclaration> pMembers,
       String pName,
@@ -71,41 +71,18 @@ public final class CCompositeType implements CComplexType {
   }
 
   public CCompositeType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final OptionalInt pAlignment,
-      final boolean pPacked,
-      final CComplexType.ComplexTypeKind pKind,
-      final List<CCompositeTypeMemberDeclaration> pMembers,
-      final String pName,
-      final String pOrigName) {
-    this(pConst, pVolatile, pAlignment, pPacked, false, pKind, pMembers, pName, pOrigName);
-  }
-
-  public CCompositeType(
-      boolean pConst,
-      boolean pVolatile,
-      OptionalInt pAlignment,
-      boolean pPacked,
-      CComplexType.ComplexTypeKind pKind,
-      String pName,
-      String pOrigName) {
-    this(pConst, pVolatile, pAlignment, pPacked, false, pKind, pName, pOrigName);
-  }
-
-  public CCompositeType(
       boolean pConst,
       boolean pVolatile,
       CComplexType.ComplexTypeKind pKind,
       List<CCompositeTypeMemberDeclaration> pMembers,
       String pName,
       String pOrigName) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, false, pKind, pMembers, pName, pOrigName);
+    this(pConst, pVolatile, OptionalInt.empty(), false, Membership.NOTAMEMBER, pKind, pMembers, pName, pOrigName);
   }
 
   public CCompositeType(boolean pConst, boolean pVolatile,
       CComplexType.ComplexTypeKind pKind, String pName, String pOrigName) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, false, pKind, pName, pOrigName);
+    this(pConst, pVolatile, OptionalInt.empty(), false, Membership.NOTAMEMBER, pKind, pName, pOrigName);
   }
 
   public void setMembers(List<CCompositeTypeMemberDeclaration> pMembers) {
@@ -123,7 +100,9 @@ public final class CCompositeType implements CComplexType {
         checkArgument(member.getType().getCanonicalType() instanceof CArrayType,
             "incomplete non-array member %s in last position of %s", member, this);
       }
-      CType t = CTypes.asMember(member.getType());
+      CType t =
+          CTypes.asMember(
+              member.getType(), isPacked ? Membership.MEMBEROFPACKED : Membership.REGULARMEMBER);
       member = new CCompositeTypeMemberDeclaration(t, member.name);
 
       builder.add(member);
@@ -298,7 +277,7 @@ public final class CCompositeType implements CComplexType {
   }
 
   @Override
-  public boolean isMember() {
+  public Membership getMembership() {
     return isMember;
   }
 

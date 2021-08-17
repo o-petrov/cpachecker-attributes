@@ -26,31 +26,31 @@ public final class CTypedefType implements CType, Serializable {
   private final boolean isConst;
   private final boolean isVolatile;
   private final OptionalInt alignment;
-  private final boolean isMember;
+  private final Membership member;
   private int hashCache = 0;
 
   public CTypedefType(
       boolean pConst,
       boolean pVolatile,
       OptionalInt pAlignment,
-      boolean pMember,
+      Membership pMember,
       String pName,
       CType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
     alignment = pAlignment;
-    isMember = pMember;
+    member = pMember;
     name = pName.intern();
     realType = checkNotNull(pRealType);
   }
 
   public CTypedefType(
       boolean pConst, boolean pVolatile, OptionalInt pAlignment, String pName, CType pRealType) {
-    this(pConst, pVolatile, pAlignment, false, pName, pRealType);
+    this(pConst, pVolatile, pAlignment, Membership.NOTAMEMBER, pName, pRealType);
   }
 
   public CTypedefType(boolean pConst, boolean pVolatile, String pName, CType pRealType) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, pName, pRealType);
+    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pName, pRealType);
   }
 
   public String getName() {
@@ -94,8 +94,8 @@ public final class CTypedefType implements CType, Serializable {
   }
 
   @Override
-  public boolean isMember() {
-    return isMember;
+  public Membership getMembership() {
+    return member;
   }
 
   @Override
@@ -111,7 +111,7 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(name, isConst, isVolatile, alignment, isMember, realType);
+      hashCache = Objects.hash(name, isConst, isVolatile, alignment, member, realType);
     }
     return hashCache;
   }
@@ -136,7 +136,7 @@ public final class CTypedefType implements CType, Serializable {
     return Objects.equals(name, other.name)
         && isConst == other.isConst
         && isVolatile == other.isVolatile
-        && isMember == other.isMember
+        && member == other.member
         && alignment.equals(other.alignment)
         && Objects.equals(realType, other.realType);
   }
@@ -150,6 +150,6 @@ public final class CTypedefType implements CType, Serializable {
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     CType t = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
     t = CTypes.withAttributes(t, alignment);
-    return CTypes.asMember(t);
+    return CTypes.asMember(t, member);
   }
 }
