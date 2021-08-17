@@ -357,7 +357,7 @@ class GlobalScope extends AbstractScope {
               oldType.isVolatile(),
               oldType.getAlignment(),
               oldType.isPacked(),
-              oldType.isMember(),
+              oldType.getMembership(),
               oldType.getKind(),
               newName,
               oldType.getOrigName());

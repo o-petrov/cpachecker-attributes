@@ -116,7 +116,7 @@ public class CFunctionType extends AFunctionType implements CType {
   }
 
   @Override
-  public boolean isMember() {
+  public Membership getMembership() {
     throw new UnsupportedOperationException();
   }
 

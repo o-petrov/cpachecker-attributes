@@ -74,7 +74,7 @@ public final class CEnumType implements CComplexType {
   }
 
   @Override
-  public boolean isMember() {
+  public Membership getMembership() {
     throw new UnsupportedOperationException("Enums cant have __aligned__");
   }
 

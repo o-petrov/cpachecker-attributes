@@ -53,7 +53,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !ignoreConst && t.isConst(),
               !ignoreVolatile && t.isVolatile(),
               t.getAlignment(),
-              t.isMember(),
+              t.getMembership(),
               type,
               t.getLength());
     }
@@ -77,7 +77,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !ignoreConst && t.isConst(),
               !ignoreVolatile && t.isVolatile(),
               t.getAlignment(),
-              t.isPacked(),
+              t.getMembership(),
               t.getKind(),
               t.getName(),
               t.getOrigName(),
@@ -97,7 +97,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !ignoreConst && t.isConst(),
               !ignoreVolatile && t.isVolatile(),
               t.getAlignment(),
-              t.isMember(),
+              t.getMembership(),
               type);
     }
 
@@ -114,7 +114,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !ignoreConst && t.isConst(),
               !ignoreConst && t.isVolatile(),
               t.getAlignment(),
-              t.isMember(),
+              t.getMembership(),
               t.getName(),
               realType);
     }
@@ -177,7 +177,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !ignoreConst && t.isConst(),
               !ignoreVolatile && t.isVolatile(),
               t.getAlignment(),
-              t.isMember(),
+              t.getMembership(),
               t.getType(),
               t.isLong(),
               t.isShort(),
@@ -228,6 +228,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
               !typeVisitor.ignoreVolatile && canonicalType.isVolatile(),
               canonicalType.getAlignment(),
               canonicalType.isPacked(),
+              canonicalType.getMembership(),
               canonicalType.getKind(),
               canonicalType.getName(),
               canonicalType.getOrigName());

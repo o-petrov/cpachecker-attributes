@@ -40,7 +40,7 @@ public interface CType extends Type {
   boolean isIncomplete();
 
   /** Alignment rules differ for struct members and variables */
-  boolean isMember();
+  Membership getMembership();
 
   /** @return alignment if specified in attributes or via _Alignas */
   OptionalInt getAlignment();

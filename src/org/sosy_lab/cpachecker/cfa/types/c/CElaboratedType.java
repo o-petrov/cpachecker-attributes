@@ -25,7 +25,7 @@ public final class CElaboratedType implements CComplexType {
   private final boolean isConst;
   private final boolean isVolatile;
   private final OptionalInt alignment;
-  private final boolean isMember;
+  private final Membership member;
 
   private int hashCache = 0;
 
@@ -35,7 +35,7 @@ public final class CElaboratedType implements CComplexType {
       final boolean pConst,
       final boolean pVolatile,
       final OptionalInt pAlignment,
-      final boolean pMember,
+      final Membership pMember,
       final ComplexTypeKind pKind,
       final String pName,
       final String pOrigName,
@@ -44,7 +44,7 @@ public final class CElaboratedType implements CComplexType {
     isConst = pConst;
     isVolatile = pVolatile;
     alignment = pAlignment;
-    isMember = pMember;
+    member = pMember;
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();
@@ -54,22 +54,11 @@ public final class CElaboratedType implements CComplexType {
   public CElaboratedType(
       final boolean pConst,
       final boolean pVolatile,
-      final OptionalInt pAlignment,
       final ComplexTypeKind pKind,
       final String pName,
       final String pOrigName,
       final @Nullable CComplexType pRealType) {
-    this(pConst, pVolatile, pAlignment, false, pKind, pName, pOrigName, pRealType);
-  }
-
-  public CElaboratedType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName,
-      final @Nullable CComplexType pRealType) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, pKind, pName, pOrigName, pRealType);
+    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pKind, pName, pOrigName, pRealType);
   }
 
   @Override
@@ -179,8 +168,8 @@ public final class CElaboratedType implements CComplexType {
   }
 
   @Override
-  public boolean isMember() {
-    return isMember;
+  public Membership getMembership() {
+    return member;
   }
 
   @Override
@@ -224,7 +213,7 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
-        && isMember == other.isMember
+        && member == other.member
         && kind == other.kind
         && alignment.equals(other.alignment)
         && Objects.equals(name, other.name)
@@ -245,7 +234,7 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
-        && isMember == other.isMember
+        && member == other.member
         && kind == other.kind
         && alignment.equals(other.alignment)
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
@@ -264,14 +253,14 @@ public final class CElaboratedType implements CComplexType {
         return this;
       }
       return new CElaboratedType(isConst || pForceConst, isVolatile || pForceVolatile,
-          alignment, isMember, kind, name, origName, null);
+          alignment, member, kind, name, origName, null);
     } else {
       CType t = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
       if (alignment.isPresent()) {
         t = CTypes.withAttributes(t, alignment);
       }
-      if (isMember) {
-        t = CTypes.asMember(t);
+      if (kind != ComplexTypeKind.ENUM) {
+        t = CTypes.asMember(t, member);
       }
       return t;
     }

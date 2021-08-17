@@ -25,13 +25,13 @@ public final class CArrayType extends AArrayType implements CType {
   private final boolean isConst;
   private final boolean isVolatile;
   private final OptionalInt alignment;
-  private final boolean isMember;
+  private final Membership member;
 
   public CArrayType(
       boolean pConst,
       boolean pVolatile,
       OptionalInt pAlignment,
-      boolean pMember,
+      Membership pMember,
       CType pType,
       @Nullable CExpression pLength) {
     super(pType);
@@ -39,11 +39,11 @@ public final class CArrayType extends AArrayType implements CType {
     isVolatile = pVolatile;
     length = pLength;
     alignment = pAlignment;
-    isMember = pMember;
+    member = pMember;
   }
 
   public CArrayType(boolean pConst, boolean pVolatile, CType pType, @Nullable CExpression pLength) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, pType, pLength);
+    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pType, pLength);
   }
 
   @Override
@@ -69,7 +69,7 @@ public final class CArrayType extends AArrayType implements CType {
    */
   // TODO conversion with alignment?
   public CPointerType asPointerType() {
-    return new CPointerType(isConst, isVolatile, alignment, isMember, getType());
+    return new CPointerType(isConst, isVolatile, alignment, member, getType());
   }
 
   @Override
@@ -114,8 +114,8 @@ public final class CArrayType extends AArrayType implements CType {
   }
 
   @Override
-  public boolean isMember() {
-    return isMember;
+  public Membership getMembership() {
+    return member;
   }
 
   @Override
@@ -134,7 +134,7 @@ public final class CArrayType extends AArrayType implements CType {
 
   @Override
   public int hashCode() {
-    return Objects.hash(length, isConst, isVolatile, alignment, isMember) * 31 + super.hashCode();
+    return Objects.hash(length, isConst, isVolatile, alignment, member) * 31 + super.hashCode();
   }
 
 
@@ -168,7 +168,7 @@ public final class CArrayType extends AArrayType implements CType {
     return isConst == other.isConst
         && isVolatile == other.isVolatile
         && alignment.equals(other.alignment)
-        && isMember == other.isMember;
+        && member == other.member;
   }
 
   @Override
@@ -185,7 +185,7 @@ public final class CArrayType extends AArrayType implements CType {
         false,
         false,
         alignment,
-        isMember,
+        member,
         getType().getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile),
         length);
   }

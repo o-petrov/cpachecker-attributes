@@ -152,8 +152,8 @@ public class CBitFieldType implements CType {
   }
 
   @Override
-  public boolean isMember() {
-    return true;
+  public Membership getMembership() {
+    throw new UnsupportedOperationException();
   }
 
   @Override
