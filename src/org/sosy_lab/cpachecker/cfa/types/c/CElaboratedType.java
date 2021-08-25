@@ -43,8 +43,8 @@ public final class CElaboratedType implements CComplexType {
     checkArgument(pRealType != null || pAlignment.isEmpty());
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = pAlignment;
-    member = pMember;
+    alignment = checkNotNull(pAlignment);
+    member = checkNotNull(pMember);
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();

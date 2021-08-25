@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Equivalence;
 import java.util.HashMap;
@@ -284,6 +285,15 @@ public final class CTypes {
 
   @SuppressWarnings("unchecked")
   public static <T extends CType> T asMember(T type, Membership member) {
+    checkNotNull(type);
+    checkNotNull(member);
+
+    if (type instanceof CBitFieldType
+        || type instanceof CFunctionType
+        || type instanceof CVoidType) {
+      return type;
+    }
+
     ForceMemberVisitor visitor = ForceMemberVisitor.NOTMEMBER;
     switch (member) {
       case REGULARMEMBER:

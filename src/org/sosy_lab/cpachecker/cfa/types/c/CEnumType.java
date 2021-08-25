@@ -316,7 +316,7 @@ public final class CEnumType implements CComplexType {
   }
 
   public void setType(CSimpleType pIntegerType) {
-    integerType = pIntegerType;
+    integerType = checkNotNull(pIntegerType);
   }
 
   public CSimpleType getType() {

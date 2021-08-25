@@ -48,9 +48,9 @@ public final class CCompositeType implements CComplexType {
     checkArgument(pKind == ComplexTypeKind.STRUCT || pKind == ComplexTypeKind.UNION);
     isConst= pConst;
     isVolatile = pVolatile;
-    alignment = pAlignment;
+    alignment = checkNotNull(pAlignment);
     isPacked = pPacked;
-    isMember = pMember;
+    isMember = checkNotNull(pMember);
     kind = pKind;
     name = pName.intern();
     origName = pOrigName.intern();

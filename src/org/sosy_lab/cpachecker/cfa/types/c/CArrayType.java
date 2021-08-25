@@ -37,9 +37,9 @@ public final class CArrayType extends AArrayType implements CType {
     super(pType);
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
+    member = checkNotNull(pMember);
     length = pLength;
-    alignment = pAlignment;
-    member = pMember;
   }
 
   public CArrayType(boolean pConst, boolean pVolatile, CType pType, @Nullable CExpression pLength) {

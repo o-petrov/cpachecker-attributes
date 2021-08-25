@@ -38,8 +38,8 @@ public final class CTypedefType implements CType, Serializable {
       CType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = pAlignment;
-    member = pMember;
+    alignment = checkNotNull(pAlignment);
+    member = checkNotNull(pMember);
     name = pName.intern();
     realType = checkNotNull(pRealType);
   }
@@ -149,7 +149,9 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     CType t = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
-    t = CTypes.withAttributes(t, alignment);
+    if (alignment.isPresent()) {
+      t = CTypes.withAttributes(t, alignment);
+    }
     return CTypes.asMember(t, member);
   }
 }
