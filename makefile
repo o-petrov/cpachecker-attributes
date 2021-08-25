@@ -9,10 +9,10 @@ PROPS=-preprocess -default -setprop cfa.exportToC=true -setprop cfa.simplifyCfa=
 MACHINE=-64
 
 TASKS= \
-$(TESTDIR)/t1_scalar $(TESTDIR)/t2_typedef $(TESTDIR)/t3_struct \
-$(TESTDIR)/t4_union $(TESTDIR)/t6_array1 $(TESTDIR)/t7_array2 \
-$(TESTDIR)/t8_member $(TESTDIR)/t9 \
-$(TESTDIR)/t10_enum $(TESTDIR)/t11 $(TESTDIR)/t12
+$(TESTDIR)/p01_scalar $(TESTDIR)/p02_typedef $(TESTDIR)/p03_struct \
+$(TESTDIR)/p04_union $(TESTDIR)/p06_array1 $(TESTDIR)/p07_array2 \
+$(TESTDIR)/p08_member $(TESTDIR)/p09 \
+$(TESTDIR)/p10_enum $(TESTDIR)/p11 $(TESTDIR)/p12
 
 all: $(TASKS)
 
