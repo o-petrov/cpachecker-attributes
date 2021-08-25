@@ -56,8 +56,8 @@ public final class CSimpleType implements CType, Serializable {
       boolean pIsLongLong) {
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = pAlignment;
-    member = pMember;
+    alignment = checkNotNull(pAlignment);
+    member = checkNotNull(pMember);
     type = checkNotNull(pType);
     isLong = pIsLong;
     isShort = pIsShort;

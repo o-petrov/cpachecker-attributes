@@ -33,8 +33,8 @@ public final class CPointerType implements CType, Serializable {
       boolean pConst, boolean pVolatile, OptionalInt pAlignment, Membership pMember, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = pAlignment;
-    member = pMember;
+    alignment = checkNotNull(pAlignment);
+    member = checkNotNull(pMember);
     type = checkNotNull(pType);
   }
 
