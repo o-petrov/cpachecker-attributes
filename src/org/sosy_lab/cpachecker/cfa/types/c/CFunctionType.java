@@ -15,7 +15,6 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import java.util.List;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.types.AFunctionType;
 
@@ -111,7 +110,7 @@ public class CFunctionType extends AFunctionType implements CType {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     throw new UnsupportedOperationException();
   }
 

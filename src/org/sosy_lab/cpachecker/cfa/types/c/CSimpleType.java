@@ -18,7 +18,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 @Immutable
@@ -36,7 +35,7 @@ public final class CSimpleType implements CType, Serializable {
   private final boolean isLongLong;
   private final boolean isConst;
   private final boolean isVolatile;
-  private final OptionalInt alignment;
+  private final @Nullable Integer alignment;
   private final Membership member;
 
   @LazyInit private int hashCache = 0;
@@ -44,7 +43,7 @@ public final class CSimpleType implements CType, Serializable {
   public CSimpleType(
       boolean pConst,
       boolean pVolatile,
-      OptionalInt pAlignment,
+      @Nullable Integer pAlignment,
       Membership pMember,
       CBasicType pType,
       boolean pIsLong,
@@ -56,7 +55,7 @@ public final class CSimpleType implements CType, Serializable {
       boolean pIsLongLong) {
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = checkNotNull(pAlignment);
+    alignment = pAlignment;
     member = checkNotNull(pMember);
     type = checkNotNull(pType);
     isLong = pIsLong;
@@ -79,7 +78,7 @@ public final class CSimpleType implements CType, Serializable {
       boolean pIsComplex,
       boolean pIsImaginary,
       boolean pIsLongLong) {
-    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pType,
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pType,
         pIsLong, pIsShort, pIsSigned, pIsUnsigned,
         pIsComplex, pIsImaginary, pIsLongLong);
   }
@@ -95,7 +94,7 @@ public final class CSimpleType implements CType, Serializable {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     return alignment;
   }
 
@@ -182,7 +181,7 @@ public final class CSimpleType implements CType, Serializable {
         && isShort == other.isShort
         && type == other.type
         && member == other.member
-        && alignment.equals(other.alignment);
+        && Objects.equals(alignment, other.alignment);
   }
 
   @Override
@@ -230,8 +229,8 @@ public final class CSimpleType implements CType, Serializable {
 
     parts.add(Strings.emptyToNull(type.toASTString()));
 
-    if (alignment.isPresent()) {
-      parts.add("__attribute__ ((__aligned__ (" + alignment.getAsInt() + ")))");
+    if (alignment != null) {
+      parts.add("__attribute__ ((__aligned__ (" + alignment + ")))");
     }
 
     parts.add(Strings.emptyToNull(pDeclarator));

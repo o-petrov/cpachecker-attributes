@@ -19,7 +19,6 @@ import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class CCompositeType implements CComplexType {
@@ -31,14 +30,14 @@ public final class CCompositeType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
-  private final OptionalInt alignment;
+  private final @Nullable Integer alignment;
   private final boolean isPacked;
   private final Membership isMember;
 
   public CCompositeType(
       boolean pConst,
       boolean pVolatile,
-      OptionalInt pAlignment,
+      @Nullable Integer pAlignment,
       boolean pPacked,
       Membership pMember,
       CComplexType.ComplexTypeKind pKind,
@@ -48,7 +47,7 @@ public final class CCompositeType implements CComplexType {
     checkArgument(pKind == ComplexTypeKind.STRUCT || pKind == ComplexTypeKind.UNION);
     isConst= pConst;
     isVolatile = pVolatile;
-    alignment = checkNotNull(pAlignment);
+    alignment = pAlignment;
     isPacked = pPacked;
     isMember = checkNotNull(pMember);
     kind = pKind;
@@ -59,7 +58,7 @@ public final class CCompositeType implements CComplexType {
   public CCompositeType(
       boolean pConst,
       boolean pVolatile,
-      OptionalInt pAlignment,
+      @Nullable Integer pAlignment,
       boolean pPacked,
       Membership pMember,
       CComplexType.ComplexTypeKind pKind,
@@ -77,12 +76,12 @@ public final class CCompositeType implements CComplexType {
       List<CCompositeTypeMemberDeclaration> pMembers,
       String pName,
       String pOrigName) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, Membership.NOTAMEMBER, pKind, pMembers, pName, pOrigName);
+    this(pConst, pVolatile, null, false, Membership.NOTAMEMBER, pKind, pMembers, pName, pOrigName);
   }
 
   public CCompositeType(boolean pConst, boolean pVolatile,
       CComplexType.ComplexTypeKind pKind, String pName, String pOrigName) {
-    this(pConst, pVolatile, OptionalInt.empty(), false, Membership.NOTAMEMBER, pKind, pName, pOrigName);
+    this(pConst, pVolatile, null, false, Membership.NOTAMEMBER, pKind, pName, pOrigName);
   }
 
   public void setMembers(List<CCompositeTypeMemberDeclaration> pMembers) {
@@ -153,21 +152,24 @@ public final class CCompositeType implements CComplexType {
     }
     result.append(kind.toASTString());
 
-    boolean p = isPacked();
-    boolean a = getAlignment().isPresent();
-    if (p || a) {
+    if (isPacked || alignment != null) {
       result.append(" __attribute__ ((");
-      if (p) {
+
+      if (isPacked) {
         result.append("__packed__");
       }
-      if (p && a) {
+
+      if (isPacked && alignment != null) {
         result.append(", ");
       }
-      if (a) {
-        result.append("__aligned__(").append(getAlignment().getAsInt()).append(")");
+
+      if (alignment != null) {
+        result.append("__aligned__(").append(alignment).append(")");
       }
+
       result.append("))");
     }
+
     result.append(' ');
     result.append(name);
 
@@ -267,7 +269,7 @@ public final class CCompositeType implements CComplexType {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     return alignment;
   }
 
@@ -313,7 +315,7 @@ public final class CCompositeType implements CComplexType {
         && isPacked == other.isPacked
         && isMember == other.isMember
         && kind == other.kind
-        && alignment.equals(other.alignment)
+        && Objects.equals(alignment, other.alignment)
         && Objects.equals(name, other.name);
   }
 
@@ -332,8 +334,8 @@ public final class CCompositeType implements CComplexType {
     return isConst == other.isConst
         && isVolatile == other.isVolatile
         && isPacked == other.isPacked
-        && alignment.equals(other.alignment)
         && kind == other.kind
+        && Objects.equals(alignment, other.alignment)
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()));
   }
 

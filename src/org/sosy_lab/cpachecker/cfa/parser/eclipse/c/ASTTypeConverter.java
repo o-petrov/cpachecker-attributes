@@ -18,7 +18,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.OptionalInt;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.eclipse.cdt.core.dom.ast.DOMException;
 import org.eclipse.cdt.core.dom.ast.IASTAttribute;
 import org.eclipse.cdt.core.dom.ast.IASTAttributeOwner;
@@ -501,7 +501,7 @@ class ASTTypeConverter {
     }
 
     boolean packed = false;
-    OptionalInt alignment = OptionalInt.empty();
+    @Nullable Integer alignment = null;
     // TODO handle alignSpecifiers
 
     for (IASTAttribute attribute : d.getAttributes()) {
@@ -510,11 +510,11 @@ class ASTTypeConverter {
         try {
           char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
           String clause = ASTConverter.getAttributeString(tokenCharImage);
-          alignment = OptionalInt.of(Integer.valueOf(clause));
+          alignment = Integer.valueOf(clause);
         } catch (NullPointerException e) {
           // default alignment as clause was not specified
           // TODO default is dependent on machine model
-          alignment = OptionalInt.of(16);
+          alignment = 16;
         } catch (NumberFormatException e) {
           // clause must be integer
           // XXX might be _BIGGEST_ALIGNMENT_ or smth like that?
@@ -530,21 +530,20 @@ class ASTTypeConverter {
       packed = false;
     }
 
-    if (alignment.isPresent() && type.getAlignment().isPresent()) {
-      if (type.getAlignment().getAsInt() >= alignment.getAsInt()
-          && !(type instanceof CElaboratedType)) {
+    if (alignment != null && type.getAlignment() != null) {
+      if (type.getAlignment() >= alignment && !(type instanceof CElaboratedType)) {
         // the alignment remains
-        alignment = OptionalInt.empty();
+        alignment = null;
       }
     }
 
-    if (packed && alignment.isPresent()) {
+    if (packed && alignment != null) {
       return CTypes.withAttributes(type, packed, alignment);
     }
     if (packed) {
       return CTypes.withAttributes(type, packed);
     }
-    if (alignment.isPresent()) {
+    if (alignment != null) {
       return CTypes.withAttributes(type, alignment);
     }
     return type;
