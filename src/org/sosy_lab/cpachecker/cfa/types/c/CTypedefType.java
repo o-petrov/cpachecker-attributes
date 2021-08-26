@@ -12,7 +12,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.Serializable;
 import java.util.Objects;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -25,32 +24,32 @@ public final class CTypedefType implements CType, Serializable {
   private final CType realType; // the real type this typedef points to
   private final boolean isConst;
   private final boolean isVolatile;
-  private final OptionalInt alignment;
+  private final @Nullable Integer alignment;
   private final Membership member;
   private int hashCache = 0;
 
   public CTypedefType(
       boolean pConst,
       boolean pVolatile,
-      OptionalInt pAlignment,
+      @Nullable Integer pAlignment,
       Membership pMember,
       String pName,
       CType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = checkNotNull(pAlignment);
+    alignment = pAlignment;
     member = checkNotNull(pMember);
     name = pName.intern();
     realType = checkNotNull(pRealType);
   }
 
-  public CTypedefType(
-      boolean pConst, boolean pVolatile, OptionalInt pAlignment, String pName, CType pRealType) {
+  public CTypedefType(boolean pConst, boolean pVolatile,
+      @Nullable Integer pAlignment, String pName, CType pRealType) {
     this(pConst, pVolatile, pAlignment, Membership.NOTAMEMBER, pName, pRealType);
   }
 
   public CTypedefType(boolean pConst, boolean pVolatile, String pName, CType pRealType) {
-    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pName, pRealType);
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pName, pRealType);
   }
 
   public String getName() {
@@ -72,9 +71,7 @@ public final class CTypedefType implements CType, Serializable {
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
         + name
-        + (alignment.isPresent()
-            ? " __attribute__((__aligned__(" + alignment.getAsInt() + "))) "
-            : " ")
+        + (alignment != null ? " __attribute__((__aligned__(" + alignment + "))) " : " ")
         + pDeclarator;
   }
 
@@ -89,7 +86,7 @@ public final class CTypedefType implements CType, Serializable {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     return alignment;
   }
 
@@ -137,7 +134,7 @@ public final class CTypedefType implements CType, Serializable {
         && isConst == other.isConst
         && isVolatile == other.isVolatile
         && member == other.member
-        && alignment.equals(other.alignment)
+        && Objects.equals(alignment, other.alignment)
         && Objects.equals(realType, other.realType);
   }
 
@@ -149,7 +146,7 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     CType t = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
-    if (alignment.isPresent()) {
+    if (alignment != null) {
       t = CTypes.withAttributes(t, alignment);
     }
     return CTypes.asMember(t, member);

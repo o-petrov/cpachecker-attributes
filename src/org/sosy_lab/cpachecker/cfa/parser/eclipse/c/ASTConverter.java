@@ -26,7 +26,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.eclipse.cdt.core.dom.ast.IASTArrayDeclarator;
@@ -2232,13 +2231,10 @@ class ASTConverter {
       }
       // move alignment from element type to array type
       // FIXME does correct thing only for type got explicit __aligned__ in line with [].
-      OptionalInt al = type.getAlignment();
+      @Nullable Integer al = type.getAlignment();
       CArrayType arrayType =
           new CArrayType(
-              a.isConst(),
-              a.isVolatile(),
-              CTypes.withAttributes(type, false, OptionalInt.empty()),
-              lengthExp);
+              a.isConst(), a.isVolatile(), CTypes.withAttributes(type, false, null), lengthExp);
       return CTypes.withAttributes(arrayType, al);
 
     } else {

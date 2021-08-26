@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.types.c;
 
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.types.Type;
 
@@ -43,7 +42,8 @@ public interface CType extends Type {
   Membership getMembership();
 
   /** @return alignment if specified in attributes or via _Alignas */
-  OptionalInt getAlignment();
+  @Nullable
+  Integer getAlignment();
 
   /**
    * Will throw a UnsupportedOperationException

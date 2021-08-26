@@ -16,7 +16,6 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Objects;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.AbstractSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
@@ -64,7 +63,7 @@ public final class CEnumType implements CComplexType {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     throw new UnsupportedOperationException("Enums cant have __aligned__");
   }
 

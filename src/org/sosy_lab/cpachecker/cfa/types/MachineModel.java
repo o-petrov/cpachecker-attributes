@@ -18,7 +18,6 @@ import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
@@ -570,7 +569,8 @@ public enum MachineModel {
     }
 
     private BigInteger handleSizeOfUnion(CCompositeType pCompositeType) {
-      BigInteger size = BigInteger.valueOf(pCompositeType.getAlignment().orElse(1));
+      int align = pCompositeType.getAlignment() == null ? 1 : pCompositeType.getAlignment();
+      BigInteger size = BigInteger.valueOf(align);
       BigInteger sizeOfType = BigInteger.ZERO;
       // TODO: Take possible padding into account
       for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
@@ -681,12 +681,12 @@ public enum MachineModel {
 
     private Integer getAlign(CType t, int defaultAlign) {
       if (t.getMembership() == Membership.MEMBEROFPACKED) {
-        return t.getAlignment().orElse(1);
+        return t.getAlignment() == null ? 1 : t.getAlignment();
       }
-      if (t.getAlignment().isEmpty()) {
+      if (t.getAlignment() == null) {
         return defaultAlign;
       }
-      int specifiedAlign = t.getAlignment().getAsInt();
+      int specifiedAlign = t.getAlignment();
       return (t.getMembership() == Membership.REGULARMEMBER) && defaultAlign > specifiedAlign
           ? defaultAlign
           : specifiedAlign;
@@ -694,7 +694,6 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CArrayType t) throws IllegalArgumentException {
-      OptionalInt alignOfArray = t.getAlignment();
 
       // the implicit alignment of an array is the same as the alignment of an member of the array
       CType elementType = t.getType();
@@ -703,7 +702,7 @@ public enum MachineModel {
       assert model.getSizeof(elementType).compareTo(BigInteger.valueOf(elementAlign)) >= 0
           : "alignment of array elements is greater than element size";
 
-      return alignOfArray.orElse(elementAlign);
+      return t.getAlignment() == null ? elementAlign : t.getAlignment();
     }
 
     @Override

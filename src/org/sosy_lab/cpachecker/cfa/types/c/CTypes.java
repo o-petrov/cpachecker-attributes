@@ -15,6 +15,7 @@ import com.google.common.base.Equivalence;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
@@ -235,12 +236,12 @@ public final class CTypes {
 
   /** Return a copy of a given type that has "isPacked" and "alignment" set accordingly. */
   public static <T extends CType> T withAttributes(
-      T type, final boolean packed, final OptionalInt alignment) {
+      T type, final boolean packed, final @Nullable Integer alignment) {
     if (type instanceof CProblemType) {
       return type;
     }
 
-    boolean needUpdAlign = !type.getAlignment().equals(alignment);
+    boolean needUpdAlign = Objects.equals(type.getAlignment(), alignment);
 
     if (type instanceof CComplexType) {
       boolean needUpdPacked = packed != ((CComplexType) type).isPacked();
@@ -259,7 +260,8 @@ public final class CTypes {
     return result;
   }
 
-  public static <T extends CType> T withAttributes(T type, final boolean packed) {
+  public static <T extends CType> T withAttributes(T type, boolean packed) {
+
     if (type instanceof CProblemType) {
       return type;
     }
@@ -273,20 +275,19 @@ public final class CTypes {
       return type;
     }
 
-    OptionalInt alignment = type instanceof CEnumType ? OptionalInt.empty() : type.getAlignment();
+    @Nullable Integer alignment = type instanceof CEnumType ? null : type.getAlignment();
 
     @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
     T result = (T) type.accept(ForceAttributesVisitor.create(packed, alignment));
     return result;
   }
 
-  public static <T extends CType> T withAttributes(T type, final OptionalInt alignment) {
+  public static <T extends CType> T withAttributes(T type, @Nullable Integer alignment) {
     if (type instanceof CProblemType) {
       return type;
     }
 
-    boolean needUpdAlign = !type.getAlignment().equals(alignment);
-    if (!needUpdAlign) {
+    if (Objects.equals(type.getAlignment(), alignment)) {
       return type;
     }
 
@@ -532,8 +533,8 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(
-          constValue, t.isVolatile(), t.getAlignment(), t.getMembership(), t.getType(), t.getLength());
+      return new CArrayType(constValue, t.isVolatile(),
+          t.getAlignment(), t.getMembership(), t.getType(), t.getLength());
     }
 
     @Override
@@ -679,12 +680,12 @@ public final class CTypes {
   private static class ForceAttributesVisitor implements CTypeVisitor<CType, NoException> {
 
     private final boolean packed;
-    private final OptionalInt alignment;
-    private static HashMap<Pair<Boolean, OptionalInt>, ForceAttributesVisitor> instances =
+    private final @Nullable Integer alignment;
+    private static HashMap<Pair<Boolean, @Nullable Integer>, ForceAttributesVisitor> instances =
         new HashMap<>(10);
 
-    public static ForceAttributesVisitor create(boolean packed, OptionalInt alignment) {
-      Pair<Boolean, OptionalInt> key = Pair.of(packed, alignment);
+    public static ForceAttributesVisitor create(boolean packed, @Nullable Integer alignment) {
+      Pair<Boolean, @Nullable Integer> key = Pair.of(packed, alignment);
       ForceAttributesVisitor v = instances.get(key);
       if (v == null) {
         v = new ForceAttributesVisitor(packed, alignment);
@@ -693,7 +694,7 @@ public final class CTypes {
       return v;
     }
 
-    private ForceAttributesVisitor(boolean pPacked, OptionalInt pAlignment) {
+    private ForceAttributesVisitor(boolean pPacked, @Nullable Integer pAlignment) {
       packed = pPacked;
       alignment = pAlignment;
     }
@@ -727,7 +728,7 @@ public final class CTypes {
     @Override
     public CFunctionType visit(CFunctionType t) {
       checkArgument(!packed, "Cannot specify packed function type, this is undefined");
-      checkArgument(alignment.isEmpty(), "Cannot specify aligned function type, this is undefined");
+      checkArgument(alignment == null, "Cannot specify aligned function type, this is undefined");
       return t;
     }
 
@@ -757,13 +758,15 @@ public final class CTypes {
     @Override
     public CType visit(CVoidType t) {
       checkArgument(!packed, "Cannot specify packed void type, this is undefined");
-      checkArgument(alignment.isEmpty(), "Cannot specify aligned void type, this is undefined");
+      checkArgument(alignment == null, "Cannot specify aligned void type, this is undefined");
       return t;
     }
 
     @Override
     public CType visit(CBitFieldType t) {
-      return t; // TODO
+      checkArgument(!packed, "Cannot specify packed void type, this is undefined");
+      checkArgument(alignment == null, "Cannot specify aligned void type, this is undefined");
+      return t;
     }
   }
 

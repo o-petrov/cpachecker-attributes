@@ -24,26 +24,26 @@ public final class CArrayType extends AArrayType implements CType {
   private final @Nullable CExpression length;
   private final boolean isConst;
   private final boolean isVolatile;
-  private final OptionalInt alignment;
+  private final Integer alignment;
   private final Membership member;
 
   public CArrayType(
       boolean pConst,
       boolean pVolatile,
-      OptionalInt pAlignment,
+      @Nullable Integer pAlignment,
       Membership pMember,
       CType pType,
       @Nullable CExpression pLength) {
     super(pType);
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = checkNotNull(pAlignment);
+    alignment = pAlignment;
     member = checkNotNull(pMember);
     length = pLength;
   }
 
   public CArrayType(boolean pConst, boolean pVolatile, CType pType, @Nullable CExpression pLength) {
-    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pType, pLength);
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pType, pLength);
   }
 
   @Override
@@ -80,10 +80,10 @@ public final class CArrayType extends AArrayType implements CType {
   private String toASTString(String pDeclarator, boolean pQualified) {
     checkNotNull(pDeclarator);
     final String aligned =
-        getAlignment().isPresent()
-            ? "__attribute__((__aligned__(" + getAlignment().getAsInt() + "))) "
-            : "";
+        alignment != null ? "__attribute__((__aligned__(" + alignment + "))) " : "";
+
     final String arrayModifier = "[" + (length != null ? length.toASTString(pQualified) : "") + "]";
+
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
         + getType().toASTString(aligned + pDeclarator + arrayModifier);
@@ -109,7 +109,7 @@ public final class CArrayType extends AArrayType implements CType {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     return alignment;
   }
 
@@ -167,8 +167,8 @@ public final class CArrayType extends AArrayType implements CType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
-        && alignment.equals(other.alignment)
-        && member == other.member;
+        && member == other.member
+        && Objects.equals(alignment, other.alignment);
   }
 
   @Override

@@ -14,7 +14,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalInt;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * This class represents the type "void".
@@ -109,7 +109,7 @@ public final class CVoidType implements CType {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     throw new UnsupportedOperationException("Void cant be aligned");
   }
 }

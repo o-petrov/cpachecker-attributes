@@ -12,7 +12,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.Serializable;
 import java.util.Objects;
-import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class CPointerType implements CType, Serializable {
@@ -26,20 +25,20 @@ public final class CPointerType implements CType, Serializable {
   private final CType type;
   private final boolean isConst;
   private final boolean isVolatile;
-  private final OptionalInt alignment;
+  private final Integer alignment;
   private final Membership member;
 
-  public CPointerType(
-      boolean pConst, boolean pVolatile, OptionalInt pAlignment, Membership pMember, CType pType) {
+  public CPointerType(boolean pConst, boolean pVolatile,
+      @Nullable Integer pAlignment, Membership pMember, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = checkNotNull(pAlignment);
+    alignment = pAlignment;
     member = checkNotNull(pMember);
     type = checkNotNull(pType);
   }
 
   public CPointerType(boolean pConst, boolean pVolatile, CType pType) {
-    this(pConst, pVolatile, OptionalInt.empty(), Membership.NOTAMEMBER, pType);
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pType);
   }
 
   @Override
@@ -53,7 +52,7 @@ public final class CPointerType implements CType, Serializable {
   }
 
   @Override
-  public OptionalInt getAlignment() {
+  public @Nullable Integer getAlignment() {
     return alignment;
   }
 
@@ -74,8 +73,7 @@ public final class CPointerType implements CType, Serializable {
   @Override
   public String toString() {
     String decl = "(" + type + ")*";
-    String align =
-        alignment.isPresent() ? " __attribute__((__aligned__(" + alignment.getAsInt() + ")))" : "";
+    String align = alignment != null ? " __attribute__((__aligned__(" + alignment + ")))" : "";
 
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
@@ -95,8 +93,8 @@ public final class CPointerType implements CType, Serializable {
     if (isVolatile()) {
       inner.append(" volatile");
     }
-    if (alignment.isPresent()) {
-      inner.append(" __attribute__((__aligned__(" + alignment.getAsInt() + ")))");
+    if (alignment != null) {
+      inner.append(" __attribute__((__aligned__(" + alignment + ")))");
     }
 
     if (inner.length() > 1) {
@@ -141,7 +139,7 @@ public final class CPointerType implements CType, Serializable {
     return isConst == other.isConst
         && isVolatile == other.isVolatile
         && member == other.member
-        && alignment.equals(other.alignment)
+        && Objects.equals(alignment, other.alignment)
         && Objects.equals(type, other.type);
   }
 
