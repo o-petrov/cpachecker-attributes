@@ -29,8 +29,9 @@ class Counter:
 
 class Test:
     """
-    For a given typename generate variables with all possible alignments, with no/[3]/[3][3] array modifier,
-    then get all sizes and aligns, and instead of v generate typedefs. Then do the same with generated typedefs,
+    For a given typename generate variables with all possible alignments,
+    with no/[3]/[3][3] array modifier, then get all sizes and aligns,
+    and instead of v generate typedefs. Then do the same with generated typedefs,
     then do the same with typedef'ed typedefs one more time.
     """
     # TODO pointers
@@ -42,7 +43,7 @@ class Test:
     arrays = ['', '[3]', '[3][3]']
 
     def __init__(self, path):
-        self.path = os.path.abspath(path)
+        self.path = os.path.abspath(path) + '/'
         self.counter = Counter()
         self.head = []
         self.info = []
@@ -79,72 +80,165 @@ class Test:
 
 
 class TestSet:
-    def __init__(self, command):
-        self.command = command
+    def filepath(self, name, as_include):
+        """Absolute path or C #include"""
+        return self.test.path + name if as_include else f'#include "{name}"\n'
 
-    def write_test_body(self, body, filepath, header):
-        with open(filepath, 'w', encoding='utf8') as fp:
+    def tdef_header(self, *, previous=False, as_include=False):
+        """(Previous) header with typedefs."""
+        lvl = self.tdef_lvl - 1 if previous else self.tdef_lvl
+        return self.filepath(f'td{lvl}.h', as_include) if lvl > 0 else ''
+
+    def vars_header(self, as_include=False):
+        """Variable declarations"""
+        return self.filepath(f'v{self.tdef_lvl}.h', as_include)
+
+    def vars_body(self, *, part=None, as_include=False):
+        """Test body, with -part{part} suffix if specified"""
+        return self.filepath(f'v{self.tdef_lvl}.c' if part is None else f'v{self.tdef_lvl}-part{part}.c', as_include)
+
+    def tinfo_printer(self):
+        # .c will never be included
+        return self.filepath(f'print-typeinfo{self.tdef_lvl}.c', as_include=False)
+
+    def __init__(self, command, dirpath):
+        self.command = command
+        self.dirpath = os.path.abspath(dirpath) + '/'
+        self.test = None
+        self.tdef_lvl = None
+        print(f"Creating tests for compiler '{self.command}' in '{self.dirpath}' directory")
+
+    def generate_all_arithmetic_types(self):
+        """Generate tests for all possible arithmetic types."""
+        # TODO check if _Imaginary etc is used by compiler?
+
+        self.generate_arithmetic_type('_Bool')
+
+        types = ['short', 'long', 'long long']
+        types += [x + ' int' for x in types]
+        types = ['char', 'int'] + types
+        for typename in types:
+            for sign in ['', 'signed', 'unsigned']:
+                self.generate_arithmetic_type(sign + (' ' if sign else '') + typename)
+        for typename in ['float', 'double', 'long double']:
+            for cmplx in ['', '_Complex', '_Imaginary']:
+                self.generate_arithmetic_type(typename + (' ' if cmplx else '') + cmplx)
+
+    def generate_arithmetic_type(self, typename):
+        """Generate tests for given arithmetic type."""
+        print('Generating files for arithmetic type', typename)
+        self.test = Test(typename)
+        os.makedirs(self.test.path, 0o777, exist_ok=True)
+
+        # variables of given type
+        self.tdef_lvl = 0
+        self.test.declare_all(typename)
+        self.write_headers()
+        typeinfo = self.add_typeinfo()
+        self.write_bodies()
+        print('generated target-independent files: without typedefs')
+
+        # variables of generated typedefs
+        self.tdef_lvl = 1
+        self.declare_typedef_vars(typeinfo)
+        self.write_headers()
+        typeinfo = self.add_typeinfo()
+        self.write_bodies()
+        print('generated headers with first level typedefs')
+
+        # variables of second-level typedefs
+        self.tdef_lvl = 2
+        self.declare_typedef_vars(typeinfo)
+        self.write_headers(write_next_tdef=False)
+        self.add_typeinfo()
+        self.write_bodies()
+        print('generated headers with second level typedefs')
+
+    def write_headers(self, write_next_tdef=True):
+        """Write variable declarations into one header, type info prints into a .c file,
+        and possibly generated typedefs into another header."""
+
+        with open(self.vars_header(), 'w', encoding='utf8') as fp:
+            fp.write(self.tdef_header(as_include=True) + '\n'.join(self.test.head) + '\n')
+        self.test.head = []
+
+        with open(self.tinfo_printer(), 'w', encoding='utf8') as fp:
             fp.write(
-                '#include <assert.h>\n'
-                f'#include "{header}"\n'
-                'int main() {\n'
-                + '\n'.join(body)
+                f'#include <stdio.h>\n'
+                + self.vars_header(True)
+                + f'int main() {{\n'
+                + '\n'.join(self.test.info)
                 + '\n    return 0;\n}\n'
             )
-        print('file', filepath, 'is ready for testing')
+        self.test.info = []
 
-    def prepare_test(self, test, lvl):
-        remaining_body = test.body
+        if write_next_tdef:
+            with open(self.tdef_header(), 'w', encoding='utf8') as fp:
+                fp.write(
+                    self.tdef_header(previous=True, as_include=True)
+                    + '\n'.join(self.test.tdef)
+                    + '\n'
+                )
+        self.test.tdef = []
+
+    def add_typeinfo(self):
+        """Add alignment and size numbers for declared variables.
+
+        This information may be needed for next stages, so return the file.
+        """
+        # TODO output file?
+
+        compilation = subprocess.run([self.command + f' "{self.tinfo_printer()}"'], shell=True)
+        if compilation.returncode != 0:
+            raise Exception(f'Compilation of {self.tinfo_printer()} failed (code {compilation.returncode})')
+
+        printing = subprocess.run(['./a.out'], capture_output=True)
+        if printing.returncode != 0:
+            print(printing.stderr, file=sys.stderr)
+            raise Exception(f'Printing type info (file {self.tinfo_printer()}) failed (code {compilation.returncode})')
+
+        with open(self.vars_header(), 'ab') as fp:
+            fp.write(printing.stdout)
+
+        return printing.stdout
+
+    def write_bodies(self):
+        """Split test body in smaller parts and write into files."""
+
+        def write_test_body(body, part):
+            with open(self.vars_body(part=part), 'w', encoding='utf8') as fp:
+                fp.write(
+                    '#include <assert.h>\n'
+                    f'#include "{self.vars_header()}"\n'
+                    'int main() {\n'
+                    + '\n'.join(body)
+                    + '\n    return 0;\n}\n'
+                )
+
+        remaining_body = self.test.body
+        self.test.body = []
         part = 0
-        header = f'v{lvl}.h'
         while len(remaining_body) > 9000:
             part += 1
             body, remaining_body = remaining_body[:7000], remaining_body[7000:]
-            filepath = test.path + f'/v{lvl}-part{part}.c'
-            self.write_test_body(body, filepath, header)
+            write_test_body(body, part)
         if remaining_body:
             if part > 0:  # splited in parts
-                filepath = test.path + f'/v{lvl}-part{part+1}.c'
+                write_test_body(remaining_body, part + 1)
+                print(f'Test files {self.test.path}v{self.tdef_lvl}-part1..{part + 1}.c are ready.')
             else:
-                filepath = test.path + f'/v{lvl}.c'
-            self.write_test_body(remaining_body, filepath, header)
-        test.body = []
+                write_test_body(remaining_body, None)
+                print(f'Test file {self.test.path}v{self.tdef_lvl}.c is ready.')
 
-    def generate_arithmetic_type(self, typename):
-        print('generating files for arithmetic type', typename)
-        test = Test(os.path.abspath(f'../../test_attributes/{typename}/'))
-        os.makedirs(test.path, 0o777, exist_ok=True)
-        test.declare_all(typename)
-        infoprinter = self.write_headers(test, 0)
-        self.prepare_test(test, 0)
-        print('generated headers without typedefs')
-        try:
-            self.add_sizes_and_typedefs(test, infoprinter, 0)
-            infoprinter = self.write_headers(test, 1)
-            self.prepare_test(test, 1)
-            print('generated headers with first level typedefs')
-            self.add_sizes_and_typedefs(test, infoprinter, 1)
-            infoprinter = self.write_headers(test, 2, gen_next_tdef=False)
-            self.prepare_test(test, 2)
-            print('generated headers with second level typedefs')
-            self.add_sizes_and_typedefs(test, infoprinter, 2)
-        except Exception as e:
-            print(e)
+    def declare_typedef_vars(self, typeinfo):
+        """Declare variables for defined typedefs.
 
-    def add_sizes_and_typedefs(self, test, infoprinter, lvl):
-        # TODO output file?
-        compilation = subprocess.run([self.command + f' "{infoprinter}"'], shell=True)
-        if compilation.returncode != 0:
-            raise Exception('compilation failed (code %d)' % compilation.returncode)
-        printing = subprocess.run(['./a.out'], capture_output=True)
-        if printing.returncode != 0:
-            raise Exception('printing failed (code %d)' % compilation.returncode)
-
+        If type alignment is greater then its size, arrays can not be declared,
+        so typeinfo given by compiler is parsed.
+        """
         size_idx = align_idx = size = align = last_type = -1
-        with open(test.path + f'/v{lvl}.h', 'ab') as fp:
-            fp.write(printing.stdout)
 
-        for line in printing.stdout.splitlines():
+        for line in typeinfo.splitlines():
             try:
                 define, typestat, value = line.split()
                 typestat, idx_ar = typestat.split(b'V', 1)
@@ -170,53 +264,13 @@ class TestSet:
             last_type = size_idx
             if size >= align:
                 # can make array of typedef
-                test.declare_all(f'type{last_type}')
+                self.test.declare_all(f'type{last_type}')
             else:
                 # can make typedef but not array off of it
-                test.declare_aligns(f'type{last_type}')
-
-    def write_headers(self, test, tdef_lvl, gen_next_tdef=True):
-        include_tdef = f'#include "td{tdef_lvl}.h"\n' if tdef_lvl > 0 else ''
-
-        vheader = test.path + f'/v{tdef_lvl}.h'
-        with open(vheader, 'w', encoding='utf8') as fp:
-            fp.write(include_tdef + '\n'.join(test.head) + '\n')
-
-        infoprinter = test.path + f'/v{tdef_lvl}-typeinfo-printer.c'
-        with open(infoprinter, 'w', encoding='utf8') as fp:
-            fp.write(
-                f'#include <stdio.h>\n'
-                f'#include "v{tdef_lvl}.h"\n'
-                f'int main() {{\n'
-                + '\n'.join(test.info)
-                + '\n    return 0;\n}\n'
-            )
-
-        if gen_next_tdef:
-            # next header has all typedefs
-            tdheader = test.path + f'/td{tdef_lvl+1}.h'
-            with open(tdheader, 'w', encoding='utf8') as fp:
-                fp.write(include_tdef + '\n'.join(test.tdef) + '\n')
-        test.head = []
-        test.info = []
-        test.tdef = []
-        return infoprinter
-
-    def generate_all_arithmetic_types(self):
-        self.generate_arithmetic_type('_Bool')
-
-        types = ['short', 'long', 'long long']
-        types += [x + ' int' for x in types]
-        types = ['char', 'int'] + types
-        for typename in types:
-            for sign in ['', 'signed', 'unsigned']:
-                self.generate_arithmetic_type(sign + (' ' if sign else '') + typename)
-        for typename in ['float', 'double', 'long double']:
-            for cmplx in ['', '_Complex', '_Imaginary']:
-                self.generate_arithmetic_type(typename + (' ' if cmplx else '') + cmplx)
+                self.test.declare_aligns(f'type{last_type}')
 
 
 if __name__ == "__main__":
-    t = TestSet('gcc -fmax-errors=3')
+    t = TestSet('gcc -fmax-errors=3', '../../test_attributes')
     # t.generate_all_arithmetic_types()
     t.generate_arithmetic_type('_Bool')
