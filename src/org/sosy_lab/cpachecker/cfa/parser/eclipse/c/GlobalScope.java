@@ -351,11 +351,16 @@ class GlobalScope extends AbstractScope {
 
     if (oldType instanceof CCompositeType) {
       CCompositeType oldCompositeType = (CCompositeType) oldType;
-      CCompositeType renamedCompositeType = new CCompositeType(oldType.isConst(),
-                                                               oldType.isVolatile(),
-                                                               oldType.getKind(),
-                                                               newName,
-                                                               oldType.getOrigName());
+      CCompositeType renamedCompositeType =
+          new CCompositeType(
+              oldType.isConst(),
+              oldType.isVolatile(),
+              oldType.getAlignment(),
+              oldType.isPacked(),
+              oldType.getMembership(),
+              oldType.getKind(),
+              newName,
+              oldType.getOrigName());
 
       // overwrite the already found type in the types map of the ASTTypeConverter if necessary
       // we need to do this, that the members of the renamed CCompositeType get the correct type names

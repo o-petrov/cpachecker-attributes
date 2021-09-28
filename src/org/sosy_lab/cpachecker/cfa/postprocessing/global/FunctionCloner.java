@@ -596,6 +596,9 @@ class FunctionCloner implements CFAVisitor {
           new CCompositeType(
               type.isConst(),
               type.isVolatile(),
+              type.getAlignment(),
+              type.isPacked(),
+              type.getMembership(),
               type.getKind(),
               type.getName(),
               type.getOrigName());

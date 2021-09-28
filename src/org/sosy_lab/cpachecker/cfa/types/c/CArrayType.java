@@ -24,13 +24,26 @@ public final class CArrayType extends AArrayType implements CType {
   private final @Nullable CExpression length;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Integer alignment;
+  private final Membership member;
 
-  public CArrayType(boolean pConst, boolean pVolatile,
-      CType pType, @Nullable CExpression pLength) {
+  public CArrayType(
+      boolean pConst,
+      boolean pVolatile,
+      @Nullable Integer pAlignment,
+      Membership pMember,
+      CType pType,
+      @Nullable CExpression pLength) {
     super(pType);
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
+    member = checkNotNull(pMember);
     length = pLength;
+  }
+
+  public CArrayType(boolean pConst, boolean pVolatile, CType pType, @Nullable CExpression pLength) {
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pType, pLength);
   }
 
   @Override
@@ -54,8 +67,9 @@ public final class CArrayType extends AArrayType implements CType {
    * the method {@link CTypes#adjustFunctionOrArrayType(CType)} should be used instead, which
    * implements this conversion properly and also the similar conversion for function types.
    */
+  // TODO conversion with alignment?
   public CPointerType asPointerType() {
-    return new CPointerType(isConst, isVolatile, getType());
+    return new CPointerType(isConst, isVolatile, alignment, member, getType());
   }
 
   @Override
@@ -65,11 +79,14 @@ public final class CArrayType extends AArrayType implements CType {
 
   private String toASTString(String pDeclarator, boolean pQualified) {
     checkNotNull(pDeclarator);
+    final String aligned =
+        alignment != null ? "__attribute__((__aligned__(" + alignment + "))) " : "";
+
+    final String arrayModifier = "[" + (length != null ? length.toASTString(pQualified) : "") + "]";
+
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
-        + getType()
-            .toASTString(
-                pDeclarator + ("[" + (length != null ? length.toASTString(pQualified) : "") + "]"));
+        + getType().toASTString(aligned + pDeclarator + arrayModifier);
   }
 
   public String toQualifiedASTString(String pDeclarator) {
@@ -92,6 +109,16 @@ public final class CArrayType extends AArrayType implements CType {
   }
 
   @Override
+  public @Nullable Integer getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public Membership getMembership() {
+    return member;
+  }
+
+  @Override
   public String toString() {
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
@@ -107,7 +134,7 @@ public final class CArrayType extends AArrayType implements CType {
 
   @Override
   public int hashCode() {
-    return Objects.hash(length, isConst, isVolatile) * 31 + super.hashCode();
+    return Objects.hash(length, isConst, isVolatile, alignment, member) * 31 + super.hashCode();
   }
 
 
@@ -138,7 +165,10 @@ public final class CArrayType extends AArrayType implements CType {
       }
     }
 
-    return isConst == other.isConst && isVolatile == other.isVolatile;
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && member == other.member
+        && Objects.equals(alignment, other.alignment);
   }
 
   @Override
@@ -151,10 +181,12 @@ public final class CArrayType extends AArrayType implements CType {
     // C11 standard 6.7.3 (9) specifies that qualifiers like const and volatile
     // on an array type always refer to the element type, not the array type.
     // So we push these modifiers down to the element type here.
-    return new CArrayType(false, false,
-        getType().getCanonicalType(isConst || pForceConst,
-                                   isVolatile || pForceVolatile),
+    return new CArrayType(
+        false,
+        false,
+        alignment,
+        member,
+        getType().getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile),
         length);
   }
-
 }

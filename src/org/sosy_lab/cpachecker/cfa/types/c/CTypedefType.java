@@ -24,15 +24,32 @@ public final class CTypedefType implements CType, Serializable {
   private final CType realType; // the real type this typedef points to
   private final boolean isConst;
   private final boolean isVolatile;
+  private final @Nullable Integer alignment;
+  private final Membership member;
   private int hashCache = 0;
 
-  public CTypedefType(final boolean pConst, final boolean pVolatile,
-      final String pName, CType pRealType) {
-
+  public CTypedefType(
+      boolean pConst,
+      boolean pVolatile,
+      @Nullable Integer pAlignment,
+      Membership pMember,
+      String pName,
+      CType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
+    member = checkNotNull(pMember);
     name = pName.intern();
     realType = checkNotNull(pRealType);
+  }
+
+  public CTypedefType(boolean pConst, boolean pVolatile,
+      @Nullable Integer pAlignment, String pName, CType pRealType) {
+    this(pConst, pVolatile, pAlignment, Membership.NOTAMEMBER, pName, pRealType);
+  }
+
+  public CTypedefType(boolean pConst, boolean pVolatile, String pName, CType pRealType) {
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pName, pRealType);
   }
 
   public String getName() {
@@ -54,7 +71,8 @@ public final class CTypedefType implements CType, Serializable {
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
         + name
-        + " " + pDeclarator;
+        + (alignment != null ? " __attribute__((__aligned__(" + alignment + "))) " : " ")
+        + pDeclarator;
   }
 
   @Override
@@ -65,6 +83,16 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public @Nullable Integer getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public Membership getMembership() {
+    return member;
   }
 
   @Override
@@ -80,7 +108,7 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(name, isConst, isVolatile, realType);
+      hashCache = Objects.hash(name, isConst, isVolatile, alignment, member, realType);
     }
     return hashCache;
   }
@@ -102,9 +130,12 @@ public final class CTypedefType implements CType, Serializable {
 
     CTypedefType other = (CTypedefType) obj;
 
-    return Objects.equals(name, other.name) && isConst == other.isConst
-           && isVolatile == other.isVolatile
-           && Objects.equals(realType, other.realType);
+    return Objects.equals(name, other.name)
+        && isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && member == other.member
+        && Objects.equals(alignment, other.alignment)
+        && Objects.equals(realType, other.realType);
   }
 
   @Override
@@ -114,6 +145,10 @@ public final class CTypedefType implements CType, Serializable {
 
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
-    return realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+    CType t = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+    if (alignment != null) {
+      t = CTypes.withAttributes(t, alignment);
+    }
+    return CTypes.asMember(t, member);
   }
 }

@@ -35,16 +35,28 @@ public final class CSimpleType implements CType, Serializable {
   private final boolean isLongLong;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final @Nullable Integer alignment;
+  private final Membership member;
 
   @LazyInit private int hashCache = 0;
 
-  public CSimpleType(final boolean pConst, final boolean pVolatile,
-      final CBasicType pType, final boolean pIsLong, final boolean pIsShort,
-      final boolean pIsSigned, final boolean pIsUnsigned,
-      final boolean pIsComplex, final boolean pIsImaginary,
-      final boolean pIsLongLong) {
+  public CSimpleType(
+      boolean pConst,
+      boolean pVolatile,
+      @Nullable Integer pAlignment,
+      Membership pMember,
+      CBasicType pType,
+      boolean pIsLong,
+      boolean pIsShort,
+      boolean pIsSigned,
+      boolean pIsUnsigned,
+      boolean pIsComplex,
+      boolean pIsImaginary,
+      boolean pIsLongLong) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
+    member = checkNotNull(pMember);
     type = checkNotNull(pType);
     isLong = pIsLong;
     isShort = pIsShort;
@@ -55,6 +67,22 @@ public final class CSimpleType implements CType, Serializable {
     isLongLong = pIsLongLong;
   }
 
+  public CSimpleType(
+      boolean pConst,
+      boolean pVolatile,
+      CBasicType pType,
+      boolean pIsLong,
+      boolean pIsShort,
+      boolean pIsSigned,
+      boolean pIsUnsigned,
+      boolean pIsComplex,
+      boolean pIsImaginary,
+      boolean pIsLongLong) {
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pType,
+        pIsLong, pIsShort, pIsSigned, pIsUnsigned,
+        pIsComplex, pIsImaginary, pIsLongLong);
+  }
+
   @Override
   public boolean isConst() {
     return isConst;
@@ -63,6 +91,16 @@ public final class CSimpleType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public @Nullable Integer getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public Membership getMembership() {
+    return member;
   }
 
   public CBasicType getType() {
@@ -104,21 +142,16 @@ public final class CSimpleType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-      if (hashCache == 0) {
+    if (hashCache == 0) {
       hashCache =
           Objects.hash(
-              isComplex,
-              isConst,
-              isVolatile,
-              isImaginary,
-              isLong,
-              isLongLong,
-              isShort,
-              isSigned,
-              isUnsigned,
-              type);
-      }
-      return hashCache;
+              isConst, isVolatile, type,
+              isComplex, isImaginary,
+              isLong, isLongLong, isShort,
+              isSigned, isUnsigned,
+              alignment, member);
+    }
+    return hashCache;
   }
 
   /**
@@ -138,11 +171,18 @@ public final class CSimpleType implements CType, Serializable {
 
     CSimpleType other = (CSimpleType) obj;
 
-    return isComplex == other.isComplex && isConst == other.isConst
-           && isVolatile == other.isVolatile && isImaginary == other.isImaginary
-           && isLong == other.isLong && isLongLong == other.isLongLong
-           && isShort == other.isShort && isSigned == other.isSigned
-           && isUnsigned == other.isUnsigned && type == other.type;
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && isComplex == other.isComplex
+        && isImaginary == other.isImaginary
+        && isSigned == other.isSigned
+        && isUnsigned == other.isUnsigned
+        && isLong == other.isLong
+        && isLongLong == other.isLongLong
+        && isShort == other.isShort
+        && type == other.type
+        && member == other.member
+        && Objects.equals(alignment, other.alignment);
   }
 
   @Override
@@ -189,6 +229,11 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     parts.add(Strings.emptyToNull(type.toASTString()));
+
+    if (alignment != null) {
+      parts.add("__attribute__ ((__aligned__ (" + alignment + ")))");
+    }
+
     parts.add(Strings.emptyToNull(pDeclarator));
 
     return Joiner.on(' ').skipNulls().join(parts);
@@ -219,15 +264,9 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     return new CSimpleType(
-        isConst || pForceConst,
-        isVolatile || pForceVolatile,
-        newType,
-        isLong,
-        isShort,
-        newIsSigned,
-        isUnsigned,
-        isComplex,
-        isImaginary,
-        isLongLong);
+        isConst || pForceConst, isVolatile || pForceVolatile,
+        alignment, member, newType,
+        isLong, isShort, newIsSigned, isUnsigned,
+        isComplex, isImaginary, isLongLong);
   }
 }

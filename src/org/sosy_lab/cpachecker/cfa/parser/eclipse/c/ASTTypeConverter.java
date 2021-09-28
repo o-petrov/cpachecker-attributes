@@ -18,8 +18,12 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.eclipse.cdt.core.dom.ast.DOMException;
+import org.eclipse.cdt.core.dom.ast.IASTAttribute;
+import org.eclipse.cdt.core.dom.ast.IASTAttributeOwner;
 import org.eclipse.cdt.core.dom.ast.IASTDeclSpecifier;
+import org.eclipse.cdt.core.dom.ast.IASTDeclarator;
 import org.eclipse.cdt.core.dom.ast.IASTElaboratedTypeSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTExpression;
 import org.eclipse.cdt.core.dom.ast.IASTNamedTypeSpecifier;
@@ -62,6 +66,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypedefType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
+import org.sosy_lab.cpachecker.cfa.types.c.Membership;
 
 /** This Class contains functions,
  * that convert types from C-source into CPAchecker-format. */
@@ -149,7 +154,13 @@ class ASTTypeConverter {
       // We have seen this type already.
       // Replace it with a CElaboratedType.
       if (oldType != null) {
-        return new CElaboratedType(false, false, kind, oldType.getName(), oldType.getOrigName(), oldType);
+        return new CElaboratedType(
+            false,
+            false,
+            kind,
+            oldType.getName(),
+            oldType.getOrigName(),
+            oldType);
       }
 
       // empty linkedList for the Fields of the struct, they are created afterwards
@@ -275,8 +286,10 @@ class ASTTypeConverter {
             "Illegal combination of type identifiers"); }
 
         // TODO why is there no isConst() and isVolatile() here?
-        return new CSimpleType(false, false, type, c.isLong(), c.isShort(),
-            c.isSigned(), c.isUnsigned(), c.isComplex(), c.isImaginary(), c.isLongLong());
+        return new CSimpleType(
+            false, false, null, Membership.NOTAMEMBER, type,
+            c.isLong(), c.isShort(), c.isSigned(), c.isUnsigned(),
+            c.isComplex(), c.isImaginary(), c.isLongLong());
 
       } else {
         throw new CFAGenerationRuntimeException("Unknown type " + t);
@@ -429,9 +442,21 @@ class ASTTypeConverter {
       throw parseContext.parseError("Illegal combination of type identifiers", dd);
     }
 
-    return new CSimpleType(dd.isConst(), dd.isVolatile(), type,
-        dd.isLong(), dd.isShort(), dd.isSigned(), dd.isUnsigned(),
-        dd.isComplex(), dd.isImaginary(), dd.isLongLong());
+    CType ctype =
+        new CSimpleType(
+            dd.isConst(),
+            dd.isVolatile(),
+            type,
+            dd.isLong(),
+            dd.isShort(),
+            dd.isSigned(),
+            dd.isUnsigned(),
+            dd.isComplex(),
+            dd.isImaginary(),
+            dd.isLongLong());
+    ctype = handleTypeAttributes(dd, ctype);
+
+    return ctype;
   }
 
   CType convert(final IASTNamedTypeSpecifier d) {
@@ -456,7 +481,64 @@ class ASTTypeConverter {
     if (d.isVolatile()) {
       type = CTypes.withVolatile(type);
     }
+    type = handleTypeAttributes(d, type);
 
+    return type;
+  }
+
+  CType handleTypeAttributes(IASTAttributeOwner d, CType type) {
+    if (!(d instanceof IASTDeclSpecifier
+        || d instanceof IASTPointerOperator
+        || d instanceof IASTDeclarator)) {
+      throw new UnsupportedOperationException("Unexpected attribute owner: " + d);
+    }
+
+    boolean packed = false;
+    @Nullable Integer alignment = null;
+    // TODO handle alignSpecifiers
+
+    for (IASTAttribute attribute : d.getAttributes()) {
+      String name = ASTConverter.getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        try {
+          char[] tokenCharImage = attribute.getArgumentClause().getTokenCharImage();
+          String clause = ASTConverter.getAttributeString(tokenCharImage);
+          alignment = Integer.valueOf(clause);
+        } catch (NullPointerException e) {
+          // default alignment as clause was not specified
+          // TODO default is dependent on machine model
+          alignment = 16;
+        } catch (NumberFormatException e) {
+          // clause must be integer
+          // XXX might be _BIGGEST_ALIGNMENT_ or smth like that?
+          throw parseContext.parseError("__aligned__ attribute argument should be integer", d);
+        }
+      } else if (name.equals("packed")) {
+        packed = true;
+      }
+    }
+
+    if (packed && !(type instanceof CComplexType)) {
+      // TODO warning
+      packed = false;
+    }
+
+    if (alignment != null && type.getAlignment() != null) {
+      if (type.getAlignment() >= alignment && !(type instanceof CElaboratedType)) {
+        // the alignment remains
+        alignment = null;
+      }
+    }
+
+    if (packed && alignment != null) {
+      return CTypes.withAttributes(type, packed, alignment);
+    }
+    if (packed) {
+      return CTypes.withAttributes(type, packed);
+    }
+    if (alignment != null) {
+      return CTypes.withAttributes(type, alignment);
+    }
     return type;
   }
 
@@ -507,15 +589,19 @@ class ASTTypeConverter {
       name = scope.getFileSpecificTypeName(name);
     }
 
-    return new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
+    CElaboratedType ctype =
+        new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
+    return (CElaboratedType) handleTypeAttributes(d, ctype);
   }
 
   /** returns a pointerType, that wraps the type. */
   CPointerType convert(final IASTPointerOperator po, final CType type) {
     if (po instanceof IASTPointer) {
       IASTPointer p = (IASTPointer) po;
-      return new CPointerType(p.isConst(), p.isVolatile(), type);
-
+      CPointerType ctype = new CPointerType(p.isConst(), p.isVolatile(), type);
+      // doesn't work because attributes between pointer operators are lost in cdt
+      ctype = (CPointerType) handleTypeAttributes(po, ctype);
+      return ctype;
     } else {
       throw parseContext.parseError("Unknown pointer operator", po);
     }

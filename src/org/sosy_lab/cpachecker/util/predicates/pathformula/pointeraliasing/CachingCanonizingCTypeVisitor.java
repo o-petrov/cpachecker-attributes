@@ -45,11 +45,17 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
     public CType visit(final CArrayType t) {
       final CType oldType = t.getType();
       final CType type = oldType.accept(CachingCanonizingCTypeVisitor.this);
-      return type == oldType && (!t.isConst() || !ignoreConst) && (!t.isVolatile() || !ignoreVolatile) ? t :
-        new CArrayType(!ignoreConst && t.isConst(),
-                       !ignoreVolatile && t.isVolatile(),
-                       type,
-                       t.getLength());
+      return type == oldType
+              && (!t.isConst() || !ignoreConst)
+              && (!t.isVolatile() || !ignoreVolatile)
+          ? t
+          : new CArrayType(
+              !ignoreConst && t.isConst(),
+              !ignoreVolatile && t.isVolatile(),
+              t.getAlignment(),
+              t.getMembership(),
+              type,
+              t.getLength());
     }
 
     @Override
@@ -60,17 +66,22 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
     @Override
     public CElaboratedType visit(final CElaboratedType t) {
       final CComplexType oldRealType = t.getRealType();
-      final CComplexType realType = oldRealType != null ?
-                                      (CComplexType) oldRealType.accept(CachingCanonizingCTypeVisitor.this) :
-                                      null;
+      final CComplexType realType =
+          oldRealType != null ? (CComplexType) oldRealType.accept(this) : null;
 
-      return realType == oldRealType && (!ignoreConst || !t.isConst()) && (!ignoreVolatile || !t.isVolatile()) ? t :
-             new CElaboratedType(!ignoreConst && t.isConst(),
-                                 !ignoreVolatile && t.isVolatile(),
-                                 t.getKind(),
-                                 t.getName(),
-                                 t.getOrigName(),
-                                 realType);
+      return realType == oldRealType
+              && (!ignoreConst || !t.isConst())
+              && (!ignoreVolatile || !t.isVolatile())
+          ? t
+          : new CElaboratedType(
+              !ignoreConst && t.isConst(),
+              !ignoreVolatile && t.isVolatile(),
+              t.getAlignment(),
+              t.getMembership(),
+              t.getKind(),
+              t.getName(),
+              t.getOrigName(),
+              realType);
     }
 
     @Override
@@ -78,10 +89,16 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
       final CType oldType = t.getType();
       final CType type = oldType.accept(CachingCanonizingCTypeVisitor.this);
 
-      return type == oldType && (!ignoreConst || !t.isConst()) && (!ignoreVolatile || !t.isVolatile()) ? t :
-             new CPointerType(!ignoreConst && t.isConst(),
-                              !ignoreVolatile && t.isVolatile(),
-                              type);
+      return type == oldType
+              && (!ignoreConst || !t.isConst())
+              && (!ignoreVolatile || !t.isVolatile())
+          ? t
+          : new CPointerType(
+              !ignoreConst && t.isConst(),
+              !ignoreVolatile && t.isVolatile(),
+              t.getAlignment(),
+              t.getMembership(),
+              type);
     }
 
     @Override
@@ -89,8 +106,17 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
       final CType oldRealType = t.getRealType();
       final CType realType = oldRealType.accept(CachingCanonizingCTypeVisitor.this);
 
-      return realType == oldRealType && (!ignoreConst || !t.isConst()) && (!ignoreVolatile || !t.isVolatile()) ? t :
-             new CTypedefType(!ignoreConst && t.isConst(), !ignoreConst && t.isVolatile(), t.getName(), realType);
+      return realType == oldRealType
+              && (!ignoreConst || !t.isConst())
+              && (!ignoreVolatile || !t.isVolatile())
+          ? t
+          : new CTypedefType(
+              !ignoreConst && t.isConst(),
+              !ignoreConst && t.isVolatile(),
+              t.getAlignment(),
+              t.getMembership(),
+              t.getName(),
+              realType);
     }
 
     @Override
@@ -132,7 +158,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
     @Override
     public CType visit(final CEnumType t) {
       // refactor once #348 was improved
-      return t.getEnumerators().get(0).getType().accept(CachingCanonizingCTypeVisitor.this);
+      return t.getType().accept(CachingCanonizingCTypeVisitor.this);
     }
 
     @Override
@@ -150,6 +176,8 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
           : new CSimpleType(
               !ignoreConst && t.isConst(),
               !ignoreVolatile && t.isVolatile(),
+              t.getAlignment(),
+              t.getMembership(),
               t.getType(),
               t.isLong(),
               t.isShort(),
@@ -171,8 +199,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
 
     @Override
     public CType visit(CVoidType t) {
-      return CVoidType.create(!ignoreConst && t.isConst(),
-                              !ignoreVolatile && t.isVolatile());
+      return CVoidType.create(!ignoreConst && t.isConst(), !ignoreVolatile && t.isVolatile());
     }
 
     private final boolean ignoreConst;
@@ -199,6 +226,9 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
           new CCompositeType(
               !typeVisitor.ignoreConst && canonicalType.isConst(),
               !typeVisitor.ignoreVolatile && canonicalType.isVolatile(),
+              canonicalType.getAlignment(),
+              canonicalType.isPacked(),
+              canonicalType.getMembership(),
               canonicalType.getKind(),
               canonicalType.getName(),
               canonicalType.getOrigName());

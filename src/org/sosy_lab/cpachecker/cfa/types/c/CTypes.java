@@ -9,15 +9,19 @@
 package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Equivalence;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.types.c.CComplexType.ComplexTypeKind;
 import org.sosy_lab.cpachecker.exceptions.NoException;
+import org.sosy_lab.cpachecker.util.Pair;
 
 /**
  * Helper methods for CType instances.
@@ -230,6 +234,95 @@ public final class CTypes {
     return result;
   }
 
+  /** Return a copy of a given type that has "isPacked" and "alignment" set accordingly. */
+  public static <T extends CType> T withAttributes(
+      T type, final boolean packed, final @Nullable Integer alignment) {
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    boolean needUpdAlign = Objects.equals(type.getAlignment(), alignment);
+
+    if (type instanceof CComplexType) {
+      boolean needUpdPacked = packed != ((CComplexType) type).isPacked();
+      if (!needUpdPacked && !needUpdAlign) {
+        return type;
+      }
+
+    } else if (packed) {
+      throw new UnsupportedOperationException("Cant force __packed__ on type " + type);
+    } else if (!needUpdAlign) {
+      return type;
+    }
+
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAttributesVisitor.create(packed, alignment));
+    return result;
+  }
+
+  public static <T extends CType> T withAttributes(T type, boolean packed) {
+
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    if (!(type instanceof CComplexType)) {
+      throw new UnsupportedOperationException("Cant force __packed__ on type " + type);
+    }
+
+    boolean needUpdPacked = packed != ((CComplexType) type).isPacked();
+    if (!needUpdPacked) {
+      return type;
+    }
+
+    @Nullable Integer alignment = type instanceof CEnumType ? null : type.getAlignment();
+
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAttributesVisitor.create(packed, alignment));
+    return result;
+  }
+
+  public static <T extends CType> T withAttributes(T type, @Nullable Integer alignment) {
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    if (Objects.equals(type.getAlignment(), alignment)) {
+      return type;
+    }
+
+    boolean isPacked = (type instanceof CComplexType) && ((CComplexType) type).isPacked();
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAttributesVisitor.create(isPacked, alignment));
+    return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends CType> T asMember(T type, Membership member) {
+    checkNotNull(type);
+    checkNotNull(member);
+
+    if (type instanceof CBitFieldType
+        || type instanceof CFunctionType
+        || type instanceof CVoidType) {
+      return type;
+    }
+
+    ForceMemberVisitor visitor = ForceMemberVisitor.NOTMEMBER;
+    switch (member) {
+      case REGULARMEMBER:
+        visitor = ForceMemberVisitor.MEMBER;
+        break;
+      case MEMBEROFPACKED:
+        visitor = ForceMemberVisitor.PACKED;
+        break;
+      default:
+        visitor = ForceMemberVisitor.NOTMEMBER;
+        break;
+    }
+    return type.getMembership() == member ? type : (T) type.accept(visitor);
+  }
+
   /**
    * Implements a compatibility check for {@link CType}s according to
    * C-Standard §6.2.7. This definition is symmetric, therefore the
@@ -440,22 +533,27 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(constValue, t.isVolatile(), t.getType(), t.getLength());
+      return new CArrayType(constValue, t.isVolatile(),
+          t.getAlignment(), t.getMembership(), t.getType(), t.getLength());
     }
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(constValue, t.isVolatile(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+      return new CCompositeType(constValue, t.isVolatile(),
+          t.getAlignment(), t.isPacked(), t.getMembership(),
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return new CElaboratedType(constValue, t.isVolatile(), t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+      return new CElaboratedType(constValue, t.isVolatile(), t.getAlignment(), t.getMembership(),
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
-      return new CEnumType(constValue, t.isVolatile(), t.getEnumerators(), t.getName(), t.getOrigName());
+      return new CEnumType(constValue, t.isVolatile(), t.isPacked(),
+          t.getEnumerators(), t.getName(), t.getOrigName());
     }
 
     @Override
@@ -466,7 +564,8 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(constValue, t.isVolatile(), t.getType());
+      return new CPointerType(
+          constValue, t.isVolatile(), t.getAlignment(), t.getMembership(), t.getType());
     }
 
     @Override
@@ -476,12 +575,15 @@ public final class CTypes {
 
     @Override
     public CSimpleType visit(CSimpleType t) {
-      return new CSimpleType(constValue, t.isVolatile(), t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(), t.isComplex(), t.isImaginary(), t.isLongLong());
+      return new CSimpleType(constValue, t.isVolatile(), t.getAlignment(), t.getMembership(),
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
     }
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(constValue, t.isVolatile(), t.getName(), t.getRealType());
+      return new CTypedefType(
+          constValue, t.isVolatile(), t.getAlignment(), t.getMembership(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -510,22 +612,27 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(t.isConst(), volatileValue, t.getType(), t.getLength());
+      return new CArrayType(
+          t.isConst(), volatileValue, t.getAlignment(), t.getMembership(), t.getType(), t.getLength());
     }
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return new CCompositeType(t.isConst(), volatileValue, t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+      return new CCompositeType(t.isConst(), volatileValue,
+          t.getAlignment(), t.isPacked(), t.getMembership(),
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
     }
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return new CElaboratedType(t.isConst(), volatileValue, t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+      return new CElaboratedType(t.isConst(), volatileValue, t.getAlignment(), t.getMembership(),
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
-      return new CEnumType(t.isConst(), volatileValue, t.getEnumerators(), t.getName(), t.getOrigName());
+      return new CEnumType(t.isConst(), volatileValue, t.isPacked(),
+          t.getEnumerators(), t.getName(), t.getOrigName());
     }
 
     @Override
@@ -536,7 +643,8 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(t.isConst(), volatileValue, t.getType());
+      return new CPointerType(
+          t.isConst(), volatileValue, t.getAlignment(), t.getMembership(), t.getType());
     }
 
     @Override
@@ -546,12 +654,15 @@ public final class CTypes {
 
     @Override
     public CSimpleType visit(CSimpleType t) {
-      return new CSimpleType(t.isConst(), volatileValue, t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(), t.isComplex(), t.isImaginary(), t.isLongLong());
+      return new CSimpleType(t.isConst(), volatileValue, t.getAlignment(), t.getMembership(),
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
     }
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(t.isConst(), volatileValue, t.getName(), t.getRealType());
+      return new CTypedefType(
+          t.isConst(), volatileValue, t.getAlignment(), t.getMembership(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -563,6 +674,174 @@ public final class CTypes {
     public CType visit(CBitFieldType pCBitFieldType) {
       return new CBitFieldType(
           pCBitFieldType.getType().accept(this), pCBitFieldType.getBitFieldSize());
+    }
+  }
+
+  private static class ForceAttributesVisitor implements CTypeVisitor<CType, NoException> {
+
+    private final boolean packed;
+    private final @Nullable Integer alignment;
+    private static HashMap<Pair<Boolean, @Nullable Integer>, ForceAttributesVisitor> instances =
+        new HashMap<>(10);
+
+    public static ForceAttributesVisitor create(boolean packed, @Nullable Integer alignment) {
+      Pair<Boolean, @Nullable Integer> key = Pair.of(packed, alignment);
+      ForceAttributesVisitor v = instances.get(key);
+      if (v == null) {
+        v = new ForceAttributesVisitor(packed, alignment);
+        instances.put(key, v);
+      }
+      return v;
+    }
+
+    private ForceAttributesVisitor(boolean pPacked, @Nullable Integer pAlignment) {
+      packed = pPacked;
+      alignment = pAlignment;
+    }
+
+    // Make sure to always return instances of exactly the same classes!
+
+    @Override
+    public CArrayType visit(CArrayType t) {
+      return new CArrayType(
+          t.isConst(), t.isVolatile(), alignment, t.getMembership(), t.getType(), t.getLength());
+    }
+
+    @Override
+    public CCompositeType visit(CCompositeType t) {
+      return new CCompositeType(t.isConst(), t.isVolatile(), alignment, packed, t.getMembership(),
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+    }
+
+    @Override
+    public CElaboratedType visit(CElaboratedType t) {
+      return new CElaboratedType(t.isConst(), t.isVolatile(), alignment, t.getMembership(),
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+    }
+
+    @Override
+    public CEnumType visit(CEnumType t) {
+      return new CEnumType(
+          t.isConst(), t.isVolatile(), packed, t.getEnumerators(), t.getName(), t.getOrigName());
+    }
+
+    @Override
+    public CFunctionType visit(CFunctionType t) {
+      checkArgument(!packed, "Cannot specify packed function type, this is undefined");
+      checkArgument(alignment == null, "Cannot specify aligned function type, this is undefined");
+      return t;
+    }
+
+    @Override
+    public CPointerType visit(CPointerType t) {
+      return new CPointerType(t.isConst(), t.isVolatile(), alignment, t.getMembership(), t.getType());
+    }
+
+    @Override
+    public CProblemType visit(CProblemType t) {
+      return t;
+    }
+
+    @Override
+    public CSimpleType visit(CSimpleType t) {
+      return new CSimpleType(t.isConst(), t.isVolatile(), alignment, t.getMembership(),
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
+    }
+
+    @Override
+    public CTypedefType visit(CTypedefType t) {
+      return new CTypedefType(
+          t.isConst(), t.isVolatile(), alignment, t.getMembership(), t.getName(), t.getRealType());
+    }
+
+    @Override
+    public CType visit(CVoidType t) {
+      checkArgument(!packed, "Cannot specify packed void type, this is undefined");
+      checkArgument(alignment == null, "Cannot specify aligned void type, this is undefined");
+      return t;
+    }
+
+    @Override
+    public CType visit(CBitFieldType t) {
+      checkArgument(!packed, "Cannot specify packed void type, this is undefined");
+      checkArgument(alignment == null, "Cannot specify aligned void type, this is undefined");
+      return t;
+    }
+  }
+
+  private enum ForceMemberVisitor implements CTypeVisitor<CType, NoException> {
+    NOTMEMBER(Membership.NOTAMEMBER),
+    MEMBER(Membership.REGULARMEMBER),
+    PACKED(Membership.MEMBEROFPACKED);
+
+    private final Membership isMember;
+
+    ForceMemberVisitor(Membership pMember) {
+      isMember = pMember;
+    }
+
+    // Make sure to always return instances of exactly the same classes!
+
+    @Override
+    public CArrayType visit(CArrayType t) {
+      return new CArrayType(
+          t.isConst(), t.isVolatile(), t.getAlignment(), isMember, t.getType(), t.getLength());
+    }
+
+    @Override
+    public CCompositeType visit(CCompositeType t) {
+      return new CCompositeType(t.isConst(), t.isVolatile(), t.getAlignment(), t.isPacked(), isMember,
+          t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+    }
+
+    @Override
+    public CElaboratedType visit(CElaboratedType t) {
+      return new CElaboratedType(t.isConst(), t.isVolatile(), t.getAlignment(), isMember,
+          t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+    }
+
+    @Override
+    public CEnumType visit(CEnumType t) {
+      return t;
+    }
+
+    @Override
+    public CFunctionType visit(CFunctionType t) {
+      return t; // XXX
+    }
+
+    @Override
+    public CPointerType visit(CPointerType t) {
+      return new CPointerType(t.isConst(), t.isVolatile(), t.getAlignment(), isMember, t.getType());
+    }
+
+    @Override
+    public CProblemType visit(CProblemType t) {
+      return t;
+    }
+
+    @Override
+    public CSimpleType visit(CSimpleType t) {
+      return new CSimpleType(t.isConst(), t.isVolatile(), t.getAlignment(), isMember,
+          t.getType(), t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+          t.isComplex(), t.isImaginary(), t.isLongLong());
+    }
+
+    @Override
+    public CTypedefType visit(CTypedefType t) {
+      return new CTypedefType(
+          t.isConst(), t.isVolatile(), t.getAlignment(), isMember, t.getName(), t.getRealType());
+    }
+
+    @Override
+    public CType visit(CVoidType t) {
+      return CVoidType.create(t.isConst(), t.isVolatile());
+    }
+
+    @Override
+    public CType visit(CBitFieldType t) {
+      return t;
     }
   }
 }

@@ -110,6 +110,16 @@ public class CFunctionType extends AFunctionType implements CType {
   }
 
   @Override
+  public @Nullable Integer getAlignment() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public Membership getMembership() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public <R, X extends Exception> R accept(CTypeVisitor<R, X> pVisitor) throws X {
     return pVisitor.visit(this);
   }

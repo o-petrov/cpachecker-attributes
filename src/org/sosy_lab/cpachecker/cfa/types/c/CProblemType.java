@@ -41,6 +41,16 @@ public final class CProblemType implements CType {
   }
 
   @Override
+  public @Nullable Integer getAlignment() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public Membership getMembership() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public boolean isIncomplete() {
     throw new UnsupportedOperationException();
   }

@@ -11,7 +11,6 @@ package org.sosy_lab.cpachecker.cfa.types;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigInteger;
@@ -40,6 +39,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CTypeVisitor;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypedefType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
+import org.sosy_lab.cpachecker.cfa.types.c.Membership;
 
 /** This enum stores the sizes for all the basic types that exist. */
 public enum MachineModel {
@@ -538,7 +538,7 @@ public enum MachineModel {
 
     @Override
     public BigInteger visit(CCompositeType pCompositeType) throws IllegalArgumentException {
-
+      // TODO packed
       switch (pCompositeType.getKind()) {
         case STRUCT:
           return handleSizeOfStruct(pCompositeType);
@@ -569,7 +569,8 @@ public enum MachineModel {
     }
 
     private BigInteger handleSizeOfUnion(CCompositeType pCompositeType) {
-      BigInteger size = BigInteger.ZERO;
+      int align = pCompositeType.getAlignment() == null ? 1 : pCompositeType.getAlignment();
+      BigInteger size = BigInteger.valueOf(align);
       BigInteger sizeOfType = BigInteger.ZERO;
       // TODO: Take possible padding into account
       for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
@@ -585,20 +586,13 @@ public enum MachineModel {
       if (def != null) {
         return def.accept(this);
       }
-
-      if (pElaboratedType.getKind() == ComplexTypeKind.ENUM) {
-        return BigInteger.valueOf(model.getSizeofInt());
-      }
-
       throw new IllegalArgumentException(
           "Cannot compute size of incomplete type " + pElaboratedType);
     }
 
     @Override
     public BigInteger visit(CEnumType pEnumType) throws IllegalArgumentException {
-      // We assume that all enumerator types are identical, and that there is at least one enum.
-      Preconditions.checkState(!pEnumType.getEnumerators().isEmpty());
-      return model.getSizeof(pEnumType.getEnumerators().get(0).getType());
+      return BigInteger.valueOf(model.getSizeof(pEnumType.getType()));
     }
 
     @Override
@@ -685,24 +679,41 @@ public enum MachineModel {
       this.model = model;
     }
 
-    @Override
-    public Integer visit(CArrayType pArrayType) throws IllegalArgumentException {
-      // the alignment of an array is the same as the alignment of an member of the array
-      return pArrayType.getType().accept(this);
+    private Integer getAlign(CType t, int defaultAlign) {
+      if (t.getMembership() == Membership.MEMBEROFPACKED) {
+        return t.getAlignment() == null ? 1 : t.getAlignment();
+      }
+      if (t.getAlignment() == null) {
+        return defaultAlign;
+      }
+      int specifiedAlign = t.getAlignment();
+      return (t.getMembership() == Membership.REGULARMEMBER) && defaultAlign > specifiedAlign
+          ? defaultAlign
+          : specifiedAlign;
     }
 
     @Override
-    public Integer visit(CCompositeType pCompositeType) throws IllegalArgumentException {
+    public Integer visit(CArrayType t) throws IllegalArgumentException {
 
-      switch (pCompositeType.getKind()) {
+      // the implicit alignment of an array is the same as the alignment of an member of the array
+      CType elementType = t.getType();
+      int elementAlign = elementType.accept(this);
+      // TODO is this check needed?
+      assert model.getSizeof(elementType).compareTo(BigInteger.valueOf(elementAlign)) >= 0
+          : "alignment of array elements is greater than element size";
+
+      return t.getAlignment() == null ? elementAlign : t.getAlignment();
+    }
+
+    @Override
+    public Integer visit(CCompositeType t) throws IllegalArgumentException {
+      switch (t.getKind()) {
         case STRUCT:
         case UNION:
-          int alignof = 1;
-          int alignOfType = 0;
+          int alignof = getAlign(t, 1);
           // TODO: Take possible padding into account
-          for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
-            alignOfType = decl.getType().accept(this);
-            alignof = Math.max(alignof, alignOfType);
+          for (CCompositeTypeMemberDeclaration decl : t.getMembers()) {
+            alignof = Math.max(alignof, decl.getType().accept(this));
           }
           return alignof;
 
@@ -713,35 +724,32 @@ public enum MachineModel {
     }
 
     @Override
-    public Integer visit(CElaboratedType pElaboratedType) throws IllegalArgumentException {
-      CType def = pElaboratedType.getRealType();
+    public Integer visit(CElaboratedType t) throws IllegalArgumentException {
+      Integer defaultAlign = 1;
+      CType def = t.getRealType();
       if (def != null) {
-        return def.accept(this);
+        defaultAlign = def.accept(this);
+      } else {
+        throw new IllegalArgumentException("Cannot compute alignment of incomplete type " + t);
       }
-
-      if (pElaboratedType.getKind() == ComplexTypeKind.ENUM) {
-        return model.getSizeofInt();
-      }
-
-      throw new IllegalArgumentException(
-          "Cannot compute alignment of incomplete type " + pElaboratedType);
+      return getAlign(t, defaultAlign);
     }
 
     @Override
-    public Integer visit(CEnumType pEnumType) throws IllegalArgumentException {
-      // enums are always ints
-      return model.getAlignofInt();
+    public Integer visit(CEnumType t) throws IllegalArgumentException {
+      // enums can't be aligned, but can be packed (or just bigger than int)
+      return alignofSimpleType(t.getType());
     }
 
     @Override
-    public Integer visit(CFunctionType pFunctionType) throws IllegalArgumentException {
+    public Integer visit(CFunctionType t) throws IllegalArgumentException {
       // function types have per definition the value 1 if compiled with gcc
       return 1;
     }
 
     @Override
-    public Integer visit(CPointerType pPointerType) throws IllegalArgumentException {
-      return model.getAlignofPtr();
+    public Integer visit(CPointerType t) throws IllegalArgumentException {
+      return getAlign(t, model.getAlignofPtr());
     }
 
     @Override
@@ -750,8 +758,12 @@ public enum MachineModel {
     }
 
     @Override
-    public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
-      switch (pSimpleType.getType()) {
+    public Integer visit(CSimpleType t) throws IllegalArgumentException {
+      return getAlign(t, alignofSimpleType(t));
+    }
+
+    private Integer alignofSimpleType(CSimpleType t) throws AssertionError {
+      switch (t.getType()) {
         case BOOL:
           return model.getAlignofBool();
         case CHAR:
@@ -760,11 +772,11 @@ public enum MachineModel {
           return model.getAlignofFloat();
         case UNSPECIFIED: // unspecified is the same as int
         case INT:
-          if (pSimpleType.isLongLong()) {
+          if (t.isLongLong()) {
             return model.getAlignofLongLongInt();
-          } else if (pSimpleType.isLong()) {
+          } else if (t.isLong()) {
             return model.getAlignofLongInt();
-          } else if (pSimpleType.isShort()) {
+          } else if (t.isShort()) {
             return model.getAlignofShort();
           } else {
             return model.getAlignofInt();
@@ -772,7 +784,7 @@ public enum MachineModel {
         case INT128:
           return model.getAlignofInt128();
         case DOUBLE:
-          if (pSimpleType.isLong()) {
+          if (t.isLong()) {
             return model.getAlignofLongDouble();
           } else {
             return model.getAlignofDouble();
@@ -780,28 +792,28 @@ public enum MachineModel {
         case FLOAT128:
           return model.getAlignofFloat128();
         default:
-          throw new AssertionError("Unrecognized CBasicType " + pSimpleType.getType());
+          throw new AssertionError("Unrecognized CBasicType " + t.getType());
       }
     }
 
     @Override
-    public Integer visit(CTypedefType pTypedefType) throws IllegalArgumentException {
-      return pTypedefType.getRealType().accept(this);
+    public Integer visit(CTypedefType t) throws IllegalArgumentException {
+      return getAlign(t, t.getRealType().accept(this));
     }
 
     @Override
-    public Integer visit(CVoidType pVoidType) throws IllegalArgumentException {
+    public Integer visit(CVoidType t) throws IllegalArgumentException {
       return model.getAlignofVoid();
     }
 
     @Override
-    public Integer visit(CBitFieldType pCBitFieldType) throws IllegalArgumentException {
-      return pCBitFieldType.getType().accept(this);
+    public Integer visit(CBitFieldType t) throws IllegalArgumentException {
+      return t.getType().accept(this);
     }
   }
 
-  public int getAlignof(CType type) {
-    return type.accept(alignofVisitor);
+  public int getAlignof(CType t) {
+    return t.accept(alignofVisitor);
   }
 
   /**

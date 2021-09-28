@@ -43,6 +43,8 @@ public interface CComplexType extends CType {
    */
   boolean equalsWithOrigName(Object obj);
 
+  boolean isPacked();
+
   enum ComplexTypeKind {
     ENUM,
     STRUCT,

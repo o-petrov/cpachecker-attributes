@@ -165,6 +165,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CTypedefType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
 import org.sosy_lab.cpachecker.cfa.types.c.DefaultCTypeVisitor;
+import org.sosy_lab.cpachecker.cfa.types.c.Membership;
 import org.sosy_lab.cpachecker.exceptions.NoException;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 import org.sosy_lab.cpachecker.util.BuiltinOverflowFunctions;
@@ -645,20 +646,28 @@ class ASTConverter {
       // that array types of operands are converted to pointer types except in a very few
       // specific cases (for which there will never be a temporary variable).
       // However, if the initializer is for an array, then of course we need to keep the array type.
-      type = new CPointerType(type.isConst(), type.isVolatile(), ((CArrayType) type).getType());
+      type =
+          new CPointerType(
+              type.isConst(),
+              type.isVolatile(),
+              type.getAlignment(),
+              Membership.NOTAMEMBER,
+              ((CArrayType) type).getType());
     } else if (type instanceof CFunctionType) {
       // Happens if function pointers are used in ternary expressions, for example.
       type = new CPointerType(false, false, type);
     }
 
-    CVariableDeclaration decl = new CVariableDeclaration(loc,
-                                               scope.isGlobalScope(),
-                                               CStorageClass.AUTO,
-                                               type,
-                                               name,
-                                               name,
-                                               scope.createScopedNameOf(name),
-                                               initializer);
+    CVariableDeclaration decl =
+        new CVariableDeclaration(
+            loc,
+            scope.isGlobalScope(),
+            CStorageClass.AUTO,
+            type,
+            name,
+            name,
+            scope.createScopedNameOf(name),
+            initializer);
 
     scope.registerDeclaration(decl);
     sideAssignmentStack.addPreSideAssignment(decl);
@@ -1648,11 +1657,10 @@ class ASTConverter {
     IASTDeclarator[] declarators = d.getDeclarators();
     List<CDeclaration> result = new ArrayList<>();
 
-    if (type instanceof CCompositeType
-        || type instanceof CEnumType) {
+    if (type instanceof CCompositeType || type instanceof CEnumType) {
       // struct, union, or enum declaration
       // split type definition from eventual variable declaration
-      CComplexType complexType = (CComplexType)type;
+      CComplexType complexType = (CComplexType) type;
 
       // in case of struct declarations with variable declarations we
       // need to add the struct declaration as sideeffect, so that
@@ -1666,12 +1674,14 @@ class ASTConverter {
       }
 
       // now replace type with an elaborated type referencing the new type
-      type = new CElaboratedType(type.isConst(),
-                                 type.isVolatile(),
-                                 complexType.getKind(),
-                                 complexType.getName(),
-                                 complexType.getOrigName(),
-                                 complexType);
+      type =
+          new CElaboratedType(
+              type.isConst(),
+              type.isVolatile(),
+              complexType.getKind(),
+              complexType.getName(),
+              complexType.getOrigName(),
+              complexType);
 
     } else if (type instanceof CElaboratedType) {
       boolean typeAlreadyKnown = scope.lookupType(((CElaboratedType) type).getQualifiedName()) != null;
@@ -1840,7 +1850,7 @@ class ASTConverter {
     IASTSimpleDeclaration sd = (IASTSimpleDeclaration)d;
 
     Pair<CStorageClass, ? extends CType> specifier = convert(sd.getDeclSpecifier());
-    //TODO: add knowledge about sd.DeclSpecifier.alignmentSpecifiers
+    // TODO: add knowledge about sd.DeclSpecifier.alignmentSpecifiers
     if (specifier.getFirst() != CStorageClass.AUTO) {
       throw parseContext.parseError("Unsupported storage class inside composite type", d);
     }
@@ -2130,11 +2140,12 @@ class ASTConverter {
         type = handleModeAttribute((CSimpleType) type, mode, d);
       }
     }
-    return type;
+
+    return typeConverter.handleTypeAttributes(d, type);
   }
 
   /** Return normalized string for a name etc. in an attribute context. */
-  private static String getAttributeString(char[] chars) {
+  static String getAttributeString(char[] chars) {
     String s = String.valueOf(chars);
     if (s.startsWith("__") && s.endsWith("__")) {
       // For attribute names and parameters, foo may also be written as __foo__.
@@ -2195,10 +2206,12 @@ class ASTConverter {
         throw parseContext.parseError("Unsupported mode " + mode, context);
     }
 
-    // Copy const, volatile, and signedness from original type, rest from newType
+    // Replace integer type modifiers (short, long, long long)
     return new CSimpleType(
         type.isConst(),
         type.isVolatile(),
+        type.getAlignment(),
+        type.getMembership(),
         newType.getType(),
         newType.isLong(),
         newType.isShort(),
@@ -2216,7 +2229,13 @@ class ASTConverter {
       if (lengthExp != null) {
         lengthExp = simplifyExpressionRecursively(lengthExp);
       }
-      return new CArrayType(a.isConst(), a.isVolatile(), type, lengthExp);
+      // move alignment from element type to array type
+      // FIXME does correct thing only for type got explicit __aligned__ in line with [].
+      @Nullable Integer al = type.getAlignment();
+      CArrayType arrayType =
+          new CArrayType(
+              a.isConst(), a.isVolatile(), CTypes.withAttributes(type, false, null), lengthExp);
+      return CTypes.withAttributes(arrayType, al);
 
     } else {
       throw parseContext.parseError("Unknown array modifier", am);
@@ -2235,10 +2254,10 @@ class ASTConverter {
     if (returnType instanceof CSimpleType) {
       CSimpleType t = (CSimpleType)returnType;
       if (t.getType() == CBasicType.UNSPECIFIED) {
-        // type of functions is implicitly int it not specified
-        returnType = new CSimpleType(t.isConst(), t.isVolatile(), CBasicType.INT,
-            t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(), t.isComplex(),
-            t.isImaginary(), t.isLongLong());
+        // type of functions is implicitly int if not specified
+        returnType = new CSimpleType(t.isConst(), t.isVolatile(), t.getAlignment(), t.getMembership(),
+            CBasicType.INT, t.isLong(), t.isShort(), t.isSigned(), t.isUnsigned(),
+            t.isComplex(), t.isImaginary(), t.isLongLong());
       }
     }
 
@@ -2358,7 +2377,10 @@ class ASTConverter {
         }
       }
     }
-    CCompositeType compositeType = new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
+
+    CCompositeType compositeType =
+        new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
+    compositeType = (CCompositeType) typeConverter.handleTypeAttributes(d, compositeType);
 
     // in cases like struct s { (struct s)* f }
     // we need to fill in the binding from the inner "struct s" type to the outer
@@ -2379,7 +2401,6 @@ class ASTConverter {
       }
     }
 
-
     String name = convert(d.getName());
     String origName = name;
 
@@ -2390,6 +2411,7 @@ class ASTConverter {
     }
 
     CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), list, name, origName);
+    enumType = (CEnumType) typeConverter.handleTypeAttributes(d, enumType);
     CSimpleType integerType = getEnumerationType(enumType);
     for (CEnumerator enumValue : enumType.getEnumerators()) {
       enumValue.setEnum(enumType);
@@ -2401,7 +2423,10 @@ class ASTConverter {
   private static final ImmutableList<CSimpleType> ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size
           CNumericTypes.SIGNED_INT, CNumericTypes.UNSIGNED_INT, CNumericTypes.SIGNED_LONG_LONG_INT);
-
+  private static final ImmutableList<CSimpleType> PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES =
+      ImmutableList.of( // these are used only for packed enums
+          CNumericTypes.SIGNED_CHAR, CNumericTypes.UNSIGNED_CHAR,
+          CNumericTypes.SHORT_INT, CNumericTypes.UNSIGNED_SHORT_INT);
   /**
    * Compute a matching integer type for an enumeration. We use SIGNED_INT and switch to larger type
    * if needed.
@@ -2421,10 +2446,21 @@ class ASTConverter {
         enumStatistics.getCount() > 0, "enumeration does not provide any values: %s", enumType);
     final BigInteger minValue = BigInteger.valueOf(enumStatistics.getMin());
     final BigInteger maxValue = BigInteger.valueOf(enumStatistics.getMax());
+    if (enumType.isPacked()) {
+      for (CSimpleType integerType : PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES) {
+        if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
+            && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
+          enumType.setType(integerType);
+          // all enumeration values are matching into the smaller range, but are still int
+          return CNumericTypes.SIGNED_INT;
+        }
+      }
+    }
     for (CSimpleType integerType : ENUM_REPRESENTATION_CANDIDATE_TYPES) {
       if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
           && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
         // if all enumeration values are matching into the range, we use it
+        enumType.setType(integerType);
         return integerType;
       }
     }

@@ -25,12 +25,20 @@ public final class CPointerType implements CType, Serializable {
   private final CType type;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Integer alignment;
+  private final Membership member;
 
-  public CPointerType(final boolean pConst, final boolean pVolatile,
-      final CType pType) {
+  public CPointerType(boolean pConst, boolean pVolatile,
+      @Nullable Integer pAlignment, Membership pMember, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
+    member = checkNotNull(pMember);
     type = checkNotNull(pType);
+  }
+
+  public CPointerType(boolean pConst, boolean pVolatile, CType pType) {
+    this(pConst, pVolatile, null, Membership.NOTAMEMBER, pType);
   }
 
   @Override
@@ -41,6 +49,16 @@ public final class CPointerType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public @Nullable Integer getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public Membership getMembership() {
+    return member;
   }
 
   public CType getType() {
@@ -54,13 +72,13 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public String toString() {
-    String decl;
-
-    decl = "(" + type + ")*";
+    String decl = "(" + type + ")*";
+    String align = alignment != null ? " __attribute__((__aligned__(" + alignment + ")))" : "";
 
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
-        + decl;
+        + decl
+        + align;
   }
 
   @Override
@@ -75,6 +93,10 @@ public final class CPointerType implements CType, Serializable {
     if (isVolatile()) {
       inner.append(" volatile");
     }
+    if (alignment != null) {
+      inner.append(" __attribute__((__aligned__(" + alignment + ")))");
+    }
+
     if (inner.length() > 1) {
       inner.append(' ');
     }
@@ -94,7 +116,7 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(isConst, isVolatile, type);
+    return Objects.hash(isConst, isVolatile, member, alignment, type);
   }
 
   /**
@@ -114,8 +136,11 @@ public final class CPointerType implements CType, Serializable {
 
     CPointerType other = (CPointerType) obj;
 
-    return isConst == other.isConst && isVolatile == other.isVolatile
-           && Objects.equals(type, other.type);
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && member == other.member
+        && Objects.equals(alignment, other.alignment)
+        && Objects.equals(type, other.type);
   }
 
   @Override
@@ -125,6 +150,11 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public CPointerType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
-    return new CPointerType(isConst || pForceConst, isVolatile || pForceVolatile, type.getCanonicalType());
+    return new CPointerType(
+        isConst || pForceConst,
+        isVolatile || pForceVolatile,
+        alignment,
+        member,
+        type.getCanonicalType());
   }
 }

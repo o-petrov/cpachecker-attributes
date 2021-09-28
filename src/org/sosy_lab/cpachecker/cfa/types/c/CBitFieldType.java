@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.types.c;
 
 import com.google.common.base.Preconditions;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.types.c.CComplexType.ComplexTypeKind;
 
 /** Instances of this class represent C bit-field types. */
@@ -150,4 +151,13 @@ public class CBitFieldType implements CType {
     return false;
   }
 
+  @Override
+  public Membership getMembership() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public @Nullable Integer getAlignment() {
+    throw new UnsupportedOperationException();
+  }
 }
