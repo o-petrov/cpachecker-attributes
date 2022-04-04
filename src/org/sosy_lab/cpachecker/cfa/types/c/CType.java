@@ -32,6 +32,15 @@ public interface CType extends Type {
   boolean isVolatile();
 
   /**
+   * @return alignment <i>x</i> specified in <code>__attribute__((aligned(<i>x</i>)))</code> for the
+   *     C type, alignment specified in attribute for the variable of the C type, and alignment
+   *     specified in <code>_Alignas</code> specifier for the same variable.
+   */
+  default Alignment getAlignment() {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  /**
    * Check whether the current type is *incomplete* as defined by the C standard in § 6.2.5 (1).
    * Incomplete types miss some information (e.g., <code>struct s;</code>), and for example their
    * size cannot be computed.
