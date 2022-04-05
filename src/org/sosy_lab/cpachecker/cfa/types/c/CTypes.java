@@ -9,10 +9,13 @@
 package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Equivalence;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
@@ -227,6 +230,24 @@ public final class CTypes {
     }
     @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
     T result = (T) type.accept(ForceVolatileVisitor.TRUE);
+    return result;
+  }
+
+  /**
+   * Return a copy of a given type that has given alignment attributes. If the given type has
+   * already the same alignments, it is returned unchanged.
+   */
+  public static <T extends CType> T withAlignment(T type, Alignment alignment) {
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    if (Objects.equals(type.getAlignment(), alignment)) {
+      return type;
+    }
+
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAlignVisitor.create(alignment));
     return result;
   }
 
@@ -589,6 +610,93 @@ public final class CTypes {
     public CType visit(CBitFieldType pCBitFieldType) {
       return new CBitFieldType(
           pCBitFieldType.getType().accept(this), pCBitFieldType.getBitFieldSize());
+    }
+  }
+
+  private static class ForceAlignVisitor implements CTypeVisitor<CType, NoException> {
+
+    private final Alignment alignment;
+    private static HashMap<Alignment, ForceAlignVisitor> instances = new HashMap<>();
+
+    public static ForceAlignVisitor create(Alignment alignment) {
+      ForceAlignVisitor v = instances.get(alignment);
+      if (v == null) {
+        v = new ForceAlignVisitor(alignment);
+        instances.put(alignment, v);
+      }
+      return v;
+    }
+
+    private ForceAlignVisitor(Alignment pAlignment) {
+      alignment = checkNotNull(pAlignment);
+    }
+
+    // Make sure to always return instances of exactly the same classes!
+
+    @Override
+    public CArrayType visit(CArrayType t) {
+      return t;
+    }
+
+    @Override
+    public CCompositeType visit(CCompositeType t) {
+      return t;
+    }
+
+    @Override
+    public CElaboratedType visit(CElaboratedType t) {
+      return t;
+    }
+
+    @Override
+    public CEnumType visit(CEnumType t) {
+      return t;
+    }
+
+    @Override
+    public CFunctionType visit(CFunctionType t) {
+      return t;
+    }
+
+    @Override
+    public CPointerType visit(CPointerType t) {
+      return t;
+    }
+
+    @Override
+    public CProblemType visit(CProblemType t) {
+      return t;
+    }
+
+    @Override
+    public CSimpleType visit(CSimpleType t) {
+      return new CSimpleType(
+          t.isConst(),
+          t.isVolatile(),
+          alignment,
+          t.getType(),
+          t.isLong(),
+          t.isShort(),
+          t.isSigned(),
+          t.isUnsigned(),
+          t.isComplex(),
+          t.isImaginary(),
+          t.isLongLong());
+    }
+
+    @Override
+    public CTypedefType visit(CTypedefType t) {
+      return t;
+    }
+
+    @Override
+    public CType visit(CVoidType t) {
+      return t;
+    }
+
+    @Override
+    public CType visit(CBitFieldType t) {
+      return t;
     }
   }
 }

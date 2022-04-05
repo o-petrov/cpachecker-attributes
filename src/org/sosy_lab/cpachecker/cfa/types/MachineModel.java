@@ -785,6 +785,19 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
+      int aligned = pSimpleType.getAlignment().getVarAligned();
+      int alignas = pSimpleType.getAlignment().getAlignas();
+      if (aligned < alignas) {
+        aligned = alignas;
+      }
+      if (aligned == 0) {
+        return getAlignOfSimpleType(pSimpleType);
+      } else {
+        return aligned;
+      }
+    }
+
+    private Integer getAlignOfSimpleType(CSimpleType pSimpleType) {
       switch (pSimpleType.getType()) {
         case BOOL:
           return model.getAlignofBool();
