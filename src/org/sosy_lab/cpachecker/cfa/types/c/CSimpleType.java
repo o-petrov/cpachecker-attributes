@@ -52,7 +52,7 @@ public final class CSimpleType implements CType, Serializable {
       boolean pIsImaginary,
       boolean pIsLongLong) {
     checkArgument(
-        checkNotNull(pAlignment).getTypeAligned().isEmpty(),
+        checkNotNull(pAlignment).getTypeAligned() == Alignment.NO_SPECIFIER,
         "CSimpleType can not be aligned itself. Alignment ccan be specified only for variables of this type.");
     isConst = pConst;
     isVolatile = pVolatile;
