@@ -22,6 +22,7 @@ import org.sosy_lab.common.configuration.ConfigurationBuilder;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
 import org.sosy_lab.cpachecker.cfa.types.c.CSimpleType;
@@ -60,7 +61,7 @@ public class SMGStateTest {
 
   private CSimpleType unspecifiedType =
       new CSimpleType(
-          false, false, CBasicType.UNSPECIFIED, false, false, true, false, false, false, false);
+          false, false, Alignment.NO_SPECIFIERS, CBasicType.UNSPECIFIED, false, false, true, false, false, false, false);
   private CType pointerType = new CPointerType(false, false, unspecifiedType);
   private static final MachineModel MM = MachineModel.LINUX32;
   private final long ptrSize = MM.getSizeofInBits(pointerType).longValueExact();

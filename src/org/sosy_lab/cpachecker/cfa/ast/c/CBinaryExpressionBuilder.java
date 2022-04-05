@@ -20,6 +20,7 @@ import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression.BinaryOperator;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -609,12 +610,12 @@ public class CBinaryExpressionBuilder {
 
     if (t1.isSigned()) {
       return new CSimpleType(
-          false, false, INT, t1.isLong(), false, false, true, false, false, t1.isLongLong());
+          false, false, Alignment.NO_SPECIFIERS, INT, t1.isLong(), false, false, true, false, false, t1.isLongLong());
     }
 
     if (t2.isSigned()) {
       return new CSimpleType(
-          false, false, INT, t2.isLong(), false, false, true, false, false, t2.isLongLong());
+          false, false, Alignment.NO_SPECIFIERS, INT, t2.isLong(), false, false, true, false, false, t2.isLongLong());
     }
 
     throw new AssertionError("unhandled type: " + t1 + " or " + t2);

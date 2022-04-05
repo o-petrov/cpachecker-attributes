@@ -147,6 +147,7 @@ import org.sosy_lab.cpachecker.cfa.parser.Scope;
 import org.sosy_lab.cpachecker.cfa.simplification.ExpressionSimplificationVisitor;
 import org.sosy_lab.cpachecker.cfa.simplification.NonRecursiveExpressionSimplificationVisitor;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -2379,14 +2380,14 @@ class ASTConverter {
     return new CSimpleType(
         type.isConst(),
         type.isVolatile(),
+        Alignment.NO_SPECIFIERS,
         newType.getType(),
         newType.isLong(),
         newType.isShort(),
         type.isSigned(),
-        type.isUnsigned(),
+        type.isUnsigned(), // checked above
         false, // checked above
-        false, // checked above
-        newType.isLongLong());
+        false, newType.isLongLong());
   }
 
   private CType convert(IASTArrayModifier am, CType type) {
@@ -2421,6 +2422,7 @@ class ASTConverter {
             new CSimpleType(
                 t.isConst(),
                 t.isVolatile(),
+                t.getAlignment(),
                 CBasicType.INT,
                 t.isLong(),
                 t.isShort(),

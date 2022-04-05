@@ -21,6 +21,7 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -284,13 +285,13 @@ public class LlvmTypeConverter {
     return new CSimpleType(
         isConst,
         isVolatile,
+        Alignment.NO_SPECIFIERS,
         pBasicType,
         pIsLong,
         isShort,
         isSigned,
         isUnsigned,
         isComplex,
-        isImaginary,
-        isLongLong);
+        isImaginary, isLongLong);
   }
 }

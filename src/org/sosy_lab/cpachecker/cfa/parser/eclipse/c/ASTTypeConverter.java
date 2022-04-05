@@ -45,6 +45,7 @@ import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.parser.Scope;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -289,14 +290,14 @@ class ASTTypeConverter {
       return new CSimpleType(
           false,
           false,
+          Alignment.NO_SPECIFIERS,
           type,
           c.isLong(),
           c.isShort(),
           c.isSigned(),
           c.isUnsigned(),
           c.isComplex(),
-          c.isImaginary(),
-          c.isLongLong());
+          c.isImaginary(), c.isLongLong());
 
     } else {
       throw new CFAGenerationRuntimeException("Unknown type " + t);
@@ -458,6 +459,7 @@ class ASTTypeConverter {
     return new CSimpleType(
         dd.isConst(),
         dd.isVolatile(),
+        Alignment.NO_SPECIFIERS,
         type,
         dd.isLong(),
         dd.isShort(),

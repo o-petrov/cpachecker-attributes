@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.types.c;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Joiner;
@@ -34,22 +35,28 @@ public final class CSimpleType implements CType, Serializable {
   private final boolean isLongLong;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
 
   @LazyInit private int hashCache = 0;
 
   public CSimpleType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final CBasicType pType,
-      final boolean pIsLong,
-      final boolean pIsShort,
-      final boolean pIsSigned,
-      final boolean pIsUnsigned,
-      final boolean pIsComplex,
-      final boolean pIsImaginary,
-      final boolean pIsLongLong) {
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      CBasicType pType,
+      boolean pIsLong,
+      boolean pIsShort,
+      boolean pIsSigned,
+      boolean pIsUnsigned,
+      boolean pIsComplex,
+      boolean pIsImaginary,
+      boolean pIsLongLong) {
+    checkArgument(
+        checkNotNull(pAlignment).getTypeAligned().isEmpty(),
+        "CSimpleType can not be aligned itself. Alignment ccan be specified only for variables of this type.");
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = pAlignment;
     type = checkNotNull(pType);
     isLong = pIsLong;
     isShort = pIsShort;
@@ -68,6 +75,11 @@ public final class CSimpleType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
   }
 
   public CBasicType getType() {
@@ -112,6 +124,7 @@ public final class CSimpleType implements CType, Serializable {
     if (hashCache == 0) {
       hashCache =
           Objects.hash(
+              alignment,
               isComplex,
               isConst,
               isVolatile,
@@ -152,7 +165,8 @@ public final class CSimpleType implements CType, Serializable {
         && isShort == other.isShort
         && isSigned == other.isSigned
         && isUnsigned == other.isUnsigned
-        && type == other.type;
+        && type == other.type
+        && alignment.equals(other.alignment);
   }
 
   @Override
@@ -169,6 +183,7 @@ public final class CSimpleType implements CType, Serializable {
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
     List<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
 
     if (isConst()) {
       parts.add("const");
@@ -199,6 +214,7 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     parts.add(Strings.emptyToNull(type.toASTString()));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
     parts.add(Strings.emptyToNull(pDeclarator));
 
     return Joiner.on(' ').skipNulls().join(parts);
@@ -231,6 +247,7 @@ public final class CSimpleType implements CType, Serializable {
     return new CSimpleType(
         isConst || pForceConst,
         isVolatile || pForceVolatile,
+        alignment,
         newType,
         isLong,
         isShort,

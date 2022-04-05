@@ -480,6 +480,7 @@ public final class CTypes {
       return new CSimpleType(
           constValue,
           t.isVolatile(),
+          t.getAlignment(),
           t.getType(),
           t.isLong(),
           t.isShort(),
@@ -563,6 +564,7 @@ public final class CTypes {
       return new CSimpleType(
           t.isConst(),
           volatileValue,
+          t.getAlignment(),
           t.getType(),
           t.isLong(),
           t.isShort(),

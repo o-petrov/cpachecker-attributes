@@ -81,6 +81,7 @@ import org.sosy_lab.cpachecker.cfa.model.c.CFunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.c.CReturnStatementEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CStatementEdge;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CCompositeType;
@@ -1750,7 +1751,7 @@ public class CFABuilder {
       String constant = pItem.getGetElementPtrAsString();
       CType constCharType =
           new CSimpleType(
-              true, false, CBasicType.CHAR, false, false, false, false, false, false, false);
+              true, false, Alignment.NO_SPECIFIERS, CBasicType.CHAR, false, false, false, false, false, false, false);
 
       CType stringType = new CPointerType(false, false, constCharType);
 

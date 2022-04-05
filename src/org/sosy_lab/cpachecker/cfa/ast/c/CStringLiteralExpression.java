@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.sosy_lab.cpachecker.cfa.ast.AStringLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CNumericTypes;
@@ -120,7 +121,7 @@ public final class CStringLiteralExpression extends AStringLiteralExpression
         new CIntegerLiteralExpression(
             getFileLocation(),
             new CSimpleType(
-                false, false, CBasicType.INT, false, false, false, false, false, false, false),
+                false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, false, false, false, false),
             BigInteger.valueOf(getValue().length() - 1));
 
     if (getExpressionType() instanceof CArrayType) {

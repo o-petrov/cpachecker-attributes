@@ -37,7 +37,7 @@ public class CTypeToStringTest {
   private static final String VAR = "var";
 
   private static final CType CONST_VOLATILE_INT =
-      new CSimpleType(true, true, CBasicType.INT, false, false, false, false, false, false, false);
+      new CSimpleType(true, true, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, false, false, false, false);
 
   @Parameters(name = "{0} [{1}]")
   public static Object[][] types() {

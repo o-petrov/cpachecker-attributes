@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.util;
 
 import java.util.Objects;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CNumericTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CSimpleType;
@@ -29,7 +30,7 @@ public class BuiltinFunctions {
 
   private static final CType UNSPECIFIED_TYPE =
       new CSimpleType(
-          false, false, CBasicType.UNSPECIFIED, false, false, false, false, false, false, false);
+          false, false, Alignment.NO_SPECIFIERS, CBasicType.UNSPECIFIED, false, false, false, false, false, false, false);
 
   public static boolean isBuiltinFunction(String pFunctionName) {
     return pFunctionName.startsWith("__builtin_")
@@ -63,7 +64,7 @@ public class BuiltinFunctions {
 
     if (isPopcountFunction(pFunctionName)) {
       return new CSimpleType(
-          false, false, CBasicType.INT, false, false, false, false, false, false, false);
+          false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, false, false, false, false);
     }
 
     return UNSPECIFIED_TYPE;

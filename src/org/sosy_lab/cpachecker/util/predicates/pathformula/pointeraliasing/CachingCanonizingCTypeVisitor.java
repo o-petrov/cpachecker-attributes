@@ -160,6 +160,7 @@ class CachingCanonizingCTypeVisitor extends DefaultCTypeVisitor<CType, NoExcepti
           : new CSimpleType(
               !ignoreConst && t.isConst(),
               !ignoreVolatile && t.isVolatile(),
+              t.getAlignment(),
               t.getType(),
               t.isLong(),
               t.isShort(),
