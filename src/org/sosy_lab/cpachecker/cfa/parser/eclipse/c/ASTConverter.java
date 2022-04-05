@@ -1982,28 +1982,21 @@ class ASTConverter {
   public CType handleAlignment(CType type, IASTDeclarator declarator, IASTDeclSpecifier specifier) {
     int aligned = Alignment.NO_SPECIFIER;
     int last = Alignment.NO_SPECIFIER;
-    String name, arg;
-
-    int ldAlign = machinemodel.getAlignofLongDouble();
-    int llAlign = machinemodel.getAlignofLongLongInt();
-    int f128Align = machinemodel.getAlignofFloat128();
-    int i128Align = machinemodel.getAlignofInt128();
-    int maxAlign = Math.max(Math.max(i128Align, f128Align), Math.max(ldAlign, llAlign));
 
     // get attributes from declSpecifier (it is an attribute after type, and applies to all
     // variables in declaration) and declarator (it is an attribute after variable)
     for (IASTAttribute[] attributeArray :
         ImmutableList.of(specifier.getAttributes(), declarator.getAttributes())) {
       for (IASTAttribute attribute : attributeArray) {
-        name = getAttributeString(attribute.getName());
+        String name = getAttributeString(attribute.getName());
         if (name.equals("aligned")) {
           try {
-            arg = getAttributeString(attribute.getArgumentClause().getTokenCharImage());
+            String arg = getAttributeString(attribute.getArgumentClause().getTokenCharImage());
             last = Integer.valueOf(arg);
           } catch (NullPointerException | NumberFormatException e) {
             // default (biggest) alignment as clause was not specified
             // XXX is empty clause always the same as BIGGEST_ALIGNMENT?
-            last = maxAlign;
+            last = machinemodel.getMaxAlign();
           }
           if (aligned < last) {
             aligned = last;

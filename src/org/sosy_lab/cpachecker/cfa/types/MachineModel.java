@@ -205,6 +205,9 @@ public enum MachineModel {
   private final int alignofBool;
   private final int alignofPtr;
 
+  // largest funumental alignment
+  private final int maxAlign;
+
   // according to ANSI C, sizeof(char) is always 1
   private final int mSizeofChar = 1;
   private final int mAlignofChar = 1;
@@ -258,6 +261,7 @@ public enum MachineModel {
     alignofVoid = pAlignofVoid;
     alignofBool = pAlignofBool;
     alignofPtr = pAlignofPtr;
+
     defaultCharSigned = pDefaultCharSigned;
     endianness = pEndianness;
 
@@ -272,6 +276,8 @@ public enum MachineModel {
     } else {
       throw new AssertionError("No ptr-Equivalent found");
     }
+
+    maxAlign = Math.max(alignofLongLongInt, alignofLongDouble);
   }
 
   public CSimpleType getPointerEquivalentSimpleType() {
@@ -487,6 +493,10 @@ public enum MachineModel {
 
   public int getAlignofPtr() {
     return alignofPtr;
+  }
+
+  public int getMaxAlign() {
+    return Math.max(maxAlign, getAlignofFloat128());
   }
 
   /** returns INT, if the type is smaller than INT, else the type itself. */
