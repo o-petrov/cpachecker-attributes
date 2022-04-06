@@ -77,15 +77,15 @@ public class Alignment implements Serializable {
   }
 
   public String stringTypeAligned() {
-    return typeAligned == NO_SPECIFIER ? "" : " __attribute__((__aligned__(" + typeAligned + "))) ";
+    return typeAligned == NO_SPECIFIER ? "" : "__attribute__((__aligned__(" + typeAligned + ")))";
   }
 
   public String stringVarAligned() {
-    return varAligned == NO_SPECIFIER ? "" : " __attribute__((__aligned__(" + varAligned + "))) ";
+    return varAligned == NO_SPECIFIER ? "" : "__attribute__((__aligned__(" + varAligned + ")))";
   }
 
   public String stringAlignas() {
-    return alignas == NO_SPECIFIER ? "" : "_Alignas(" + alignas + ") ";
+    return alignas == NO_SPECIFIER ? "" : "_Alignas(" + alignas + ")";
   }
 
   @Override
