@@ -17,19 +17,37 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public final class CPointerType implements CType, Serializable {
 
   private static final long serialVersionUID = -6423006826454509009L;
-  public static final CPointerType POINTER_TO_VOID = new CPointerType(false, false, CVoidType.VOID);
+  public static final CPointerType POINTER_TO_VOID =
+      new CPointerType(false, false, Alignment.NO_SPECIFIERS, CVoidType.VOID);
   public static final CPointerType POINTER_TO_CHAR =
-      new CPointerType(false, false, CNumericTypes.CHAR);
+      new CPointerType(false, false, Alignment.NO_SPECIFIERS, CNumericTypes.CHAR);
   public static final CPointerType POINTER_TO_CONST_CHAR =
-      new CPointerType(false, false, CNumericTypes.CHAR.getCanonicalType(true, false));
+      new CPointerType(
+          false, false, Alignment.NO_SPECIFIERS, CNumericTypes.CHAR.getCanonicalType(true, false));
 
   private final CType type;
   private final boolean isConst;
   private final boolean isVolatile;
 
-  public CPointerType(final boolean pConst, final boolean pVolatile, final CType pType) {
+  /**
+   * As usual, <code>_Alignas</code> specifier and <code>aligned</code> attribute align pointer
+   * variable. But if aligned attribute is specified after <code>*</code>, it aligns 'type' itself,
+   * i.e. <code>int * __aligned(1) p;</code> means that not only <code>p</code> is aligned, but also
+   * {@code &p[zero]} and {@code (&p)[zero]}.
+   *
+   * <p>In GCC {@code &*...&*p} and {@code *&...*&p} are aligned as <code>p</code> anyway, but in
+   * Clang they are not. <code>p[0]</code> always behaves as <code>*p</code>.
+   */
+  private final Alignment alignment;
+
+  public CPointerType(boolean pConst, boolean pVolatile, CType pType) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pType);
+  }
+
+  public CPointerType(boolean pConst, boolean pVolatile, Alignment pAlignment, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     type = checkNotNull(pType);
   }
 
@@ -43,6 +61,11 @@ public final class CPointerType implements CType, Serializable {
     return isVolatile;
   }
 
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
   public CType getType() {
     return type;
   }
@@ -54,11 +77,12 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public String toString() {
-    String decl;
-
-    decl = "(" + type + ")*";
-
-    return (isConst() ? "const " : "") + (isVolatile() ? "volatile " : "") + decl;
+    String aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      aligned += ' ';
+    }
+    String decl = "(" + type + ")*";
+    return (isConst() ? "const " : "") + (isVolatile() ? "volatile " : "") + aligned + decl;
   }
 
   @Override
@@ -73,16 +97,34 @@ public final class CPointerType implements CType, Serializable {
     if (isVolatile()) {
       inner.append(" volatile");
     }
+
+    String aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      inner.append(' ').append(aligned);
+    }
+
     if (inner.length() > 1) {
       inner.append(' ');
     }
     inner.append(pDeclarator);
 
     if (type instanceof CArrayType) {
-      return type.toASTString("(" + inner + ")");
-    } else {
-      return type.toASTString(inner.toString());
+      inner.insert(0, '(').append(')');
     }
+
+    String result = type.toASTString(inner.toString());
+
+    String alignas = alignment.stringAlignas();
+    if (!alignas.isEmpty()) {
+      result = alignas + ' ' + result;
+    }
+
+    aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      result = result + ' ' + aligned;
+    }
+
+    return result;
   }
 
   @Override
@@ -92,7 +134,7 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(isConst, isVolatile, type);
+    return Objects.hash(isConst, isVolatile, alignment, type);
   }
 
   /**
@@ -114,6 +156,7 @@ public final class CPointerType implements CType, Serializable {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && Objects.equals(type, other.type);
   }
 
@@ -125,6 +168,6 @@ public final class CPointerType implements CType, Serializable {
   @Override
   public CPointerType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     return new CPointerType(
-        isConst || pForceConst, isVolatile || pForceVolatile, type.getCanonicalType());
+        isConst || pForceConst, isVolatile || pForceVolatile, alignment, type.getCanonicalType());
   }
 }
