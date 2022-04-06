@@ -76,11 +76,11 @@ public class Alignment implements Serializable {
     return alignas;
   }
 
-  public String stringVarAligned() {
+  public String stringTypeAligned() {
     return typeAligned == NO_SPECIFIER ? "" : " __attribute__((__aligned__(" + typeAligned + "))) ";
   }
 
-  public String stringTypeAligned() {
+  public String stringVarAligned() {
     return varAligned == NO_SPECIFIER ? "" : " __attribute__((__aligned__(" + varAligned + "))) ";
   }
 
