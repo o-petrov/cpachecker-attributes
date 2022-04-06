@@ -44,6 +44,7 @@ public class CTypeToStringAlignmentTest {
   @Parameters(name = "{0} [{1}]")
   public static Object[][] types() {
     return new Object[][] {
+      // NUMERICS
       { // declare var as 1-aligned int
         "int " + aligned(1) + " var", CTypes.withAlignment(CNumericTypes.INT, Alignment.ofVar(1)),
       },
@@ -81,6 +82,62 @@ public class CTypeToStringAlignmentTest {
       { // declare var as alignas-8 16-aligned float
         "_Alignas(8) float " + aligned(16) + " var",
         CTypes.withAlignment(CNumericTypes.FLOAT, Alignment.ofVar(16).withAlignas(8)),
+      },
+
+      // POINTERS
+      { // declare var as 1-aligned pointer to char
+        "char *var " + aligned(1),
+        new CPointerType(false, false, Alignment.ofVar(1), CNumericTypes.CHAR),
+      },
+      { // declare var as 16-aligned pointer to unsigned short int
+        "unsigned short int *var " + aligned(16),
+        new CPointerType(false, false, Alignment.ofVar(16), CNumericTypes.UNSIGNED_SHORT_INT),
+      },
+      { // declare var as alignas-16 pointer to double
+        "_Alignas(16) int *var",
+        new CPointerType(false, false, Alignment.ofAlignas(16), CNumericTypes.INT),
+      },
+      { // declare var as 2-star-aligned pointer to long int
+        "long int * " + aligned(2) + " var",
+        new CPointerType(false, false, Alignment.ofType(2), CNumericTypes.LONG_INT),
+      },
+      { // declare var as 1-aligned 4-star-aligned alignas-16 pointer to long
+        "_Alignas(16) long long int * " + aligned(4) + " var " + aligned(1),
+        new CPointerType(false, false, new Alignment(4, 1, 16), CNumericTypes.LONG_LONG_INT),
+      },
+      { // declare var as const 16-star-aligned pointer to volatile long double
+        "volatile float * const " + aligned(16) + " var",
+        new CPointerType(
+            true, false, Alignment.ofType(16), CNumericTypes.FLOAT.getCanonicalType(false, true)),
+      },
+      { // declare var as 1-star-aligned volatile pointer to
+        // const 2-star-aligned pointer to double
+        "double * const " + aligned(2) + " * volatile " + aligned(1) + " var",
+        new CPointerType(
+            false,
+            true,
+            Alignment.ofType(1),
+            new CPointerType(true, false, Alignment.ofType(2), CNumericTypes.DOUBLE)),
+      },
+      { // declare alignas-16 var as 16-aligned 4-star-aligned pointer to
+        // 2-star-aligned pointer to 1-star-aligned pointer to long double
+        "_Alignas(16) long double * "
+            + aligned(1)
+            + " * "
+            + aligned(2)
+            + " * "
+            + aligned(4)
+            + " var "
+            + aligned(16),
+        new CPointerType(
+            false,
+            false,
+            new Alignment(4, 16, 16),
+            new CPointerType(
+                false,
+                false,
+                Alignment.ofType(2),
+                new CPointerType(false, false, Alignment.ofType(1), CNumericTypes.LONG_DOUBLE))),
       },
     };
   }
