@@ -1974,50 +1974,32 @@ class ASTConverter {
   }
 
   /**
-   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
-   * _Alignas(<i>alignment</i>)</code> attached to a declaration. Documentation:
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and
+   * <code>_Alignas(<i>alignment</i>)</code> attached to a declaration. Documentation:
    * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html
    * https://en.cppreference.com/w/c/language/_Alignas
    */
   public CType handleAlignment(CType type, IASTDeclarator declarator, IASTDeclSpecifier specifier) {
-    int aligned = Alignment.NO_SPECIFIER;
-    int last = Alignment.NO_SPECIFIER;
-
     // get attributes from declSpecifier (it is an attribute after type, and applies to all
     // variables in declaration) and declarator (it is an attribute after variable)
-    for (IASTAttribute[] attributeArray :
-        ImmutableList.of(specifier.getAttributes(), declarator.getAttributes())) {
-      for (IASTAttribute attribute : attributeArray) {
-        String name = getAttributeString(attribute.getName());
-        if (name.equals("aligned")) {
-          try {
-            String arg = getAttributeString(attribute.getArgumentClause().getTokenCharImage());
-            last = Integer.valueOf(arg);
-          } catch (NullPointerException | NumberFormatException e) {
-            // default (biggest) alignment as clause was not specified
-            // XXX is empty clause always the same as BIGGEST_ALIGNMENT?
-            last = machinemodel.getMaxAlign();
-          }
-          if (aligned < last) {
-            aligned = last;
-          }
-        }
-      }
-    }
+    int aligned = getAlignmentFromAttributes(specifier.getAttributes());
+    aligned = getBiggerAlignmentFromAttributes(declarator.getAttributes(), aligned);
 
     Alignment alignment =
         aligned == Alignment.NO_SPECIFIER ? Alignment.NO_SPECIFIERS : Alignment.ofVar(aligned);
 
     // get specifier from declSpecifier (it applies to all variables like attribute in declSpecifier)
     int alignas = Alignment.NO_SPECIFIER;
-    for (IASTAlignmentSpecifier attribute : ((ICASTDeclSpecifier) specifier).getAlignmentSpecifiers()) {
-      if (attribute.getTypeId() != null) {
+    for (IASTAlignmentSpecifier alignSpec :
+        ((ICASTDeclSpecifier) specifier).getAlignmentSpecifiers()) {
+      int last = Alignment.NO_SPECIFIER;
+      if (alignSpec.getTypeId() != null) {
         // _Alignas(otherType)
-        CType t = convert(attribute.getTypeId());
+        CType t = convert(alignSpec.getTypeId());
         last = machinemodel.getAlignof(t);
       } else {
         // _Alignas(integer constant expression)
-        CExpression e = (CExpression) convertExpressionWithSideEffects(attribute.getExpression());
+        CExpression e = (CExpression) convertExpressionWithSideEffects(alignSpec.getExpression());
         if (e instanceof CIntegerLiteralExpression) {
           last = ((CIntegerLiteralExpression) e).getValue().intValueExact();
         } else {
@@ -2038,6 +2020,31 @@ class ASTConverter {
       type = CTypes.withAlignment(type, alignment);
     }
     return type;
+  }
+
+  int getAlignmentFromAttributes(IASTAttribute[] attributeArray) {
+    return getBiggerAlignmentFromAttributes(attributeArray, Alignment.NO_SPECIFIER);
+  }
+
+  int getBiggerAlignmentFromAttributes(IASTAttribute[] attributeArray, int aligned) {
+    for (IASTAttribute attribute : attributeArray) {
+      String name = getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        int cur;
+        try {
+          String arg = getAttributeString(attribute.getArgumentClause().getTokenCharImage());
+          cur = Integer.valueOf(arg);
+        } catch (NullPointerException | NumberFormatException e) {
+          // default (biggest) alignment as clause was not specified
+          // XXX is empty clause always the same as BIGGEST_ALIGNMENT?
+          cur = machinemodel.getMaxAlign();
+        }
+        if (aligned < cur) {
+          aligned = cur;
+        }
+      }
+    }
+    return aligned;
   }
 
   private List<CCompositeTypeMemberDeclaration> convertDeclarationInCompositeType(
