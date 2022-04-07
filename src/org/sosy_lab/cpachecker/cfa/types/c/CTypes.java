@@ -488,7 +488,7 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(constValue, t.isVolatile(), t.getType());
+      return new CPointerType(constValue, t.isVolatile(), t.getAlignment(), t.getType());
     }
 
     @Override
@@ -572,7 +572,7 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return new CPointerType(t.isConst(), volatileValue, t.getType());
+      return new CPointerType(t.isConst(), volatileValue, t.getAlignment(), t.getType());
     }
 
     @Override
@@ -660,7 +660,7 @@ public final class CTypes {
 
     @Override
     public CPointerType visit(CPointerType t) {
-      return t;
+      return new CPointerType(t.isConst(), t.isVolatile(), alignment, t.getType());
     }
 
     @Override

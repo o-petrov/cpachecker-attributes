@@ -22,6 +22,7 @@ import java.util.Map;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -785,7 +786,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CPointerType pPointerType) throws IllegalArgumentException {
-      return model.getAlignofPtr();
+      return getAlign(pPointerType.getAlignment(), model.getAlignofPtr());
     }
 
     @Override
@@ -793,18 +794,24 @@ public enum MachineModel {
       throw new IllegalArgumentException("Unknown C-Type: " + pProblemType.getClass());
     }
 
-    @Override
-    public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
-      int aligned = pSimpleType.getAlignment().getVarAligned();
-      int alignas = pSimpleType.getAlignment().getAlignas();
+    private Integer getAlign(Alignment pAlignment, Integer pDefault) {
+      int aligned = pAlignment.getVarAligned();
+      int alignas = pAlignment.getAlignas();
+      // Biggest applies. NO_SPECIFIER is smaller than any specified alignment.
       if (aligned < alignas) {
         aligned = alignas;
       }
-      if (aligned == 0) {
-        return getAlignOfSimpleType(pSimpleType);
-      } else {
+      if (aligned != Alignment.NO_SPECIFIER) {
         return aligned;
       }
+      // If 'variable' has no alignment, 'type' can still have some.
+      aligned = pAlignment.getTypeAligned();
+      return aligned == Alignment.NO_SPECIFIER ? pDefault : aligned;
+    }
+
+    @Override
+    public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
+      return getAlign(pSimpleType.getAlignment(), getAlignOfSimpleType(pSimpleType));
     }
 
     private Integer getAlignOfSimpleType(CSimpleType pSimpleType) {
