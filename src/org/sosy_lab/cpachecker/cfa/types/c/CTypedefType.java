@@ -22,14 +22,31 @@ public final class CTypedefType implements CType, Serializable {
   private final CType realType; // the real type this typedef points to
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
   private int hashCache = 0;
 
-  public CTypedefType(
-      final boolean pConst, final boolean pVolatile, final String pName, CType pRealType) {
-
+  public CTypedefType(boolean pConst, boolean pVolatile, String pName, CType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
     name = pName.intern();
+    checkNotNull(pRealType);
+
+    // typedef is declared as 'variable' of type, so move 'variable' alignment to 'type' alignment
+    Alignment realAlignment = Alignment.ofType(pRealType.getAlignment().getVarAligned());
+    pRealType =
+        CTypes.withAlignment(
+            pRealType, Alignment.ofType(pRealType.getAlignment().getTypeAligned()));
+
+    realType = pRealType;
+    alignment = realAlignment;
+  }
+
+  public CTypedefType(
+      boolean pConst, boolean pVolatile, Alignment pAlignment, String pName, CType pRealType) {
+    isConst = pConst;
+    isVolatile = pVolatile;
+    name = pName.intern();
+    alignment = checkNotNull(pAlignment);
     realType = checkNotNull(pRealType);
   }
 
@@ -43,17 +60,31 @@ public final class CTypedefType implements CType, Serializable {
 
   @Override
   public String toString() {
-    return toASTString("");
+    String alignedType = alignment.stringTypeAligned();
+    if (!alignedType.isEmpty()) {
+      alignedType = "/* " + alignedType + " */";
+    }
+    return toASTString(alignedType);
   }
 
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    return (isConst() ? "const " : "")
+    String alignas = alignment.stringAlignas();
+    if (!alignas.isEmpty()) {
+      alignas += ' ';
+    }
+    String alignedVar = alignment.stringVarAligned();
+    if (!alignedVar.isEmpty()) {
+      alignedVar = ' ' + alignedVar;
+    }
+    return alignas
+        + (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
         + name
         + " "
-        + pDeclarator;
+        + pDeclarator
+        + alignedVar;
   }
 
   @Override
@@ -64,6 +95,13 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment.getTypeAligned() == Alignment.NO_SPECIFIER
+        ? alignment.withTypeAligned(realType.getAlignment().getTypeAligned())
+        : alignment;
   }
 
   @Override
@@ -79,7 +117,7 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(name, isConst, isVolatile, realType);
+      hashCache = Objects.hash(name, isConst, isVolatile, alignment, realType);
     }
     return hashCache;
   }
@@ -104,6 +142,7 @@ public final class CTypedefType implements CType, Serializable {
     return Objects.equals(name, other.name)
         && isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && Objects.equals(realType, other.realType);
   }
 
@@ -114,6 +153,12 @@ public final class CTypedefType implements CType, Serializable {
 
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
-    return realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+    CType underlyingType = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+    Alignment propagatedAlignment = alignment;
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      // typedef was defined without alignment, so don't override type alignment
+      propagatedAlignment.withTypeAligned(underlyingType.getAlignment().getTypeAligned());
+    }
+    return CTypes.withAlignment(underlyingType, propagatedAlignment);
   }
 }

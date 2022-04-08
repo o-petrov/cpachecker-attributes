@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.types.c;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Joiner;
@@ -51,12 +50,9 @@ public final class CSimpleType implements CType, Serializable {
       boolean pIsComplex,
       boolean pIsImaginary,
       boolean pIsLongLong) {
-    checkArgument(
-        checkNotNull(pAlignment).getTypeAligned() == Alignment.NO_SPECIFIER,
-        "CSimpleType can not be aligned itself. Alignment ccan be specified only for variables of this type.");
     isConst = pConst;
     isVolatile = pVolatile;
-    alignment = pAlignment;
+    alignment = checkNotNull(pAlignment); // typeAligned can be forced from typedef
     type = checkNotNull(pType);
     isLong = pIsLong;
     isShort = pIsShort;
@@ -176,7 +172,11 @@ public final class CSimpleType implements CType, Serializable {
 
   @Override
   public String toString() {
-    return toASTString("");
+    String aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      aligned = "/* " + aligned + " */";
+    }
+    return toASTString(aligned);
   }
 
   @Override

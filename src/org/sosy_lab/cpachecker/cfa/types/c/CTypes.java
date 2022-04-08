@@ -514,7 +514,8 @@ public final class CTypes {
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(constValue, t.isVolatile(), t.getName(), t.getRealType());
+      return new CTypedefType(
+          constValue, t.isVolatile(), t.getAlignment(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -598,7 +599,8 @@ public final class CTypes {
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return new CTypedefType(t.isConst(), volatileValue, t.getName(), t.getRealType());
+      return new CTypedefType(
+          t.isConst(), volatileValue, t.getAlignment(), t.getName(), t.getRealType());
     }
 
     @Override
@@ -686,7 +688,7 @@ public final class CTypes {
 
     @Override
     public CTypedefType visit(CTypedefType t) {
-      return t;
+      return new CTypedefType(t.isConst(), t.isVolatile(), alignment, t.getName(), t.getRealType());
     }
 
     @Override

@@ -850,7 +850,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CTypedefType pTypedefType) throws IllegalArgumentException {
-      return pTypedefType.getRealType().accept(this);
+      return getAlign(pTypedefType.getAlignment(), pTypedefType.getRealType().accept(this));
     }
 
     @Override
