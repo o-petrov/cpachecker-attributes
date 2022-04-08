@@ -41,19 +41,19 @@ public class CTypeToStringAlignmentTest {
     return "__attribute__((__aligned__(" + a + ")))";
   }
 
-  @Parameters(name = "{0} [{1}]")
+  @Parameters(name = "{0} // {1}")
   public static Object[][] types() {
     return new Object[][] {
       // NUMERICS
       { // declare var as 1-aligned int
-        "int " + aligned(1) + " var", CTypes.withAlignment(CNumericTypes.INT, Alignment.ofVar(1)),
+        "int var " + aligned(1), CTypes.withAlignment(CNumericTypes.INT, Alignment.ofVar(1)),
       },
       { // declare var as const volatile 2-aligned int
-        "const volatile int " + aligned(2) + " var",
+        "const volatile int var " + aligned(2),
         CTypes.withAlignment(CONST_VOLATILE_INT, Alignment.ofVar(2)),
       },
       { // declare var as const 4-aligned short
-        "const signed short int " + aligned(4) + " var",
+        "const signed short int var " + aligned(4),
         CTypes.withAlignment(
             CNumericTypes.SHORT_INT.getCanonicalType(true, false), Alignment.ofVar(4)),
       },
@@ -71,16 +71,16 @@ public class CTypeToStringAlignmentTest {
             CNumericTypes.UNSIGNED_INT.getCanonicalType(false, true), Alignment.ofAlignas(8)),
       },
       { // declare var as alignas-16 2-aligned signed long long
-        "_Alignas(16) signed long long int " + aligned(2) + " var",
+        "_Alignas(16) signed long long int var " + aligned(2),
         CTypes.withAlignment(
             CNumericTypes.SIGNED_LONG_LONG_INT, Alignment.ofAlignas(16).withVarAligned(2)),
       },
       { // declare var as 1-aligned long double
-        "long double " + aligned(1) + " var",
+        "long double var " + aligned(1),
         CTypes.withAlignment(CNumericTypes.LONG_DOUBLE, Alignment.ofVar(1)),
       },
       { // declare var as alignas-8 16-aligned float
-        "_Alignas(8) float " + aligned(16) + " var",
+        "_Alignas(8) float var " + aligned(16),
         CTypes.withAlignment(CNumericTypes.FLOAT, Alignment.ofVar(16).withAlignas(8)),
       },
 

@@ -214,8 +214,8 @@ public final class CSimpleType implements CType, Serializable {
     }
 
     parts.add(Strings.emptyToNull(type.toASTString()));
-    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
     parts.add(Strings.emptyToNull(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
 
     return Joiner.on(' ').skipNulls().join(parts);
   }
