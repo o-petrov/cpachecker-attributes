@@ -556,7 +556,7 @@ class ASTTypeConverter {
     if (aligned == Alignment.NO_SPECIFIER) {
       return type;
     }
-    return CTypes.withAlignment(type, type.getAlignment().withTypeAligned(aligned));
+    return CTypes.updateAlignment(type, Alignment.ofType(aligned));
   }
 
   /** returns a pointerType, that wraps the type. */

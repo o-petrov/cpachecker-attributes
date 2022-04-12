@@ -32,9 +32,10 @@ public final class CTypedefType implements CType, Serializable {
     checkNotNull(pRealType);
 
     // typedef is declared as 'variable' of type, so move 'variable' alignment to 'type' alignment
+    // alignas is illegal
     Alignment realAlignment = Alignment.ofType(pRealType.getAlignment().getVarAligned());
     pRealType =
-        CTypes.withAlignment(
+        CTypes.overrideAlignment(
             pRealType, Alignment.ofType(pRealType.getAlignment().getTypeAligned()));
 
     realType = pRealType;
@@ -156,11 +157,6 @@ public final class CTypedefType implements CType, Serializable {
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     CType underlyingType = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
-    Alignment propagatedAlignment = alignment;
-    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
-      // typedef was defined without alignment, so don't override type alignment
-      propagatedAlignment.withTypeAligned(underlyingType.getAlignment().getTypeAligned());
-    }
-    return CTypes.withAlignment(underlyingType, propagatedAlignment);
+    return CTypes.updateAlignment(underlyingType, alignment);
   }
 }

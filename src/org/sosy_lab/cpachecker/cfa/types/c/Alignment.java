@@ -52,6 +52,7 @@ public class Alignment implements Serializable {
     return new Alignment(NO_SPECIFIER, NO_SPECIFIER, pAlignas);
   }
 
+  // XXX how to name to clarify it creates new, not changes left
   public Alignment withTypeAligned(int pTypeAligned) {
     return new Alignment(pTypeAligned, varAligned, alignas);
   }

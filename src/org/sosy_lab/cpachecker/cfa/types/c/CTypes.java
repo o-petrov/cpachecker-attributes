@@ -15,7 +15,6 @@ import com.google.common.base.Equivalence;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
@@ -237,17 +236,56 @@ public final class CTypes {
    * Return a copy of a given type that has given alignment attributes. If the given type has
    * already the same alignments, it is returned unchanged.
    */
-  public static <T extends CType> T withAlignment(T type, Alignment alignment) {
+  public static <T extends CType> T overrideAlignment(T type, Alignment alignment) {
+    checkNotNull(type);
+    checkNotNull(alignment);
+
     if (type instanceof CProblemType) {
       return type;
     }
 
-    if (Objects.equals(type.getAlignment(), alignment)) {
+    if (type.getAlignment().equals(alignment)) {
       return type;
     }
 
     @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
     T result = (T) type.accept(ForceAlignVisitor.create(alignment));
+    return result;
+  }
+
+  /**
+   * Override only specified alignments and return a copy of a given type. If no alignment
+   * specified, or the specified alignment matches the type alignment, return the type unchanged.
+   */
+  public static <T extends CType> T updateAlignment(T type, Alignment alignment) {
+    checkNotNull(type);
+    checkNotNull(alignment);
+
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    if (Alignment.NO_SPECIFIERS.equals(alignment)) {
+      return type;
+    }
+
+    Alignment override = type.getAlignment();
+    if (alignment.getAlignas() != Alignment.NO_SPECIFIER) {
+      override = override.withAlignas(alignment.getAlignas());
+    }
+    if (alignment.getTypeAligned() != Alignment.NO_SPECIFIER) {
+      override = override.withTypeAligned(alignment.getTypeAligned());
+    }
+    if (alignment.getVarAligned() != Alignment.NO_SPECIFIER) {
+      override = override.withVarAligned(alignment.getVarAligned());
+    }
+
+    if (type.getAlignment().equals(override)) {
+      return type;
+    }
+
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAlignVisitor.create(override));
     return result;
   }
 

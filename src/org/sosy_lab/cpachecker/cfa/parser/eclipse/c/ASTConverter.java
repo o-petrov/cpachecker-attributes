@@ -2012,13 +2012,8 @@ class ASTConverter {
       }
     }
 
-    if (alignas != Alignment.NO_SPECIFIER) {
-      alignment = alignment.withAlignas(alignas);
-    }
-
-    if (alignment != Alignment.NO_SPECIFIERS) {
-      type = CTypes.withAlignment(type, alignment);
-    }
+    alignment = alignment.withAlignas(alignas);
+    type = CTypes.updateAlignment(type, alignment);
     return type;
   }
 
