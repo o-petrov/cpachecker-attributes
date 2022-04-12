@@ -78,11 +78,13 @@ public final class CTypedefType implements CType, Serializable {
     if (!alignedVar.isEmpty()) {
       alignedVar = ' ' + alignedVar;
     }
+    if (!pDeclarator.isEmpty()) {
+      pDeclarator = ' ' + pDeclarator;
+    }
     return alignas
         + (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
         + name
-        + " "
         + pDeclarator
         + alignedVar;
   }
