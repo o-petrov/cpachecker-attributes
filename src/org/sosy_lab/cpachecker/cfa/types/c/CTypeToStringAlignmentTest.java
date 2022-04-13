@@ -21,6 +21,7 @@ import org.junit.runners.Parameterized.Parameters;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CParser;
+import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.parser.Parsers;
 import org.sosy_lab.cpachecker.cfa.parser.Parsers.EclipseCParserOptions;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
@@ -138,6 +139,54 @@ public class CTypeToStringAlignmentTest {
                 false,
                 Alignment.ofType(2),
                 new CPointerType(false, false, Alignment.ofType(1), CNumericTypes.LONG_DOUBLE))),
+      },
+
+      // ARRAYS
+      { // declare array of char, 1-aligned
+        "char var[3] " + aligned(1),
+        new CArrayType(
+            false, false, Alignment.ofVar(1), CNumericTypes.CHAR, CIntegerLiteralExpression.THREE),
+      },
+      { // declare array of char, alignas-2
+        "_Alignas(2) char var[3]",
+        new CArrayType(
+            false,
+            false,
+            Alignment.ofAlignas(2),
+            CNumericTypes.CHAR,
+            CIntegerLiteralExpression.THREE),
+      },
+      { // declare array of char, alignas-2 1-aligned
+        "_Alignas(2) char var[3] " + aligned(1),
+        new CArrayType(
+            false,
+            false,
+            Alignment.ofAlignas(2).withVarAligned(1),
+            CNumericTypes.CHAR,
+            CIntegerLiteralExpression.THREE),
+      },
+      { // declare array of char, alignas-2 1-aligned
+        "_Alignas(2) const char var[3] " + aligned(4),
+        new CArrayType(
+            true,
+            false,
+            Alignment.ofAlignas(2).withVarAligned(4),
+            CNumericTypes.CHAR,
+            CIntegerLiteralExpression.THREE),
+      },
+      { // declare matrix of long double, alignas-16 1-aligned
+        "_Alignas(16) long double var[3][3] " + aligned(1),
+        new CArrayType(
+            false,
+            false,
+            Alignment.ofAlignas(16).withVarAligned(1),
+            new CArrayType(
+                false,
+                false,
+                Alignment.NO_SPECIFIERS,
+                CNumericTypes.LONG_DOUBLE,
+                CIntegerLiteralExpression.THREE),
+            CIntegerLiteralExpression.THREE),
       },
     };
   }
