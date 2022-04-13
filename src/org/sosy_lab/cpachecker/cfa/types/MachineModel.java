@@ -733,7 +733,7 @@ public enum MachineModel {
     @Override
     public Integer visit(CArrayType pArrayType) throws IllegalArgumentException {
       // the alignment of an array is the same as the alignment of an member of the array
-      return pArrayType.getType().accept(this);
+      return getAlign(pArrayType.getAlignment(), pArrayType.getType().accept(this));
     }
 
     @Override

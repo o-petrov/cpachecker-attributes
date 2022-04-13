@@ -24,11 +24,22 @@ public final class CArrayType extends AArrayType implements CType {
   private final @Nullable CExpression length;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
 
   public CArrayType(boolean pConst, boolean pVolatile, CType pType, @Nullable CExpression pLength) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pType, pLength);
+  }
+
+  public CArrayType(
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      CType pType,
+      @Nullable CExpression pLength) {
     super(pType);
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     length = pLength;
   }
 
@@ -64,11 +75,26 @@ public final class CArrayType extends AArrayType implements CType {
 
   private String toASTString(String pDeclarator, boolean pQualified) {
     checkNotNull(pDeclarator);
-    return (isConst() ? "const " : "")
+    String alignas = alignment.stringAlignas();
+    if (!alignas.isEmpty()) {
+      alignas += ' ';
+    }
+    String alignedType = alignment.stringTypeAligned();
+    if (!alignedType.isEmpty()) {
+      alignedType = "/* " + alignedType + " */ ";
+    }
+    String alignedVar = alignment.stringVarAligned();
+    if (!alignedVar.isEmpty()) {
+      alignedVar = ' ' + alignedVar;
+    }
+    return alignas
+        + (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
+        + alignedType
         + getType()
             .toASTString(
-                pDeclarator + ("[" + (length != null ? length.toASTString(pQualified) : "") + "]"));
+                pDeclarator + ("[" + (length != null ? length.toASTString(pQualified) : "") + "]"))
+        + alignedVar;
   }
 
   public String toQualifiedASTString(String pDeclarator) {
@@ -86,14 +112,24 @@ public final class CArrayType extends AArrayType implements CType {
   }
 
   @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
+  @Override
   public boolean isIncomplete() {
     return length == null; // C standard § 6.2.5 (22)
   }
 
   @Override
   public String toString() {
+    String aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      aligned += ' ';
+    }
     return (isConst() ? "const " : "")
         + (isVolatile() ? "volatile " : "")
+        + aligned
         + "("
         + getType()
         + (")[" + (length != null ? length.toASTString() : "") + "]");
@@ -139,7 +175,9 @@ public final class CArrayType extends AArrayType implements CType {
       }
     }
 
-    return isConst == other.isConst && isVolatile == other.isVolatile;
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment);
   }
 
   @Override
@@ -155,6 +193,7 @@ public final class CArrayType extends AArrayType implements CType {
     return new CArrayType(
         false,
         false,
+        alignment,
         getType().getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile),
         length);
   }

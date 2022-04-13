@@ -497,7 +497,8 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(constValue, t.isVolatile(), t.getType(), t.getLength());
+      return new CArrayType(
+          constValue, t.isVolatile(), t.getAlignment(), t.getType(), t.getLength());
     }
 
     @Override
@@ -582,7 +583,8 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return new CArrayType(t.isConst(), volatileValue, t.getType(), t.getLength());
+      return new CArrayType(
+          t.isConst(), volatileValue, t.getAlignment(), t.getType(), t.getLength());
     }
 
     @Override
@@ -675,7 +677,7 @@ public final class CTypes {
 
     @Override
     public CArrayType visit(CArrayType t) {
-      return t;
+      return new CArrayType(t.isConst(), t.isVolatile(), alignment, t.getType(), t.getLength());
     }
 
     @Override
