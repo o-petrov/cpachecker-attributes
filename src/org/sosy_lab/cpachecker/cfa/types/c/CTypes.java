@@ -480,6 +480,7 @@ public final class CTypes {
   public static CType copyDequalified(CType pType) {
     pType = withoutConst(pType);
     pType = withoutVolatile(pType);
+    pType = overrideAlignment(pType, Alignment.NO_SPECIFIERS);
     return pType;
   }
 

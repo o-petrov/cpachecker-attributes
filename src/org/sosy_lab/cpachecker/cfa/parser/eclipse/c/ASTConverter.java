@@ -608,11 +608,25 @@ class ASTConverter {
     CExpression arrayExpr = convertExpressionWithoutSideEffects(e.getArrayExpression());
     CExpression subscriptExpr = convertExpressionWithoutSideEffects(toExpression(e.getArgument()));
 
+    // alignment of 'variable' remains for 'pointer operator'
+    // but array subscript leaves only 'type' alignment
+    boolean asPointerExpression =
+        subscriptExpr instanceof CIntegerLiteralExpression
+            && ((CIntegerLiteralExpression) subscriptExpr).asLong() == 0;
+
+    if (asPointerExpression
+        && arrayExpr instanceof CUnaryExpression
+        && ((CUnaryExpression) arrayExpr).getOperator() == UnaryOperator.AMPER) {
+      CType type = ((CUnaryExpression) arrayExpr).getOperand().getExpressionType();
+      return new CArraySubscriptExpression(getLocation(e), type, arrayExpr, subscriptExpr);
+    }
+
     // Eclipse CDT has a bug in determining the result type if the array type is a typedef.
     CType resultType = arrayExpr.getExpressionType();
     while (resultType instanceof CTypedefType) {
       resultType = ((CTypedefType) resultType).getRealType();
     }
+
     if (resultType instanceof CArrayType) {
       resultType = ((CArrayType) resultType).getType();
     } else if (resultType instanceof CPointerType) {
@@ -622,6 +636,10 @@ class ASTConverter {
       // but for now we delegate to Eclipse CDT and see whether it knows better than we do
       resultType = typeConverter.convert(e.getExpressionType());
     }
+
+    resultType =
+        CTypes.overrideAlignment(
+            resultType, Alignment.ofType(resultType.getAlignment().getTypeAligned()));
 
     return new CArraySubscriptExpression(getLocation(e), resultType, arrayExpr, subscriptExpr);
   }
@@ -1425,16 +1443,36 @@ class ASTConverter {
 
       case IASTUnaryExpression.op_star:
         {
+          if (operand instanceof CUnaryExpression
+              && ((CUnaryExpression) operand).getOperator() == UnaryOperator.AMPER) {
+            CType type = ((CUnaryExpression) operand).getOperand().getExpressionType();
+            return simplifyUnaryPointerExpression(operand, fileLoc, type);
+          }
 
           // In case of pointers inside field references that refer to inner fields
           // the CDT type is not as we want it, thus we resolve the type on our own.
-          CType type;
-          if (operandType instanceof CPointerType) {
-            type = ((CPointerType) operandType).getType();
-          } else if (operandType instanceof CArrayType) {
-            type = ((CArrayType) operandType).getType();
+          CType type = operandType;
+          int typeAligned = type.getAlignment().getTypeAligned();
+          while (type instanceof CTypedefType) {
+            type = ((CTypedefType) type).getRealType();
+            if (typeAligned == Alignment.NO_SPECIFIER) {
+              typeAligned = type.getAlignment().getTypeAligned();
+            }
+          }
+
+          if (type instanceof CPointerType) {
+            type = ((CPointerType) type).getType();
+          } else if (type instanceof CArrayType) {
+            type = ((CArrayType) type).getType();
+            if (typeAligned > machinemodel.getAlignof(type)) {
+              type = CTypes.overrideAlignment(type, Alignment.ofType(typeAligned));
+            } else {
+              type =
+                  CTypes.overrideAlignment(
+                      type, Alignment.ofType(type.getAlignment().getTypeAligned()));
+            }
           } else {
-            if (!(operandType instanceof CProblemType)) {
+            if (!(type instanceof CProblemType)) {
               logger.logf(
                   Level.WARNING,
                   "%s: Dereferencing of non-pointer type %s in expression %s",
@@ -1444,21 +1482,69 @@ class ASTConverter {
             }
             type = typeConverter.convert(e.getExpressionType());
           }
+
           return simplifyUnaryPointerExpression(operand, fileLoc, type);
         }
       case IASTUnaryExpression.op_amper:
         {
+          int typeAligned = Alignment.NO_SPECIFIER;
+          if (operand instanceof CPointerExpression) {
+            // FOLLOWING IF CLAUSE WILL ONLY BE EVALUATED WHEN THE OPTION
+            // cfa.simplifyPointerExpressions IS SET TO TRUE
+            // in case of &* both can be left out
+            if (options.simplifyPointerExpressions()) {
+              return ((CPointerExpression) operand).getOperand();
+            }
 
-          // FOLLOWING IF CLAUSE WILL ONLY BE EVALUATED WHEN THE OPTION
-          // cfa.simplifyPointerExpressions IS SET TO TRUE
-          // in case of *& both can be left out
-          if (options.simplifyPointerExpressions() && operand instanceof CPointerExpression) {
-            return ((CPointerExpression) operand).getOperand();
+            CType pointerOperandType =
+                ((CPointerExpression) operand).getOperand().getExpressionType();
+            typeAligned = pointerOperandType.getAlignment().getTypeAligned();
+            while (pointerOperandType instanceof CTypedefType) {
+              pointerOperandType = ((CTypedefType) pointerOperandType).getRealType();
+              if (typeAligned == Alignment.NO_SPECIFIER) {
+                typeAligned = pointerOperandType.getAlignment().getTypeAligned();
+              }
+            }
+            if (pointerOperandType instanceof CPointerType) {
+              // pass
+            } else if (pointerOperandType instanceof CArrayType) {
+              typeAligned =
+                  ((CArrayType) pointerOperandType).getType().getAlignment().getTypeAligned();
+            } else {
+              // user was already warned
+              // XXX clear typeAligned?
+            }
+
+          } else if (operand instanceof CArraySubscriptExpression) {
+            CType arrayExprType =
+                ((CArraySubscriptExpression) operand).getArrayExpression().getExpressionType();
+            typeAligned = arrayExprType.getAlignment().getTypeAligned();
+            while (arrayExprType instanceof CTypedefType) {
+              arrayExprType = ((CTypedefType) arrayExprType).getRealType();
+              if (typeAligned == Alignment.NO_SPECIFIER) {
+                typeAligned = arrayExprType.getAlignment().getTypeAligned();
+              }
+            }
+            if (arrayExprType instanceof CPointerType) {
+              // pass
+            } else if (arrayExprType instanceof CArrayType) {
+              typeAligned = ((CArrayType) arrayExprType).getType().getAlignment().getTypeAligned();
+            } else {
+              // user was already warned
+              // XXX clear typeAligned?
+            }
           }
 
           CType type = typeConverter.convert(e.getExpressionType());
           if (containsProblemType(type)) {
             type = new CPointerType(true, false, operandType);
+          } else if (typeAligned != Alignment.NO_SPECIFIER) {
+            type =
+                new CPointerType(
+                    type.isConst(),
+                    type.isVolatile(),
+                    Alignment.ofType(typeAligned),
+                    ((CPointerType) type).getType());
           }
 
           // if none of the special cases before fits the default unaryExpression is created
