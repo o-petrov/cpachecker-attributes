@@ -8,6 +8,8 @@
 
 package org.sosy_lab.cpachecker.cfa;
 
+import java.util.ArrayDeque;
+import java.util.Queue;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
@@ -105,17 +107,23 @@ public class CFACreationUtils {
    * via some other path (not going through n). Useful for eliminating dead node, if node n is not
    * reachable.
    */
-  public static void removeChainOfNodesFromCFA(CFANode n) {
-    if (n.getNumEnteringEdges() > 0) {
-      return;
+  public static void removeChainOfNodesFromCFA(CFANode pNode) {
+    Queue<CFANode> queue = new ArrayDeque<>();
+    if (pNode.getNumEnteringEdges() == 0) {
+      queue.add(pNode);
     }
 
-    for (int i = n.getNumLeavingEdges() - 1; i >= 0; i--) {
-      CFAEdge e = n.getLeavingEdge(i);
-      CFANode succ = e.getSuccessor();
+    while (!queue.isEmpty()) {
+      CFANode n = queue.poll();
+      for (int i = n.getNumLeavingEdges() - 1; i >= 0; i--) {
+        CFAEdge e = n.getLeavingEdge(i);
+        CFANode succ = e.getSuccessor();
 
-      removeEdgeFromNodes(e);
-      removeChainOfNodesFromCFA(succ);
+        removeEdgeFromNodes(e);
+        if (succ.getNumEnteringEdges() == 0) {
+          queue.add(succ);
+        }
+      }
     }
   }
 
