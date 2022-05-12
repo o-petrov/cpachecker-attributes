@@ -444,8 +444,7 @@ public class CBinaryExpressionBuilder {
             "Operator " + pBinOperator + " cannot be used with pointer operand",
             getDummyBinExprForLogging(pBinOperator, op1, op2));
       }
-      return CTypes.overrideAlignment(
-          pType, Alignment.ofType(pType.getAlignment().getTypeAligned()));
+      return CTypes.leaveOnlyTypeAlignment(pType);
     }
 
     // if one type is an array, return the pointer-equivalent to the array-type.

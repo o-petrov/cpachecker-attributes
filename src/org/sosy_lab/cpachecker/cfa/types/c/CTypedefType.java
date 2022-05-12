@@ -34,9 +34,7 @@ public final class CTypedefType implements CType, Serializable {
     // typedef is declared as 'variable' of type, so move 'variable' alignment to 'type' alignment
     // alignas is illegal
     Alignment realAlignment = Alignment.ofType(pRealType.getAlignment().getVarAligned());
-    pRealType =
-        CTypes.overrideAlignment(
-            pRealType, Alignment.ofType(pRealType.getAlignment().getTypeAligned()));
+    pRealType = CTypes.leaveOnlyTypeAlignment(pRealType);
 
     realType = pRealType;
     alignment = realAlignment;

@@ -290,6 +290,27 @@ public final class CTypes {
   }
 
   /**
+   * Return a copy of a given type that has no alignas and no variable alignment attribute. If these
+   * alignments were not specified for the given type, it is returned unchanged.
+   */
+  public static <T extends CType> T leaveOnlyTypeAlignment(T type) {
+    checkNotNull(type);
+
+    if (type instanceof CProblemType) {
+      return type;
+    }
+
+    Alignment newAlignment = Alignment.ofType(type.getAlignment().getTypeAligned());
+    if (type.getAlignment().equals(newAlignment)) {
+      return type;
+    }
+
+    @SuppressWarnings("unchecked") // Visitor always creates instances of exact same class
+    T result = (T) type.accept(ForceAlignVisitor.create(newAlignment));
+    return result;
+  }
+
+  /**
    * Implements a compatibility check for {@link CType}s according to C-Standard §6.2.7. This
    * definition is symmetric, therefore the order of the parameters doesn't matter. This definition
    * is especially stricter than assignment compatibility (cf. {@link

@@ -637,10 +637,7 @@ class ASTConverter {
       resultType = typeConverter.convert(e.getExpressionType());
     }
 
-    resultType =
-        CTypes.overrideAlignment(
-            resultType, Alignment.ofType(resultType.getAlignment().getTypeAligned()));
-
+    resultType = CTypes.leaveOnlyTypeAlignment(resultType);
     return new CArraySubscriptExpression(getLocation(e), resultType, arrayExpr, subscriptExpr);
   }
 
@@ -1467,9 +1464,7 @@ class ASTConverter {
             if (typeAligned > machinemodel.getAlignof(type)) {
               type = CTypes.overrideAlignment(type, Alignment.ofType(typeAligned));
             } else {
-              type =
-                  CTypes.overrideAlignment(
-                      type, Alignment.ofType(type.getAlignment().getTypeAligned()));
+              type = CTypes.leaveOnlyTypeAlignment(type);
             }
           } else {
             if (!(type instanceof CProblemType)) {
