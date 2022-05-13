@@ -7,13 +7,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+"""
+Module with two machines described: 64- and 32-bits (match ``-m64`` and ``-m32`` GCC
+target options).
+"""
+
+
 from .misc import Alignment
 from .ctypes import Void, Number, Pointer, Array
 
 
 class Machine:
-    """A machine model holds sizes and alignments for basic C types
-    and computes sizes and alignments for other types."""
+    """
+    A machine model holds sizes and alignments for basic C types and computes sizes and
+    alignments for other types.
+    """
 
     def __init__(self, *, name, cpa_option, gcc_option, clang_option, **kwargs):
         self.name = name
@@ -68,16 +76,20 @@ class Machine:
         )
         assert not kwargs
 
-    def align_of(self, a) -> int:
-        """Convert alignment attribute (or no attribute) to actual alignment.
+    def align_of(self, a):
+        """
+        Convert alignment attribute to actual alignment, or return ``None``, if there is
+        no alignment forced by attribute.
 
-        :type a: None | str | Alignment"""
+        :type a: None | str | Alignment
+        :rtype: int | None
+        """
         if a is None:
             a = Alignment.NoAttr
         if isinstance(a, str):
             a = Alignment.from_attr(a)
         if not isinstance(a, Alignment):
-            raise TypeError(f"{a=} is of type {type(a)}")
+            raise TypeError("a=%s is of type %s" % (a, type(a)))
 
         if isinstance(a.code, int):
             return a.code
@@ -109,7 +121,7 @@ class Machine:
                 "align_" + typenick
             )
         else:
-            raise NotImplementedError(f"{t=} is unsupported")
+            raise NotImplementedError("C type %s is unsupported" % t)
 
 
 # little endian
@@ -154,3 +166,4 @@ machine_models = [
         align_max=16,
     ),
 ]
+"""All described machines. Check alignment for each of them."""

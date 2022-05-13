@@ -6,6 +6,10 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
+
+"""Alignment, Variable and some exceptions."""
+
+
 from enum import Enum
 
 
@@ -22,6 +26,12 @@ class RValueException(ValueError):
 
 
 class Alignment(Enum):
+    """
+    C alignment attribute.
+
+    ``attr`` is the attribute string, ``code`` is a shorthand mark.
+    """
+
     def __init__(self, code, attr):
         self.code = code
         self.attr = attr
@@ -67,12 +77,11 @@ class Alignment(Enum):
 
 
 class Variable:
+    """Some C variable."""
+
     def __init__(self, *, name, align=Alignment.NoAttr, ctype, declaration, init=None):
         """
-        :type name: str
-        :type align: Alignment
-        :type ctype: CType
-        :type declaration: str
+        :type name: str :type align: Alignment :type ctype: CType :type declaration: str
         :type init: Expression
         """
         assert name and ctype.typeid != "void"

@@ -8,8 +8,11 @@
 #
 #  SPDX-License-Identifier: Apache-2.0
 
-"""This script uses ``aligned_testing`` package to generate and execute
-test programs with ``__aligned__`` C attribute."""
+
+"""
+This script uses ``aligned_testing`` package to generate and execute test programs with
+``__aligned__`` C attribute.
+"""
 
 
 import argparse
@@ -22,6 +25,7 @@ from aligned_testing.misc import Alignment
 from aligned_testing.ctypes import CType, Pointer, standard_types
 from aligned_testing.graph import ExpressionGenerator
 from aligned_testing.machines import machine_models
+
 
 sys.dont_write_bytecode = True  # prevent creation of .pyc files
 # os.environ['PYTHONPATH'] += (
@@ -39,13 +43,14 @@ def __nick(ctype: CType):
 
 
 def run(command, quiet=False, output=None):
-    """Execute the given command.
+    """
+    Execute the given command.
 
-    :param output: File handler to rearrange output to or None.
-    :param List[str] command: list of words that describe the command line.
-    :param Bool quiet: whether to log the executed command line as INFO.
-    :return subprocess.CompletedProcess: information about the execution.
-    """  # TODO reword output
+    :param output: file to output to, or None to just capture stdout
+    :param List[str] command: list of words that describe the command line
+    :param Bool quiet: whether to log the executed command line as INFO
+    :return subprocess.CompletedProcess: information about the execution
+    """
     if not quiet:
         logger.info(" ".join(command))
     result = subprocess.run(
@@ -61,31 +66,37 @@ def run(command, quiet=False, output=None):
 
 
 def check_numbers():
-    """Make expressions for an arbitrary number type
-    and check them on char, short, int, long double."""
+    """
+    Make expressions for an arbitrary number type and check them on char, short, int,
+    long double.
+    """
     eg = ExpressionGenerator()
     eg.graph_ta_va()
     for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = standard_types[typekey]
-        __check_type(f"{ALIGNED_DIR}/numbers_as_tava", ctype, eg)
+        __check_type(ALIGNED_DIR + "/numbers_as_tava", ctype, eg)
 
 
 def check_pointers():
-    """Make expressions for a pointer to an arbitrary number type
-    and check them on char, short, int, long double."""
+    """
+    Make expressions for a pointer to an arbitrary number type and check them on char,
+    short, int, long double.
+    """
     eg = ExpressionGenerator()
     eg.graph_pa_va()
     # TODO void* v but without *v+0
     for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = Pointer(standard_types[typekey])
-        __check_type(f"{ALIGNED_DIR}/pointers_as_pava", ctype, eg)
+        __check_type(ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
 
 
 def __check_type(subdir: str, ctype: CType, eg: ExpressionGenerator):
-    """Check ``ctype`` using given ``eg`` graph. Generates and runs programs for matching GCC
-    and testing CPAchecker."""
+    """
+    Check ``ctype`` using given ``eg`` graph. Generates and runs programs for matching
+    GCC and testing CPAchecker.
+    """
     print("checking type", __nick(ctype))
-    fdir = f"{subdir}/{__nick(ctype)}"
+    fdir = subdir + os.path.sep + __nick(ctype)
     os.makedirs(fdir, exist_ok=True)
     old_typeid = ctype.typeid
     old_ctype_decl = ctype.declaration + ";\n" if ctype.declaration else ""
@@ -109,20 +120,23 @@ def __check_type(subdir: str, ctype: CType, eg: ExpressionGenerator):
             v = ctype.declare(name="v", align=va)
 
             logger.debug("generating programs for %s of type %s", v, v.ctype)
+            fprefix = fdir + "/" + str(ta.code) + "v" + str(va.code)
 
             if ONLY_PRINT:
                 assert isinstance(CC_COMMAND, list) and len(CC_COMMAND) > 0
                 for machine in machine_models:
                     text = eg.text_graph(mode="prints", variable=v, machine=machine)
-                    fname = f"{fdir}/{ta.code}v{va.code}-prints-{machine.name}.c"
-                    with open(fname, "w", encoding="utf8") as fp:
-                        fp.write(text)
+                    fname = fprefix + "-prints-" + machine.name + ".c"
+                    with open(fname, "w", encoding="utf8") as prints_file:
+                        prints_file.write(text)
                     run(CC_COMMAND + [machine.gcc_option, fname])
                     with open(
-                        fname.replace(".c", ".out"), "w", encoding="utf8"
+                        fname.replace(".c", ".cc_out"), "w", encoding="utf8"
                     ) as output:
                         run(["./a.out"], output=output)
-                    # TODO compare prints?
+                    # TODO
+                    #  1. Run CPAchecker and write ``cfa.c``
+                    #  2. Compile ``cfa.c`` and compare prints
                 continue
 
             if CC_COMMAND:
@@ -130,9 +144,7 @@ def __check_type(subdir: str, ctype: CType, eg: ExpressionGenerator):
                     text = eg.text_graph(
                         mode="static asserts", variable=v, machine=machine
                     )
-                    fname = (
-                        f"{fdir}/{ta.code}v{va.code}-static-asserts-{machine.name}.c"
-                    )
+                    fname = fprefix + "-static-asserts-" + machine.name + ".c"
                     with open(fname, "w", encoding="utf8") as fp:
                         fp.write(text)
                     # check model with compiler
@@ -140,7 +152,7 @@ def __check_type(subdir: str, ctype: CType, eg: ExpressionGenerator):
 
             for machine in machine_models:
                 text = eg.text_graph(mode="asserts", variable=v, machine=machine)
-                fname = f"{fdir}/{ta.code}v{va.code}-asserts-{machine.name}.c"
+                fname = fprefix + "-asserts-" + machine.name + ".c"
                 with open(fname, "w", encoding="utf8") as fp:
                     fp.write(text)
                 # check CPAchecker with model
@@ -160,16 +172,11 @@ SANS = "-fsanitize=shadow-call-stack".split()
 SANT = "-fsanitize=thread".split()
 SANU = "-fsanitize=undefined".split()
 STRICT = "-std=c11 -Wall -Werror -Wno-unused-value -Wno-format".split()  # + SANA + SANU
-STRICT2 = (
-    SANS
-    + "-Wno-gnu-alignof-expression -Wno-sizeof-array-decay -Wno-address-of-packed-member".split()
-)
+STRICT2 = SANS + "-Wno-gnu-alignof-expression -Wno-sizeof-array-decay -Wno-address-of-packed-member".split()
 
 CC_COMMAND = None
 ONLY_PRINT = False
-CPA_COMMAND = (
-    "scripts/cpa.sh -preprocess -default -benchmark -heap 1200M -nolog -noout".split()
-)
+CPA_COMMAND = "scripts/cpa.sh -preprocess -default -benchmark -heap 1200M -nolog -noout".split()
 # '-setprop cfa.callgraph.export=false -setprop cfa.export=false ' \
 # '-setprop cfa.exportPerFunction=false -setprop cfa.exportToC=true'.split()
 
@@ -184,9 +191,9 @@ def main():
         os.chdir("../..")
 
     if not os.path.isdir("test/programs"):
-        raise Exception(f"directory test/programs not found or not a directory")
+        raise Exception("directory test/programs not found or not a directory")
     if not os.path.isfile("scripts/cpa.sh") or not os.access("scripts/cpa.sh", os.X_OK):
-        raise Exception(f"CPAchecker not found or not executable")
+        raise Exception("CPAchecker not found or not executable")
 
     parser = argparse.ArgumentParser(
         description="Generate and check programs to test alignment attributes in CPAchecker."

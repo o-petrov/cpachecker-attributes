@@ -23,10 +23,11 @@ from .expressions import (
     LiteralExpression,
     VariableNameExpression,
 )
-from .machines import Machine
 
 
 class PartialExpression:
+    """A partially substituted binary expression"""
+
     def __init__(self, *, op, left=None, right=None):
         """
         :type op: Operator
@@ -44,10 +45,12 @@ class PartialExpression:
 
 
 class Node:
-    """A node in the graph (see ``ExpressionGenerator``) represents all expressions
-    with same alignment. It can be viewed as node class for a graph where each expression
-    was its own node. On the other hand, an expression can be viewed as a path in the graph,
-    starting always from node for the variable, and ending in node with right alignment."""
+    """
+    A node in the graph (see ``ExpressionGenerator``) represents all expressions with
+    same alignment. It can be viewed as node class for a graph where each expression was
+    its own node. On the other hand, an expression can be viewed as a path in the graph,
+    starting always from node for the variable, and ending in node with right alignment.
+    """
 
     variable = lambda v: v  # noqa E731
     a_pointer = lambda v: Pointer(None)  # noqa E731
@@ -57,12 +60,12 @@ class Node:
 
     def __init__(self, align_class, loops, loop_depth=2):
         """
-        :param align_class: maps declared variable to variable or type representing
-            size and alignment with respect to expressions of this node
-        :type align_class: (Variable | CType) -> Variable | CType
-        :param loops: (pseudo-) unary operators for loops on every node of this class
-        :type loops: list[(Expression) -> Expression]
-        :param loop-depth: how many ops from loop operators to apply at the same time at max
+        :param align_class: maps declared variable to variable or type representing size
+        and alignment with respect to expressions of this node :type align_class:
+        (Variable | CType) -> Variable | CType :param loops: (pseudo-) unary operators
+        for loops on every node of this class :type loops: list[(Expression) ->
+        Expression] :param loop-depth: how many ops from loop operators to apply at the
+        same time at max
         """
         self.align_class = align_class
         self.loops = [lambda x: x] + loops
@@ -70,10 +73,11 @@ class Node:
         self.expressions = []
 
     def extend(self, vs):
-        """Extend node's expressions with ``vs`` using loops. Return newly added expressions.
+        """
+        Extend node's expressions with ``vs`` using loops. Return newly added
+        expressions.
 
-        :type vs: list[Expression]
-        :rtype: list[Expression]
+        :type vs: list[Expression] :rtype: list[Expression]
         """
         result = []
         for v in vs:
@@ -86,11 +90,12 @@ class Node:
 
 
 class ExpressionGenerator:
-    """Generate expressions for variable v to check alignment rules.
+    """
+    Generate expressions for variable v to check alignment rules.
 
-    A node is all expressions that have the same alignment rules.
-    So ``&v`` and ``&*&v`` are in the same nodes, but ``&v`` and ``&v+zero``
-    can be in different nodes if ``*&v`` and ``*(&v+zero)`` have different alignment.
+    A node is all expressions that have the same alignment rules. So ``&v`` and ``&*&v``
+    are in the same nodes, but ``&v`` and ``&v+zero`` can be in different nodes if
+    ``*&v`` and ``*(&v+zero)`` have different alignment.
 
     An edge is applying some (pseudo-)operators to a node, e.g.
 
@@ -129,18 +134,15 @@ class ExpressionGenerator:
         self.loop_depth = loop_depth
 
     def __cycle2(self, from_, to_, ops1, ops2, depth=None):
-        """Add two edges in cycle ``from_`` -- ``to_`` -- ``from_``.
-        Nodes with cycles can be populated infinitely, so cap
-        this process using ``depth``.
+        """
+        Add two edges in cycle ``from_`` -- ``to_`` -- ``from_``. Nodes with cycles can
+        be populated infinitely, so cap this process using ``depth``.
 
-        :param str from_: title of a node
-        :param str to_: title of another node
-        :param ops1: (pseudo-) unary operations on first edge
-        :type ops1: list[(Expression) -> Expression]
-        :param ops2: (pseudo-) unary operations on second edge
-        :type ops2: list[(Expression) -> Expression]
-        :param int depth: how many times traverse the full cycle
-        :rtype: None
+        :param str from_: title of a node :param str to_: title of another node :param
+        ops1: (pseudo-) unary operations on first edge :type ops1: list[(Expression) ->
+        Expression] :param ops2: (pseudo-) unary operations on second edge :type ops2:
+        list[(Expression) -> Expression] :param int depth: how many times traverse the
+        full cycle :rtype: None
         """
         if depth is None:
             depth = self.cycle_depth
@@ -150,22 +152,19 @@ class ExpressionGenerator:
             n1s = self.__edge(n2s, from_, ops2)
 
     def __edge(self, from_, to_, ops):
-        """Add expressions applying ``ops`` to expressions in ``from_``.
+        """
+        Add expressions applying ``ops`` to expressions in ``from_``.
 
-        :param from_: title of a node or newest expressions in the node
-        :type from_: str | list[Expression]
-        :param str to_: title of a node
-        :param ops: Apply (pseudo-) unary operations to source expressions
-        to get destination expressions.
-        :type ops: list[(Expression) -> Expression]
-        :return: new expressions in ``to_`` node
+        :param from_: title of a node or newest expressions in the node :type from_: str
+        | list[Expression] :param str to_: title of a node :param ops: Apply (pseudo-)
+        unary operations to source expressions to get destination expressions. :type
+        ops: list[(Expression) -> Expression] :return: new expressions in ``to_`` node
         :rtype: list[Expression]
         """
         if not isinstance(from_, list):
             from_ = self.__node[from_].expressions
         n2s = []
         for n1 in from_:
-            n1: Expression
             for op1 in ops:
                 if op1 is Operator.addressof.operation and not n1.is_lvalue:
                     # dont apply & to (v+0) even if it has same alignment rules as v
@@ -176,18 +175,17 @@ class ExpressionGenerator:
         return self.__node[to_].extend(n2s)
 
     def graph_ta_va(self):
-        """Generate expressions to check a variable `v` of arbitrary type.
-        Expressions include taking address of `v` and dereferencing it
-        in different ways.
+        """
+        Generate expressions to check a variable `v` of arbitrary type. Expressions
+        include taking address of `v` and dereferencing it in different ways.
 
-        Type can be aligned with attribute in type declaration for struct
-        or union, in typedef declaration, and after ``*`` in declarator.
-        (CDT ignores the last case.)
+        Type can be aligned with attribute in type declaration for struct or union, in
+        typedef declaration, and after ``*`` in declarator. (CDT ignores the last case.)
         """
         if self.__graph == "ta va":
             return
         elif self.__graph is not None:
-            raise Exception(f'Already filled graph for "{self.__graph}" case')
+            raise Exception("Already filled graph for '%s' case" % self.__graph)
         self.__graph = "ta va"
 
         # operator sets for edges and loops
@@ -224,17 +222,18 @@ class ExpressionGenerator:
         self.__edge("v", "(&v)[z]", plus0)
 
     def graph_pa_va(self):
-        """Generate expressions to check a variable `v` of arbitrary pointer type.
-        Expressions include taking address of `v` and dereferencing it in different ways,
-        as in ``graph_ta_va``, but also dereferencing `v` itself.
+        """
+        Generate expressions to check a variable `v` of arbitrary pointer type.
+        Expressions include taking address of `v` and dereferencing it in different
+        ways, as in ``graph_ta_va``, but also dereferencing `v` itself.
 
-        Type can be aligned with attribute in type declaration for struct or union,
-        in typedef declaration, and after ``*`` in declarator. (CDT ignores the last case.)
+        Type can be aligned with attribute in type declaration for struct or union, in
+        typedef declaration, and after ``*`` in declarator. (CDT ignores the last case.)
         """
         if self.__graph == "pa va":
             return
         elif self.__graph is not None:
-            raise Exception(f'Already filled graph for "{self.__graph}" case')
+            raise Exception("Already filled graph for '%s' case" % self.__graph)
         self.__graph = "pa va"
 
         # operator sets for edges and loops
@@ -245,7 +244,9 @@ class ExpressionGenerator:
         # setup nodes
         self.__node["v"] = Node(Node.variable, [], loop_depth=self.loop_depth)
         self.__node["&v"] = Node(
-            Node.a_pointer, [self.__add0], loop_depth=self.loop_depth
+            Node.a_pointer,
+            [self.__add0],
+            loop_depth=self.loop_depth,
         )
         self.__node["&v+z"] = Node(Node.a_pointer, plus0, loop_depth=self.loop_depth)
         self.__node["(&v)[z]"] = Node(Node.typeof, plus0, loop_depth=self.loop_depth)
@@ -274,11 +275,14 @@ class ExpressionGenerator:
         # edge from *v to &*v, &*&*v, ...
         self.__cycle2("*v", "(&v)[z]", [Operator.addressof.operation], derefz)
 
-    def text_graph(self, *, mode: str, variable: Variable, machine: Machine):
-        """Compose a program that checks previously generated expressions
-        using asserts or prints.
+    def text_graph(self, *, mode, variable, machine):
+        """
+        Compose a program that checks previously generated expressions using asserts or
+        prints.
 
-        :param mode: 'static asserts', 'asserts', or 'prints'
+        :param str mode: 'static asserts', 'asserts', or 'prints'
+        :param Variable variable: variable all expressions will be derived from
+        :param Machine machine: machine model to get expected alignment numbers
         :return: text of program
         """
 
@@ -292,7 +296,7 @@ class ExpressionGenerator:
         elif mode == "asserts":
             text += "#include <assert.h>\n"
         elif mode != "static asserts":
-            raise ValueError(f"wrong {mode=}")
+            raise ValueError("wrong mode " + mode)
 
         td = variable.ctype.declaration + ";\n" if variable.ctype.declaration else ""
         text += (
@@ -313,45 +317,45 @@ class ExpressionGenerator:
                 t = x
                 size, align = machine.size_align_of(t)
             else:
-                raise TypeError(f"unexpected type of {x=}: {type(x)}")
+                raise TypeError("unexpected type of x=%s: %s" % (x, type(x)))
 
             for expr in node.expressions:
                 asserts = [
                     (
-                        f"sizeof({expr}) == sizeof({title})",
-                        f"{expr} differs from {title} by size",
+                        "sizeof(%s) == sizeof(%s)" % (expr, title),
+                        "%s differs from %s by size" % (expr, title),
                     ),
                     (
-                        f"_Alignof({expr}) == _Alignof({title})",
-                        f"{expr} differs from {title} by align",
+                        "_Alignof(%s) == _Alignof(%s)" % (expr, title),
+                        "%s differs from %s by align" % (expr, title),
                     ),
                     (
-                        f"_Alignof({expr}) == {align}",
-                        f"align of {expr} differs from expected",
+                        "_Alignof(%s) == %s" % (expr, align),
+                        "align of %s differs from expected" % expr,
                     ),
                     (
-                        f"sizeof({expr}) == {size}",
-                        f"size of {expr} differs from expected",
+                        "sizeof(%s) == %s" % (expr, size),
+                        "size of %s differs from expected" % expr,
                     ),
                 ]
                 if mode == "prints":
                     text += (
-                        f'printf("{expr}\\ta:%ld, s:%ld\\n", '
-                        f"_Alignof({expr}), sizeof({expr}));\n"
+                        'printf("%s\\ta:%%ld, s:%%ld\\n", _Alignof(%s), sizeof(%s));\n'
+                        % (expr, expr, expr)
                     )
                 elif mode == "static asserts":
                     text += ";\n".join(
-                        f'_Static_assert({check}, "{message}")'
+                        '_Static_assert(%s, "%s")' % (check, message)
                         for check, message in asserts
                     )
                     text += ";\n"
                 elif mode == "asserts":
-                    text += (
-                        ";\n".join(f"assert({check})" for check, message in asserts)
-                        + ";\n"
+                    text += ";\n".join(
+                        "assert(%s)" % check for check, message in asserts
                     )
+                    text += ";\n"
                 else:
-                    raise ValueError(f"unrecognised {mode=}")
+                    raise ValueError("unrecognised mode " + mode)
 
         text += "return unit - 1;\n}\n"
         return text
