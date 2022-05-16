@@ -20,6 +20,7 @@ import logging
 import os
 import subprocess
 import sys
+from itertools import product
 
 from aligned_testing.misc import Alignment
 from aligned_testing.ctypes import CType, Pointer, standard_types
@@ -42,17 +43,15 @@ def __nick(ctype: CType):
     raise NotImplementedError(ctype)
 
 
-def run(command, quiet=False, output=None):
+def run(command, output=None):
     """
     Execute the given command.
 
     :param output: file to output to, or None to just capture stdout
     :param List[str] command: list of words that describe the command line
-    :param Bool quiet: whether to log the executed command line as INFO
     :return subprocess.CompletedProcess: information about the execution
     """
-    if not quiet:
-        logger.info(" ".join(command))
+    logger.debug(" ".join(command))
     result = subprocess.run(
         command,
         stdout=output or subprocess.PIPE,
@@ -63,6 +62,36 @@ def run(command, quiet=False, output=None):
         logger.warning(result.stderr)
     result.check_returncode()
     return result
+
+
+def run_cpachecker(command, filename, has_cfa_c=False):
+    """
+    Run CPAchecker with command and check the result is TRUE.
+
+    :param list[str] command: full command except for filename
+    :param str filename: C file to verify
+    :param has_cfa_c: check there is output/cfa.c after CPAchecker run
+    """
+    verification_completed = run(command + [filename])
+    if "Verification result:" not in verification_completed.stdout:
+        logger.error("No verification verdict for file %s", filename)
+        sys.exit(1)
+    if "Verification result: TRUE." not in verification_completed.stdout:
+        logger.error("Verification verdict is not TRUE for file %s", filename)
+        sys.exit(1)
+    if has_cfa_c and not os.path.isfile("output/cfa.c"):
+        logger.error("No cfa.c file found")
+        sys.exit(1)
+
+
+def compile_and_run(command, filename, outfilename):
+    """
+    Compile ``filename`` using ``command`` to ``a.out``. Run it and write output
+    to ``outfilename``.
+    """
+    run(command + [filename])
+    with open(outfilename, "w", encoding="utf8") as output:
+        run(["./a.out"], output=output)
 
 
 def check_numbers(args):
@@ -105,80 +134,71 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
     Check ``ctype`` using given ``eg`` graph. Generates and runs programs for matching
     GCC and testing CPAchecker.
     """
-    print("checking type", __nick(ctype))
+    def write_cfile(mode):
+        text = eg.text_graph(mode=mode.strip(), variable=v, machine=machine)
+        filename = fprefix + mode.replace(" ", "-") + machine.name
+        with open(filename + ".c", "w", encoding="utf8") as output:
+            output.write(text)
+        return filename
+
+    def check_prints(filename):
+        ccc = args.cc_command + [machine.gcc_option]
+        # Check that compiled program and CPAchecker print same numbers
+        compile_and_run(ccc, filename + ".c", filename + ".cc_out")
+        #  1. Run CPAchecker and write ``cfa.c``
+        run_cpachecker(CPA_PRINTS + [machine.cpa_option], filename + ".c", has_cfa_c=True)
+        #  2. Compile ``cfa.c``
+        compile_and_run(ccc, "output/cfa.c", filename + ".cpa_out")
+        #  3. Compare results
+        run(["diff", filename + ".cc_out", filename + ".cpa_out"])
+
+    logger.info("checking type " + __nick(ctype))
     fdir = subdir + os.path.sep + __nick(ctype)
     os.makedirs(fdir, exist_ok=True)
     old_typeid = ctype.typeid
     old_ctype_decl = ctype.declaration + ";\n" if ctype.declaration else ""
 
-    for ta in Alignment.__members__.values():
-        print(
-            "\tchecking type aligned",
-            ta.code,
-            "\tVar aligns checked: ",
-            end="",
-            flush=True,
-        )
-        for va in Alignment.__members__.values():
-            print(va.code, end=" ", flush=True)
+    for machine in machine_models:
+        logger.info("\tchecking machine " + machine.name)
+        if args.all_alignments:
+            alignments_to_check = Alignment.__members__.values()
+        else:
+            default_align = machine.size_align_of(ctype)[1]
+            a1, a2 = Alignment.get_two_nearest(default_align)
+            alignments_to_check = [Alignment.NoAttr, a1, a2]
+
+        for ta in alignments_to_check:
+            logger.info("\t\tchecking type align " + str(ta.code))
             ctype.declaration = old_ctype_decl
             ctype.typeid = old_typeid
             if ta != Alignment.NoAttr:
                 ctype.declaration += "typedef " + ctype.declare("t", ta, as_string=True)
                 ctype.typeid = "t"
             ctype.align = ta
-            v = ctype.declare(name="v", align=va)
 
-            logger.debug("generating programs for %s of type %s", v, v.ctype)
-            fprefix = fdir + "/" + str(ta.code) + "v" + str(va.code)
+            for va in alignments_to_check:
+                logger.info("\t\t\tchecking var align " + str(va.code))
+                v = ctype.declare(name="v", align=va)
 
-            if args.do_prints:
-                for machine in machine_models:
-                    text = eg.text_graph(mode="prints", variable=v, machine=machine)
-                    fname = fprefix + "-prints-" + machine.name + ".c"
-                    with open(fname, "w", encoding="utf8") as prints_file:
-                        prints_file.write(text)
-                    if args.only_gen:
-                        continue
-                    run(args.cc_command + [machine.gcc_option, fname])
-                    with open(
-                        fname.replace(".c", ".cc_out"), "w", encoding="utf8"
-                    ) as output:
-                        run(["./a.out"], output=output)
-                    # TODO
-                    #  1. Run CPAchecker and write ``cfa.c``
-                    #  2. Compile ``cfa.c`` and compare prints
-                continue
+                logger.debug("generating programs for %s of type %s", v, v.ctype)
+                fprefix = fdir + "/" + str(ta.code) + "v" + str(va.code)
 
-            if args.cc_command:
-                for machine in machine_models:
-                    text = eg.text_graph(
-                        mode="static asserts", variable=v, machine=machine
-                    )
-                    fname = fprefix + "-static-asserts-" + machine.name + ".c"
-                    with open(fname, "w", encoding="utf8") as fp:
-                        fp.write(text)
-                    if args.only_gen:
-                        continue
-                    # check model with compiler
-                    run(args.cc_command + [machine.gcc_option, fname])
-
-            for machine in machine_models:
-                text = eg.text_graph(mode="asserts", variable=v, machine=machine)
-                fname = fprefix + "-asserts-" + machine.name + ".c"
-                with open(fname, "w", encoding="utf8") as fp:
-                    fp.write(text)
-                if args.only_gen:
+                if args.do_prints:
+                    filename = write_cfile(" prints ")
+                    if not args.only_gen:
+                        check_prints(filename)
                     continue
-                # check CPAchecker with model
-                verification_completed = run(CPA_COMMAND + [machine.cpa_option, fname])
-                if "Verification result:" not in verification_completed.stdout:
-                    logger.error("No verification verdict for file %s", fname)
-                    sys.exit(1)
-                if "Verification result: TRUE." not in verification_completed.stdout:
-                    logger.error("Verification verdict is not TRUE for file %s", fname)
-                    sys.exit(1)
-        print(flush=True)
+
+                if args.cc_command:
+                    filename = write_cfile(" static asserts ")
+                    if not args.only_gen:
+                        # Check computed alignments match compiler alignments
+                        run(args.cc_command + [machine.gcc_option, filename + ".c"])
+
+                filename = write_cfile(" asserts ")
+                if not args.only_gen:
+                    # Check CPAchecker alignments match computed alignments
+                    run_cpachecker(CPA_COMMAND + [machine.cpa_option], filename + ".c")
 
 
 ALIGNED_DIR = "test/programs/c_attributes/aligned"
@@ -187,15 +207,23 @@ SANS = "-fsanitize=shadow-call-stack".split()
 SANT = "-fsanitize=thread".split()
 SANU = "-fsanitize=undefined".split()
 STRICT = "-std=c11 -Wall -Werror -Wno-unused-value -Wno-format".split()  # + SANA + SANU
-STRICT2 = SANS + "-Wno-gnu-alignof-expression -Wno-sizeof-array-decay -Wno-address-of-packed-member".split()
+STRICT2 = (
+    SANS
+    + "-Wno-gnu-alignof-expression -Wno-sizeof-array-decay -Wno-address-of-packed-member".split()
+)
 
-CPA_COMMAND = "scripts/cpa.sh -preprocess -default -benchmark -heap 1200M -nolog -noout".split()
-# '-setprop cfa.callgraph.export=false -setprop cfa.export=false ' \
-# '-setprop cfa.exportPerFunction=false -setprop cfa.exportToC=true'.split()
+CPA_COMMAND = (
+    "scripts/cpa.sh -preprocess -default -benchmark -heap 1200M -nolog -noout".split()
+)
+CPA_PRINTS = (
+    "scripts/cpa.sh -preprocess -default -heap 1200M -nolog "
+    "-setprop cfa.callgraph.export=false -setprop cfa.export=false "
+    "-setprop cfa.exportPerFunction=false -setprop cfa.exportToC=true".split()
+)
 
 
 def main():
-    # logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO)
 
     # cd CPAchecker root directory
     if os.path.isfile("../scripts/cpa.sh"):
@@ -277,6 +305,16 @@ def main():
         help="For number expressions v add loops and edges for 'v+0', 'v+zero' "
         "where possible.",
     )
+    parser.add_argument(
+        "-a",
+        "--all-alignments",
+        dest="all_alignments",
+        action="store_true",
+        help="Check types with no __aligned__() attribute, attribute with no clause, "
+             "and with 1, 2, 4, 8, 16, 32, 64, or __BIGGEST_ALIGNMENT__ as clause. "
+             "Default is to check type with no attribute, and with two nearest "
+             "alignments."
+    )
     types = parser.add_mutually_exclusive_group(required=True)
     types.add_argument(
         "--numbers",
@@ -296,7 +334,7 @@ def main():
     args = parser.parse_args()
     if not args.only_gen and args.do_prints and args.cc_command is None:
         print("Program with prints requires a compiler to compare results.")
-        exit(1)
+        sys.exit(1)
     args.main(args)
 
 

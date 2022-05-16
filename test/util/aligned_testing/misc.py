@@ -73,7 +73,23 @@ class Alignment(Enum):
         for a in Alignment.__members__.values():
             if alignment == a.code:
                 return a
-        raise ValueError(f"cant parse {attr=}")
+        raise ValueError("cant parse attr=" + str(attr))
+
+    @classmethod
+    def get_two_nearest(cls, number: int):
+        """Return two nearest (but not equal) to the ``number`` alignments."""
+        ints = [a for a in Alignment.__members__.values() if isinstance(a.code, int)]
+        less = [a for a in ints if a.code < number]
+        greater = [a for a in ints if a.code > number]
+        if not less:  # no aligns less than number
+            return Alignment.Two, Alignment.Four
+        a1 = max(less, key=lambda a: a.code)
+        if not greater:
+            a2 = a1
+            a1 = max((a for a in ints if a.code < a2.code), key=lambda a: a.code)
+            return a1, a2
+        a2 = min(greater, key=lambda a: a.code)
+        return a1, a2
 
 
 class Variable:
