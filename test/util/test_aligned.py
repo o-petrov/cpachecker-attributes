@@ -103,7 +103,7 @@ def __check_type(subdir: str, ctype: CType, eg: ExpressionGenerator):
 
     for ta in Alignment.__members__.values():
         print(
-            "\t checking type aligned",
+            "\tchecking type aligned",
             ta.code,
             "\tVar aligns checked: ",
             end="",

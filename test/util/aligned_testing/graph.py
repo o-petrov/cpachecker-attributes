@@ -138,11 +138,14 @@ class ExpressionGenerator:
         Add two edges in cycle ``from_`` -- ``to_`` -- ``from_``. Nodes with cycles can
         be populated infinitely, so cap this process using ``depth``.
 
-        :param str from_: title of a node :param str to_: title of another node :param
-        ops1: (pseudo-) unary operations on first edge :type ops1: list[(Expression) ->
-        Expression] :param ops2: (pseudo-) unary operations on second edge :type ops2:
-        list[(Expression) -> Expression] :param int depth: how many times traverse the
-        full cycle :rtype: None
+        :param str from_: title of a node
+        :param str to_: title of another node
+        :param ops1: (pseudo-) unary operations on first edge
+        :type ops1: list[(Expression) -> Expression]
+        :param ops2: (pseudo-) unary operations on second edge
+        :type ops2: list[(Expression) -> Expression]
+        :param int depth: how many times traverse the full cycle
+        :rtype: None
         """
         if depth is None:
             depth = self.cycle_depth
@@ -155,10 +158,13 @@ class ExpressionGenerator:
         """
         Add expressions applying ``ops`` to expressions in ``from_``.
 
-        :param from_: title of a node or newest expressions in the node :type from_: str
-        | list[Expression] :param str to_: title of a node :param ops: Apply (pseudo-)
-        unary operations to source expressions to get destination expressions. :type
-        ops: list[(Expression) -> Expression] :return: new expressions in ``to_`` node
+        :param from_: title of a node or newest expressions in the node
+        :type from_: str | list[Expression]
+        :param str to_: title of a node
+        :param ops: Apply (pseudo-) unary operations to source expressions to get
+            destination expressions.
+        :type ops: list[(Expression) -> Expression]
+        :return: new expressions in ``to_`` node
         :rtype: list[Expression]
         """
         if not isinstance(from_, list):
