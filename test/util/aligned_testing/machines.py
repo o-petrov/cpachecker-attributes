@@ -13,6 +13,7 @@ target options).
 """
 
 
+import re
 from .misc import Alignment
 from .ctypes import Void, Number, Pointer, Array
 
@@ -114,10 +115,21 @@ class Machine:
             return self.void, self.align_void
         elif isinstance(t, Number):
             typenick = t.typeid
-            typenick = typenick.replace("unsigned ", "")
-            typenick = typenick.replace("signed ", "")
-            typenick = typenick.replace("long ", "l")
-            return self.__getattribute__(typenick), self.__getattribute__(
+            align = self.align_of(t.align)
+            if align:
+                # number type was typedef'd to attach alignment attribute
+                typenick = t.declaration
+                if ";" in t.declaration:
+                    typenick = t.declaration[: t.declaration.find(";")]
+            remove = re.compile(
+                "\s*(unsigned|signed|typedef|__attribute__\(\(.*\)\))\s*"
+            )
+            long = re.compile("\s*long\s+")
+            typenick = re.sub(pattern=long, string=typenick, repl="l")
+            typenick = re.sub(pattern=remove, string=typenick, repl=" ")
+            if " " in typenick:
+                typenick = typenick.split()[0]
+            return self.__getattribute__(typenick), align or self.__getattribute__(
                 "align_" + typenick
             )
         else:
