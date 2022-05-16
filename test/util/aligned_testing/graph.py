@@ -126,12 +126,16 @@ class ExpressionGenerator:
     __get1 = PartialExpression(op=Operator.subscript, right=__l1)
     __getu = PartialExpression(op=Operator.subscript, right=__unit)
 
-    def __init__(self, cycle_depth=1, loop_depth=1):
+    def __init__(
+        self, *, cycle_depth, loop_depth, pointer_arithmetic, number_arithmetic
+    ):
         self.__node = {}
         """:type: dict[str, Node]"""
         self.__graph = None
         self.cycle_depth = cycle_depth
         self.loop_depth = loop_depth
+        self.pointer_arithmetic = pointer_arithmetic
+        self.number_arithmetic = number_arithmetic
 
     def __cycle2(self, from_, to_, ops1, ops2, depth=None):
         """
@@ -202,10 +206,20 @@ class ExpressionGenerator:
         # setup nodes
         self.__node["v"] = Node(Node.variable, [], loop_depth=self.loop_depth)
         self.__node["&v"] = Node(
-            Node.a_pointer, [self.__add0], loop_depth=self.loop_depth
+            Node.a_pointer,
+            [self.__add0] if self.pointer_arithmetic else [],
+            loop_depth=self.loop_depth,
         )
-        self.__node["&v+z"] = Node(Node.a_pointer, plus0, loop_depth=self.loop_depth)
-        self.__node["(&v)[z]"] = Node(Node.typeof, plus0, loop_depth=self.loop_depth)
+        self.__node["&v+z"] = Node(
+            Node.a_pointer,
+            plus0 if self.pointer_arithmetic else [],
+            loop_depth=self.loop_depth,
+        )
+        self.__node["(&v)[z]"] = Node(
+            Node.typeof,
+            plus0 if self.number_arithmetic else [],
+            loop_depth=self.loop_depth,
+        )
 
         # all expressions derive from v
         self.__node["v"].extend(
@@ -225,7 +239,8 @@ class ExpressionGenerator:
         self.__cycle2("(&v)[z]", "&v+z", [Operator.addressof.operation], derefz)
 
         # add edges to v+0
-        self.__edge("v", "(&v)[z]", plus0)
+        if self.number_arithmetic:
+            self.__edge("v", "(&v)[z]", plus0)
 
     def graph_pa_va(self):
         """
@@ -251,7 +266,7 @@ class ExpressionGenerator:
         self.__node["v"] = Node(Node.variable, [], loop_depth=self.loop_depth)
         self.__node["&v"] = Node(
             Node.a_pointer,
-            [self.__add0],
+            [self.__add0] if self.pointer_arithmetic else [],
             loop_depth=self.loop_depth,
         )
         self.__node["&v+z"] = Node(Node.a_pointer, plus0, loop_depth=self.loop_depth)
