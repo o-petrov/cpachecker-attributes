@@ -146,6 +146,8 @@ class ExpressionGenerator:
     ):
         self.__node = {}
         """:type: dict[str, Node]"""
+        self.__edges = []
+        """:type: list[tuple[str,str,Expression]]"""
         self.__graph = None
         self.cycle_depth = cycle_depth
         self.loop_depth = loop_depth
@@ -168,6 +170,13 @@ class ExpressionGenerator:
         """
         if depth is None:
             depth = self.cycle_depth
+
+        e = VariableNameExpression(
+            Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
+        )
+        exprs = ", ".join(str(op(e)) for op in ops2)
+        self.__edges.append((to_, from_, exprs))
+
         n1s = from_
         for _ in range(depth):
             n2s = self.__edge(n1s, to_, ops1)
@@ -186,7 +195,12 @@ class ExpressionGenerator:
         :return: new expressions in ``to_`` node
         :rtype: list[Expression]
         """
-        if not isinstance(from_, list):
+        if isinstance(from_, str):
+            e = VariableNameExpression(
+                Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
+            )
+            exprs = ", ".join(str(op(e)) for op in ops)
+            self.__edges.append((from_, to_, exprs))
             from_ = self.__node[from_].expressions
         n2s = []
         for n1 in from_:
@@ -415,3 +429,21 @@ class ExpressionGenerator:
         print(self.__graph)
         for title, node in self.__node.items():
             print(title, node.align_class, len(node.expressions))
+
+    def print_dot(self):
+        """Print constructed graph in Graphviz .dot format."""
+        print("digraph", self.__graph.replace(" ", "_"), "{")
+        print('in [shape=none, label=""]')
+        dot_node = {}
+        for i_node, (title, node) in enumerate(self.__node.items()):
+            dot_node[title] = "n" + str(i_node)
+            align_class = str(node.align_class)
+            assert align_class.startswith("<function Node.")
+            align_class = align_class[
+                len("<function Node.") : align_class.find(" at 0x")
+            ]
+            print(dot_node[title], '[label="%s\\n%s"]' % (title, align_class))
+        print("in ->", dot_node["v"])
+        for from_, to_, exprs in self.__edges:
+            print(dot_node[from_], "->", dot_node[to_], '[label="%s"]' % exprs)
+        print("}")

@@ -246,7 +246,7 @@ def main():
         sys.exit(1)
     logging.basicConfig(level=numeric_level)
 
-    if args.graph_stats:
+    if args.print_nodes or args.print_graphs:
         tava = ExpressionGenerator(
             loop_depth=args.loop_depth,
             cycle_depth=args.cycle_depth,
@@ -254,7 +254,10 @@ def main():
             number_arithmetic=args.number_arithmetic,
         )
         tava.graph_ta_va()
-        tava.print_stats()
+        if args.print_nodes:
+            tava.print_stats()
+        else:
+            tava.print_dot()
         pava = ExpressionGenerator(
             loop_depth=args.loop_depth,
             cycle_depth=args.cycle_depth,
@@ -262,7 +265,10 @@ def main():
             number_arithmetic=args.number_arithmetic,
         )
         pava.graph_pa_va()
-        pava.print_stats()
+        if args.print_nodes:
+            pava.print_stats()
+        else:
+            pava.print_dot()
         sys.exit(0)
 
     if not args.only_gen and args.do_prints and args.cc_command is None:
@@ -291,9 +297,9 @@ def parse_arguments():
         action="store_const",
         const=None,
         help="Generate programs, and run checks. If a compiler was specified, generate "
-             "programs with static asserts and compile them to check the calculated "
-             "alignments. Generate programs with asserts and run CPAchecker analysis "
-             "to check that CPAchecker calculates same alignments.",
+        "programs with static asserts and compile them to check the calculated "
+        "alignments. Generate programs with asserts and run CPAchecker analysis "
+        "to check that CPAchecker calculates same alignments.",
     )
     modes.add_argument(
         "-g",
@@ -304,12 +310,19 @@ def parse_arguments():
         "generated programs).",
     )
     modes.add_argument(
-        "--graph-stats",
-        "--print-stats",
-        dest="graph_stats",
+        "--print-nodes",
+        dest="print_nodes",
         action="store_true",
-        help="Construct graphs for --numbers and --pointers and print their "
-        "statistics. Do not generate programs.",
+        help="Construct graphs for --numbers and --pointers and print how many expressions each "
+        "node has. Do not generate programs.",
+    )
+    modes.add_argument(
+        "--print-graphs",
+        "--dot",
+        dest="print_graphs",
+        action="store_true",
+        help="Construct graphs for --numbers and --pointers and print them in .dot Graphviz "
+        "format. Do not generate programs.",
     )
 
     progs = parser.add_argument_group(title="program generation options")
@@ -410,7 +423,7 @@ def parse_compiler_args(parser):
         action="store_const",
         const=("gcc " + strict).split(),
         help="Use GCC to check testing model. Generate program with static asserts and "
-             "try to compile it with GCC.",
+        "try to compile it with GCC.",
     )
     compilers.add_argument(
         "--clang",
@@ -418,7 +431,7 @@ def parse_compiler_args(parser):
         action="store_const",
         const=("clang " + strict + strict2).split(),
         help="Use Clang to check testing model. Generate program with static asserts "
-             "and try to compile it with Clang.",
+        "and try to compile it with Clang.",
     )
 
 
