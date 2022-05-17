@@ -53,11 +53,25 @@ class Node:
     starting always from node for the variable, and ending in node with right alignment.
     """
 
-    variable = lambda v: v  # noqa E731
-    a_pointer = lambda v: Pointer(None)  # noqa E731
-    typeof = lambda v: v.ctype  # noqa E731
-    ref_type = lambda v: v.ctype.ref_type  # noqa E731
-    pointer_to_ref_type = lambda v: Pointer(v.ctype.ref_type)  # noqa E731
+    @staticmethod
+    def variable(v):
+        return v
+
+    @staticmethod
+    def a_pointer(v):
+        return Pointer(None)
+
+    @staticmethod
+    def typeof(v):
+        return v.ctype
+
+    @staticmethod
+    def ref_type(v):
+        return v.ctype.ref_type
+
+    @staticmethod
+    def pointer_to_ref_type(v):
+        return Pointer(v.ctype.ref_type)
 
     def __init__(self, align_class, loops, loop_depth=2):
         """
@@ -386,3 +400,9 @@ class ExpressionGenerator:
 
         text += "return unit - 1;\n}\n"
         return text
+
+    def print_stats(self):
+        """Print nodes and how many expressions they have."""
+        print(self.__graph)
+        for title, node in self.__node.items():
+            print(title, node.align_class, len(node.expressions))
