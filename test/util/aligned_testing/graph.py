@@ -13,6 +13,7 @@ Generate expressions and text to check their alignment.
 1. No assigns and ++/--, as CPAchecker simplifies it to lhs.
 2. TODO expressions of two+ varibles?
 """
+import logging
 
 from .misc import Alignment, Variable
 from .ctypes import CType, Pointer, standard_types
@@ -182,7 +183,12 @@ class ExpressionGenerator:
                 n2 = op1(n1)
                 if n2 not in self.__node[to_].expressions:
                     n2s.append(n2)
-        return self.__node[to_].extend(n2s)
+        result = self.__node[to_].extend(n2s)
+        first_exprs = ", ".join(
+            str(e) for e in (result[:3] + ["..."] if len(result) > 3 else result)
+        )
+        logging.debug("added %i expressions to %s: %s", len(result), to_, first_exprs)
+        return result
 
     def graph_ta_va(self):
         """
