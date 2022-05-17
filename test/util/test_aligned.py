@@ -123,10 +123,20 @@ def check_pointers(args):
         number_arithmetic=args.number_arithmetic,
     )
     eg.graph_pa_va()
-    # TODO void* v but without *v+0
     for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = Pointer(standard_types[typekey])
         __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
+    if args.number_arithmetic:
+        args.number_arithmetic = False
+        eg = ExpressionGenerator(
+            loop_depth=args.loop_depth,
+            cycle_depth=args.cycle_depth,
+            pointer_arithmetic=args.pointer_arithmetic,
+            number_arithmetic=False,
+        )
+    eg.graph_pa_va()
+    ctype = Pointer(standard_types["VOID"])
+    __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
 
 
 def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
