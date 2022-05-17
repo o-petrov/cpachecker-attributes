@@ -20,7 +20,6 @@ import logging
 import os
 import subprocess
 import sys
-from itertools import product
 
 from aligned_testing.misc import Alignment
 from aligned_testing.ctypes import CType, Pointer, standard_types
@@ -144,6 +143,7 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
     Check ``ctype`` using given ``eg`` graph. Generates and runs programs for matching
     GCC and testing CPAchecker.
     """
+
     def write_cfile(mode):
         text = eg.text_graph(mode=mode.strip(), variable=v, machine=machine)
         filename = fprefix + mode.replace(" ", "-") + machine.name
@@ -156,7 +156,9 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
         # Check that compiled program and CPAchecker print same numbers
         compile_and_run(ccc, filename + ".c", filename + ".cc_out")
         #  1. Run CPAchecker and write ``cfa.c``
-        run_cpachecker(CPA_PRINTS + [machine.cpa_option], filename + ".c", has_cfa_c=True)
+        run_cpachecker(
+            CPA_PRINTS + [machine.cpa_option], filename + ".c", has_cfa_c=True
+        )
         #  2. Compile ``cfa.c``
         compile_and_run(ccc, "output/cfa.c", filename + ".cpa_out")
         #  3. Compare results
@@ -212,23 +214,15 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
 
 
 ALIGNED_DIR = "test/programs/c_attributes/aligned"
-SANA = "-fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=leak".split()
-SANS = "-fsanitize=shadow-call-stack".split()
-SANT = "-fsanitize=thread".split()
-SANU = "-fsanitize=undefined".split()
-STRICT = "-std=c11 -Wall -Werror -Wno-unused-value -Wno-format".split()  # + SANA + SANU
-STRICT2 = (
-    SANS
-    + "-Wno-gnu-alignof-expression -Wno-sizeof-array-decay -Wno-address-of-packed-member".split()
-)
-
 CPA_COMMAND = (
-    "scripts/cpa.sh -preprocess -default -benchmark -heap 1200M -nolog -noout".split()
+    "scripts/cpa.sh -preprocess -default -benchmark -heap 1200M -nolog -noout ".split()
 )
 CPA_PRINTS = (
     "scripts/cpa.sh -preprocess -default -heap 1200M -nolog "
-    "-setprop cfa.callgraph.export=false -setprop cfa.export=false "
-    "-setprop cfa.exportPerFunction=false -setprop cfa.exportToC=true".split()
+    "-setprop cfa.callgraph.export=false "
+    "-setprop cfa.export=false "
+    "-setprop cfa.exportPerFunction=false "
+    "-setprop cfa.exportToC=true ".split()
 )
 
 
@@ -246,35 +240,51 @@ def main():
     if not os.path.isfile("scripts/cpa.sh") or not os.access("scripts/cpa.sh", os.X_OK):
         raise Exception("CPAchecker not found or not executable")
 
+    args = parse_arguments()
+
+    if args.graph_stats:
+        tava = ExpressionGenerator(
+            loop_depth=args.loop_depth,
+            cycle_depth=args.cycle_depth,
+            pointer_arithmetic=args.pointer_arithmetic,
+            number_arithmetic=args.number_arithmetic,
+        )
+        tava.graph_ta_va()
+        tava.print_stats()
+        pava = ExpressionGenerator(
+            loop_depth=args.loop_depth,
+            cycle_depth=args.cycle_depth,
+            pointer_arithmetic=args.pointer_arithmetic,
+            number_arithmetic=args.number_arithmetic,
+        )
+        pava.graph_pa_va()
+        pava.print_stats()
+        sys.exit(0)
+
+    if not args.only_gen and args.do_prints and args.cc_command is None:
+        print("Program with prints requires a compiler to compare results.")
+        sys.exit(1)
+    args.main(args)
+
+
+def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Generate and check programs to test alignment attributes "
         "in CPAchecker."
     )
-    compilers = parser.add_mutually_exclusive_group()
-    compilers.add_argument(
-        "--gcc",
-        dest="cc_command",
+
+    modes = parser.add_argument_group(title="modes of operation")
+    modes = modes.add_mutually_exclusive_group()
+    modes.add_argument(
+        "--default",
         action="store_const",
-        const=["gcc"] + STRICT,
-        help="Use GCC to check testing model.",
+        const=None,
+        help="Generate programs, and run checks. If a compiler was specified, generate "
+             "programs with static asserts and compile them to check the calculated "
+             "alignments. Generate programs with asserts and run CPAchecker analysis "
+             "to check that CPAchecker calculates same alignments.",
     )
-    compilers.add_argument(
-        "--clang",
-        dest="cc_command",
-        action="store_const",
-        const=["clang"] + STRICT + STRICT2,
-        help="Use Clang to check testing model.",
-    )
-    parser.add_argument(
-        "-p",
-        "--prints",
-        "--use-prints",
-        dest="do_prints",
-        action="store_true",
-        help="Instead of asserts, generate prints and compare output of compiler "
-        "and CPAchecker.",
-    )
-    parser.add_argument(
+    modes.add_argument(
         "-g",
         "--just-generate",
         dest="only_gen",
@@ -282,50 +292,35 @@ def main():
         help="Generate programs, but do not run anything (do not compile or analyze "
         "generated programs).",
     )
-    parser.add_argument(
-        "--loop_depth",
-        dest="loop_depth",
-        type=int,
-        action="store",
-        default="2",
-        help="How many times to apply operators that make expressions of same "
-        "alignment, e.g. +0 for some pointer p: 2 means that 'p+0' and 'p+0+0'"
-        "will be added when 'p' occurs.",
-    )
-    parser.add_argument(
-        "--cycle_depth",
-        dest="cycle_depth",
-        type=int,
-        action="store",
-        default="2",
-        help="How many times to traverse cycle on a graph. For cycle of two edges, "
-        "address-of and pointer dereference, depth 1 means that 'v', '&v', '*&v' "
-        "will be added, and depth 2 means '&*&v' and '*&*&v' will be added too.",
-    )
-    parser.add_argument(
-        "--pointer_arithmetic",
-        dest="pointer_arithmetic",
+    modes.add_argument(
+        "--graph-stats",
+        "--print-stats",
+        dest="graph_stats",
         action="store_true",
-        help="For pointer expressions p add loops 'p+0', 'p+zero' where possible.",
+        help="Construct graphs for --numbers and --pointers and print their "
+        "statistics. Do not generate programs.",
     )
-    parser.add_argument(
-        "--number_arithmetic",
-        dest="number_arithmetic",
+
+    progs = parser.add_argument_group(title="program generation options")
+    parse_compiler_args(progs)
+    progs.add_argument(
+        "--prints",
+        "--use-prints",
+        dest="do_prints",
         action="store_true",
-        help="For number expressions v add loops and edges for 'v+0', 'v+zero' "
-        "where possible.",
+        help="Instead of asserts, generate prints and compare output of compiler "
+        "and CPAchecker.",
     )
-    parser.add_argument(
-        "-a",
+    progs.add_argument(
         "--all-alignments",
         dest="all_alignments",
         action="store_true",
         help="Check types with no __aligned__() attribute, attribute with no clause, "
-             "and with 1, 2, 4, 8, 16, 32, 64, or __BIGGEST_ALIGNMENT__ as clause. "
-             "Default is to check type with no attribute, and with two nearest "
-             "alignments."
+        "and with 1, 2, 4, 8, 16, 32, 64, and __BIGGEST_ALIGNMENT__ as clause. "
+        "Default is to check type with no attribute, and two nearest "
+        "alignments.",
     )
-    types = parser.add_mutually_exclusive_group(required=True)
+    types = progs.add_mutually_exclusive_group(required=True)
     types.add_argument(
         "--numbers",
         dest="main",
@@ -341,11 +336,79 @@ def main():
         help="Check alignments for some pointer types.",
     )
 
-    args = parser.parse_args()
-    if not args.only_gen and args.do_prints and args.cc_command is None:
-        print("Program with prints requires a compiler to compare results.")
-        sys.exit(1)
-    args.main(args)
+    parse_graph_options(parser)
+
+    return parser.parse_args()
+
+
+def parse_graph_options(parser):
+    graph_opts = parser.add_argument_group(title="graph options")
+    graph_opts.add_argument(
+        "--loop-depth",
+        dest="loop_depth",
+        type=int,
+        action="store",
+        default=2,
+        help="How many times to apply operators that make expressions of same "
+        "alignment, e.g. +0 for some pointer p: 2 means that 'p+0' and 'p+0+0' "
+        "will be added when 'p' occurs.",
+    )
+    graph_opts.add_argument(
+        "--cycle-depth",
+        dest="cycle_depth",
+        type=int,
+        action="store",
+        default=2,
+        help="How many times to traverse cycle on a graph. For cycle of two edges, "
+        "address-of and pointer dereference, depth 1 means that 'v', '&v', '*&v' "
+        "will be added, and depth 2 means '&*&v' and '*&*&v' will be added too.",
+    )
+    graph_opts.add_argument(
+        "--pointer-arithmetic",
+        dest="pointer_arithmetic",
+        action="store_true",
+        help="For pointer expressions p add loops 'p+0', 'p+zero' where possible.",
+    )
+    graph_opts.add_argument(
+        "--number-arithmetic",
+        dest="number_arithmetic",
+        action="store_true",
+        help="For number expressions v add loops and edges for 'v+0', 'v+zero' "
+        "where possible.",
+    )
+
+
+def parse_compiler_args(parser):
+    compilers = parser.add_mutually_exclusive_group()
+    # sana = (
+    #     "-fsanitize=address -fsanitize=pointer-compare "
+    #     "-fsanitize=pointer-subtract -fsanitize=leak "
+    # )
+    sans = "-fsanitize=shadow-call-stack "
+    # sant = "-fsanitize=thread "
+    # sanu = "-fsanitize=undefined "
+    strict = "-std=c11 -Wall -Werror -Wno-unused-value -Wno-format "  # + sana + sanu
+    strict2 = (
+        sans + "-Wno-gnu-alignof-expression "
+        "-Wno-sizeof-array-decay "
+        "-Wno-address-of-packed-member "
+    )
+    compilers.add_argument(
+        "--gcc",
+        dest="cc_command",
+        action="store_const",
+        const=("gcc " + strict).split(),
+        help="Use GCC to check testing model. Generate program with static asserts and "
+             "try to compile it with GCC.",
+    )
+    compilers.add_argument(
+        "--clang",
+        dest="cc_command",
+        action="store_const",
+        const=("clang " + strict + strict2).split(),
+        help="Use Clang to check testing model. Generate program with static asserts "
+             "and try to compile it with Clang.",
+    )
 
 
 if __name__ == "__main__":
