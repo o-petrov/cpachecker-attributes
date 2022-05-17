@@ -289,8 +289,16 @@ class ExpressionGenerator:
             [self.__add0] if self.pointer_arithmetic else [],
             loop_depth=self.loop_depth,
         )
-        self.__node["&v+z"] = Node(Node.a_pointer, plus0, loop_depth=self.loop_depth)
-        self.__node["(&v)[z]"] = Node(Node.typeof, plus0, loop_depth=self.loop_depth)
+        self.__node["&v+z"] = Node(
+            Node.a_pointer,
+            plus0 if self.pointer_arithmetic else [],
+            loop_depth=self.loop_depth,
+        )
+        self.__node["(&v)[z]"] = Node(
+            Node.typeof,
+            plus0 if self.number_arithmetic else [],
+            loop_depth=self.loop_depth,
+        )
         self.__node["*v"] = Node(Node.ref_type, [], loop_depth=self.loop_depth)
 
         # all expressions derive from v
@@ -309,8 +317,9 @@ class ExpressionGenerator:
         self.__edge("&v", "&v+z", [self.__addz])
         # add edges between: &v+z and (&v)[z]
         self.__cycle2("(&v)[z]", "&v+z", [Operator.addressof.operation], derefz)
-        # add edges to v+0
-        self.__edge("v", "(&v)[z]", plus0)
+        if self.number_arithmetic:
+            # add edges to v+0
+            self.__edge("v", "(&v)[z]", plus0)
         # add edges to *v
         self.__edge("v", "*v", derefz)
         # edge from *v to &*v, &*&*v, ...
