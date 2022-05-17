@@ -227,8 +227,6 @@ CPA_PRINTS = (
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-
     # cd CPAchecker root directory
     if os.path.isfile("../scripts/cpa.sh"):
         os.chdir("..")
@@ -241,6 +239,12 @@ def main():
         raise Exception("CPAchecker not found or not executable")
 
     args = parse_arguments()
+
+    numeric_level = getattr(logging, args.log.upper(), None)
+    if not isinstance(numeric_level, int):
+        print("Invalid log level: %s" % args.log)
+        sys.exit(1)
+    logging.basicConfig(level=numeric_level)
 
     if args.graph_stats:
         tava = ExpressionGenerator(
@@ -271,6 +275,13 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Generate and check programs to test alignment attributes "
         "in CPAchecker."
+    )
+    parser.add_argument(
+        "--log",
+        dest="log",
+        action="store",
+        default="INFO",
+        help="logging level for this script",
     )
 
     modes = parser.add_argument_group(title="modes of operation")
