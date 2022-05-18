@@ -272,7 +272,13 @@ def main():
         sys.exit(0)
 
     if not args.only_gen and args.do_prints and args.cc_command is None:
-        print("Program with prints requires a compiler to compare results.")
+        print("Programs with prints require a compiler to compare results.")
+        sys.exit(1)
+    if not args.main:
+        print(
+            "To generate (and check) programs for some number types specify --numbers. "
+            "To generate (and check) programs for some pointer types specify --pointers."
+        )
         sys.exit(1)
     args.main(args)
 
@@ -344,7 +350,7 @@ def parse_arguments():
         "Default is to check type with no attribute, and two nearest "
         "alignments.",
     )
-    types = progs.add_mutually_exclusive_group(required=True)
+    types = progs.add_mutually_exclusive_group()
     types.add_argument(
         "--numbers",
         dest="main",
