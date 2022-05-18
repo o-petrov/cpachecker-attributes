@@ -227,10 +227,12 @@ def main():
             pointer_arithmetic=args.pointer_arithmetic,
             number_arithmetic=args.number_arithmetic,
         )
+        a = lambda t: Array(t, LiteralExpression(3))
+        p = lambda t: Pointer(t)
+        t = a
         eg.program_for(
-            variable=Pointer(Pointer(standard_types["INT"])).declare(
-                "v", Alignment.NoAttr
-            )
+            mode="graph",
+            variable=t(t(standard_types["INT"])).declare("v", Alignment.NoAttr)
         )
         if args.print_nodes:
             eg.print_stats()

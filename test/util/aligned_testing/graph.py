@@ -221,7 +221,11 @@ class Graph:
     def print_nodes(self):
         """Print nodes and how many expressions they have."""
         for title, node in self.__node.items():
-            print(title, node.align_class, len(node.expressions))
+            align_class = str(node.align_class)
+            align_class = align_class[
+                align_class.rfind(".") + 1 : align_class.find(" at 0x")
+            ]
+            print(title, align_class, len(node.expressions))
 
     def print_dot(self, name: str):
         """Print constructed graph in Graphviz .dot format."""
@@ -381,7 +385,7 @@ class ExpressionGenerator:
             return "+0,+z" * self.pointer_arithmetic
         raise ValueError("unexpected C type %s" % ctype)
 
-    def __graph_pointer(self, graph, pointer, other_title=None):
+    def __graph_pointer(self, graph, pointer, other_title=None, pointed_align_class=Node.ref_type):
         """
         Generate expressions to check dereference of a pointer.
 
@@ -391,14 +395,11 @@ class ExpressionGenerator:
             the same node as pointer
         """
 
-        def referenced_type(pointer):
-            return pointer.ctype.ref_type
-
         is_array = isinstance(pointer.ctype, Array)
         pointed = None * pointer
         graph.add_node(
             str(pointed),
-            referenced_type,
+            pointed_align_class,
             self.__do_arithmetics(pointed.ctype)
         )
 
@@ -421,7 +422,10 @@ class ExpressionGenerator:
 
         # dereference pointed if possible...
         if isinstance(pointed.ctype, Pointer):
-            self.__graph_pointer(graph, pointed)  # &** p is *p
+            def deep_deref(v):
+                return pointed_align_class(v).ref_type
+            # &** p is *p
+            self.__graph_pointer(graph, pointed, pointed_align_class=deep_deref)
 
     def program_for(self, *, mode=None, variable, machine=None):
         """
@@ -431,16 +435,16 @@ class ExpressionGenerator:
         Type can be aligned with attribute in type declaration for struct or union, in
         typedef declaration, and after ``*`` in declarator. (CDT ignores the last case.)
 
-        :param str mode: 'static asserts', 'asserts', or 'prints'
+        :param str mode: 'graph', 'static asserts', 'asserts', or 'prints'
         :param Variable variable: variable all expressions will be derived from
         :param Machine machine: machine model to get expected alignment numbers
         :return: text of program
         """
 
         graph = self.__graph_variable(variable)
-        if mode is None:
+        if mode == "graph":
             return
-        assert mode and machine
+        assert machine
 
         text = "extern void abort( void );\n"
         if mode == "prints":
@@ -517,7 +521,7 @@ class ExpressionGenerator:
     def print_stats(self):
         """For each generated graph print nodes and how many expressions they have."""
         for name, graph in self.__graph.items():
-            print(self.__graph)
+            print(name)
             graph.print_nodes()
 
     def print_dot(self):
