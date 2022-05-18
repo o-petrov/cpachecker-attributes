@@ -279,6 +279,54 @@ class Graph:
         else:
             self.cycle2(n1, n2, "&", deref)
 
+    def lines(self, mode: str, variable: Variable, machine: Machine):
+        for node in self.__node.values():
+            title = node.expressions[0]
+
+            x = node.align_class(variable)
+            if isinstance(x, Variable):
+                v = x
+                size, align = machine.size_align_of(v.ctype)
+                align = machine.align_of(v.align) or align
+            elif isinstance(x, CType):
+                t = x
+                size, align = machine.size_align_of(t)
+            else:
+                raise TypeError("unexpected type of x=%s: %s" % (x, type(x)))
+
+            for expr in node.expressions:
+                asserts = [
+                    (
+                        "sizeof(%s) == sizeof(%s)" % (expr, title),
+                        "%s differs from %s by size" % (expr, title),
+                    ),
+                    (
+                        "_Alignof(%s) == _Alignof(%s)" % (expr, title),
+                        "%s differs from %s by align" % (expr, title),
+                    ),
+                    (
+                        "_Alignof(%s) == %s" % (expr, align),
+                        "align of %s differs from expected" % expr,
+                    ),
+                    (
+                        "sizeof(%s) == %s" % (expr, size),
+                        "size of %s differs from expected" % expr,
+                    ),
+                ]
+                if mode == "prints":
+                    yield (
+                        'printf("%s\\ta:%%ld, s:%%ld\\n", _Alignof(%s), sizeof(%s));\n'
+                        % (expr, expr, expr)
+                    )
+                elif mode == "static asserts":
+                    for check, message in asserts:
+                        yield '_Static_assert(%s, "%s");\n' % (check, message)
+                elif mode == "asserts":
+                    for check, message in asserts:
+                        yield "assert(%s);\n" % check
+                else:
+                    raise ValueError("unrecognised mode " + mode)
+
 
 class ExpressionGenerator:
     """
@@ -427,7 +475,7 @@ class ExpressionGenerator:
             # &** p is *p
             self.__graph_pointer(graph, pointed, pointed_align_class=deep_deref)
 
-    def program_for(self, *, mode=None, variable, machine=None):
+    def program_for(self, *, mode, variable, machine=None, filename_prefix=None):
         """
         Compose a program that checks expressions generated for the variable using asserts or
         prints.
@@ -463,60 +511,27 @@ class ExpressionGenerator:
             "int unit = zero + 1;\n"
         )
 
-        for node in graph.nodes:
-            title = node.expressions[0]
+        programs = []
+        prefix = text
+        suffix = "return unit - 1;\n}\n"
+        HARD_LIMIT = 1500
+        lines = []
+        for i, line in enumerate(graph.lines(mode, variable, machine)):
+            lines.append(line)
+            if i % HARD_LIMIT == 1:
+                programs.append([prefix] + lines + [suffix])
+                lines = []
+        if lines:
+            programs.append([prefix] + lines + [suffix])
+            lines = []
 
-            x = node.align_class(variable)
-            if isinstance(x, Variable):
-                v = x
-                size, align = machine.size_align_of(v.ctype)
-                align = machine.align_of(v.align) or align
-            elif isinstance(x, CType):
-                t = x
-                size, align = machine.size_align_of(t)
-            else:
-                raise TypeError("unexpected type of x=%s: %s" % (x, type(x)))
-
-            for expr in node.expressions:
-                asserts = [
-                    (
-                        "sizeof(%s) == sizeof(%s)" % (expr, title),
-                        "%s differs from %s by size" % (expr, title),
-                    ),
-                    (
-                        "_Alignof(%s) == _Alignof(%s)" % (expr, title),
-                        "%s differs from %s by align" % (expr, title),
-                    ),
-                    (
-                        "_Alignof(%s) == %s" % (expr, align),
-                        "align of %s differs from expected" % expr,
-                    ),
-                    (
-                        "sizeof(%s) == %s" % (expr, size),
-                        "size of %s differs from expected" % expr,
-                    ),
-                ]
-                if mode == "prints":
-                    text += (
-                        'printf("%s\\ta:%%ld, s:%%ld\\n", _Alignof(%s), sizeof(%s));\n'
-                        % (expr, expr, expr)
-                    )
-                elif mode == "static asserts":
-                    text += ";\n".join(
-                        '_Static_assert(%s, "%s")' % (check, message)
-                        for check, message in asserts
-                    )
-                    text += ";\n"
-                elif mode == "asserts":
-                    text += ";\n".join(
-                        "assert(%s)" % check for check, message in asserts
-                    )
-                    text += ";\n"
-                else:
-                    raise ValueError("unrecognised mode " + mode)
-
-        text += "return unit - 1;\n}\n"
-        return text
+        filenames = []
+        for i, text in enumerate(programs):
+            filename = filename_prefix + "-part" + str(i + 1)
+            with open(filename + ".c", "w", encoding="utf8") as output:
+                output.writelines(text)
+            filenames.append(filename)
+        return filenames
 
     def print_stats(self):
         """For each generated graph print nodes and how many expressions they have."""

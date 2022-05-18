@@ -119,11 +119,11 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
     """
 
     def write_cfile(mode):
-        text = eg.program_for(mode=mode.strip(), variable=v, machine=machine)
-        filename = fprefix + mode.replace(" ", "-") + machine.name
-        with open(filename + ".c", "w", encoding="utf8") as output:
-            output.write(text)
-        return filename
+        filename_prefix = fprefix + mode.replace(" ", "-") + machine.name
+        filenames = eg.program_for(
+            mode=mode.strip(), variable=v, machine=machine, filename_prefix=filename_prefix
+        )
+        return filenames
 
     def check_prints(filename):
         ccc = args.cc_command + [machine.gcc_option]
@@ -166,23 +166,27 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
                 logger.info("\t\t\tchecking var align " + str(va.code))
                 v = ctype.declare(name="v", align=va)
 
-                logger.debug("generating programs for %s of type %s", v, v.ctype)
+                logger.debug(
+                    "generating programs for variable of type %s (%s)",
+                    v.ctype.declare("", align=Alignment.NoAttr, as_string=True),
+                    v.ctype
+                )
                 fprefix = fdir + "/" + str(ta.code) + "v" + str(va.code)
 
                 if args.do_prints:
-                    filename = write_cfile(" prints ")
-                    if not args.only_gen:
+                    filenames = write_cfile(" prints ")
+                    for filename in [] if args.only_gen else filenames:
                         check_prints(filename)
                     continue
 
                 if args.cc_command:
-                    filename = write_cfile(" static asserts ")
-                    if not args.only_gen:
+                    filenames = write_cfile(" static asserts ")
+                    for filename in [] if args.only_gen else filenames:
                         # Check computed alignments match compiler alignments
                         run(args.cc_command + [machine.gcc_option, filename + ".c"])
 
-                filename = write_cfile(" asserts ")
-                if not args.only_gen:
+                filenames = write_cfile(" asserts ")
+                for filename in [] if args.only_gen else filenames:
                     # Check CPAchecker alignments match computed alignments
                     run_cpachecker(CPA_COMMAND + [machine.cpa_option], filename + ".c")
 
