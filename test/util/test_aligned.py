@@ -104,7 +104,6 @@ def check_numbers(args):
         pointer_arithmetic=args.pointer_arithmetic,
         number_arithmetic=args.number_arithmetic,
     )
-    eg.graph(standard_types["_T"].declare("v", Alignment.NoAttr))
     for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = standard_types[typekey]
         __check_type(args, ALIGNED_DIR + "/numbers_as_tava", ctype, eg)
@@ -115,28 +114,15 @@ def check_pointers(args):
     Make expressions for a pointer to an arbitrary number type and check them on char,
     short, int, long double.
     """
-    pointer_variable = Pointer(standard_types["_T"]).declare("v", Alignment.NoAttr)
     eg = ExpressionGenerator(
         loop_depth=args.loop_depth,
         cycle_depth=args.cycle_depth,
         pointer_arithmetic=args.pointer_arithmetic,
         number_arithmetic=args.number_arithmetic,
     )
-    eg.graph(pointer_variable)
-    for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
+    for typekey in "VOID", "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = Pointer(standard_types[typekey])
         __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
-    if args.number_arithmetic:
-        args.number_arithmetic = False
-        eg = ExpressionGenerator(
-            loop_depth=args.loop_depth,
-            cycle_depth=args.cycle_depth,
-            pointer_arithmetic=args.pointer_arithmetic,
-            number_arithmetic=False,
-        )
-    eg.graph(pointer_variable)
-    ctype = Pointer(standard_types["VOID"])
-    __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
 
 
 def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
@@ -146,7 +132,7 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
     """
 
     def write_cfile(mode):
-        text = eg.text_graph(mode=mode.strip(), variable=v, machine=machine)
+        text = eg.program_for(mode=mode.strip(), variable=v, machine=machine)
         filename = fprefix + mode.replace(" ", "-") + machine.name
         with open(filename + ".c", "w", encoding="utf8") as output:
             output.write(text)
@@ -254,7 +240,11 @@ def main():
             pointer_arithmetic=args.pointer_arithmetic,
             number_arithmetic=args.number_arithmetic,
         )
-        eg.graph(Pointer(Pointer(standard_types["INT"])).declare("v", Alignment.NoAttr))
+        eg.program_for(
+            variable=Pointer(Pointer(standard_types["INT"])).declare(
+                "v", Alignment.NoAttr
+            )
+        )
         if args.print_nodes:
             eg.print_stats()
         else:
