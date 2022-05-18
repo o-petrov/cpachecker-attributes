@@ -16,8 +16,10 @@ Generate expressions and text to check their alignment.
 
 
 import logging
+
+from .machines import Machine
 from .misc import Alignment, Variable
-from .ctypes import CType, Pointer, standard_types, Number, Void
+from .ctypes import CType, Pointer, standard_types, Number, Void, Array
 from .expressions import (
     Expression,
     Operator,
@@ -148,10 +150,6 @@ class Graph:
     def init_node(self, title, expressions):
         self.__node[title].extend(expressions)
 
-    @property
-    def nodes(self):
-        return self.__node.values()
-
     def cycle2(self, from_, to_, ops1, ops2, depth=None):
         """
         Add two edges in cycle ``from_`` -- ``to_`` -- ``from_``. Nodes with cycles can
@@ -242,11 +240,40 @@ class Graph:
             print(dot_node[from_], "->", dot_node[to_], '[label="%s"]' % exprs)
         print("}")
 
-    def addr_deref_cycle(self, n1, n2, with_non_const_zero=False, other_way=False):
-        deref = "*,[0]" + ",[z]" * with_non_const_zero
+    def addr_deref_cycle(
+        self, n1, n2, with_non_const=False, as_array=False, other_way=False
+    ):
+        """
+        Add cycle of two edges:
+
+        `n1` --{ &e }--> `n2`
+
+        `n2` --{ dereferences }--> `n1`
+
+        Dereferences are ``*e`` and ``e[0]``, ``e[zero]`` if `with_non_const`, ``e[1]`` if
+        `as_array`, ``e[unit]`` if both `with_non_const` and `as_array`.
+
+        Consider `n1` has only ``p``. After first edge `n2` gets ``*p`` etc. After second
+        edge `n1` gets ``&*p``. If cycle depth is 2 or greater, `n2` gets ``*&*p``, `n1`
+        gets ``&*&*p`` and so on.
+
+        If `other_way`, consider `n2` has ``v``. Cycle starts with ``&v`` to `n1`, then
+        ``*&v`` to `n2`, and so on.
+
+        :param str n1: a node title
+        :param str n2: a node title
+        :param with_non_const: whether to add [zero] (and [unit] for array case)
+        :param as_array: whether to add [1] (and [unit] if with_non_const)
+        :param other_way: swap edge operators
+        :return:
+        """
+        deref = "*,[0]" + ",[z]" * with_non_const
+        if as_array:
+            deref += ",[1]" + ",[u]" * with_non_const
         if other_way:
-            n1, n2 = n2, n1
-        self.cycle2(n1, n2, "&", deref)
+            self.cycle2(n1, n2, deref, "&")
+        else:
+            self.cycle2(n1, n2, "&", deref)
 
 
 class ExpressionGenerator:
@@ -282,7 +309,10 @@ class ExpressionGenerator:
         ctype = variable.ctype
         result = ""
         while isinstance(ctype, Pointer):
-            result += "P"
+            if isinstance(ctype, Array):
+                result += "A"
+            else:
+                result += "P"
             ctype = ctype.ref_type
         if isinstance(ctype, Number):
             result += "number" if self.number_arithmetic else "void"
@@ -311,14 +341,14 @@ class ExpressionGenerator:
         logging.debug("constructing graph for %s (%s)", kind, variable.declaration)
         variable = VariableNameExpression(variable)
 
-        v_arithmetic = self.__do_arithmetics(variable.ctype)
+        v_arithmetics = self.__do_arithmetics(variable.ctype)
         graph = Graph(loop_depth=self.loop_depth, cycle_depth=self.cycle_depth)
 
         # setup nodes
         graph.add_node("v", Node.variable)
         graph.add_node("&v", Node.a_pointer, "+0" * self.pointer_arithmetic)
         graph.add_node("&v+z", Node.a_pointer, "+0,+z" * self.pointer_arithmetic)
-        graph.add_node("(&v)[z]", Node.typeof, "+0,+z" * v_arithmetic)
+        graph.add_node("(&v)[z]", Node.typeof, v_arithmetics)
 
         # all expressions derive from v
         graph.init_node("v", [variable])
@@ -329,11 +359,11 @@ class ExpressionGenerator:
         # add 1 edge: &v --> &v + zero
         graph.edge("&v", "&v+z", "+z")
         # add edges between: &v+z and (&v)[z]
-        graph.addr_deref_cycle("(&v)[z]", "&v+z", with_non_const_zero=True)
+        graph.addr_deref_cycle("(&v)[z]", "&v+z", with_non_const=True)
 
-        if v_arithmetic:
+        if v_arithmetics:
             # add edges to v+0
-            graph.edge("v", "(&v)[z]", "+0,+z")
+            graph.edge("v", "(&v)[z]", v_arithmetics)
         if isinstance(variable.ctype, Pointer):
             self.__graph_pointer(graph, variable, "(&v)[z]")
         self.__graph[kind] = graph
@@ -342,11 +372,13 @@ class ExpressionGenerator:
     def __do_arithmetics(self, ctype: CType):
         """Return whether to do arithmetics (plus) on the type."""
         if isinstance(ctype, Void):
-            return False
+            return ""
         if isinstance(ctype, Number):
-            return self.number_arithmetic
+            return "+0,+z,+1,+u" * self.number_arithmetic
+        if isinstance(ctype, Array):
+            return "+0,+z,+1,+u" * self.pointer_arithmetic
         if isinstance(ctype, Pointer):
-            return self.pointer_arithmetic
+            return "+0,+z" * self.pointer_arithmetic
         raise ValueError("unexpected C type %s" % ctype)
 
     def __graph_pointer(self, graph, pointer, other_title=None):
@@ -362,22 +394,29 @@ class ExpressionGenerator:
         def referenced_type(pointer):
             return pointer.ctype.ref_type
 
+        is_array = isinstance(pointer.ctype, Array)
         pointed = None * pointer
         graph.add_node(
             str(pointed),
             referenced_type,
-            "+0,+z" * self.__do_arithmetics(pointed.ctype),
+            self.__do_arithmetics(pointed.ctype)
         )
 
         if other_title:
             # add edge p -> *p in case p is different from &*p
-            graph.edge(str(pointer), str(pointed), "*,[0],[z]")
+            graph.edge(str(pointer), str(pointed), "*,[0],[z]" + ",[1],[u]" * is_array)
             # cycle *p -> &*p -> *p
-            graph.addr_deref_cycle(str(pointed), other_title, with_non_const_zero=True)
+            graph.addr_deref_cycle(
+                str(pointed), other_title, with_non_const=True, as_array=is_array
+            )
         else:
             # cycle p -> *p -> p in case p is same as &*p
             graph.addr_deref_cycle(
-                str(pointer), str(pointed), with_non_const_zero=True, other_way=True
+                str(pointer),
+                str(pointed),
+                with_non_const=True,
+                as_array=is_array,
+                other_way=True,
             )
 
         # dereference pointed if possible...

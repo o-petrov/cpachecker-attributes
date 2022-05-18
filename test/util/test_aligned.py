@@ -22,10 +22,10 @@ import subprocess
 import sys
 
 from aligned_testing.misc import Alignment
-from aligned_testing.ctypes import CType, Pointer, standard_types
+from aligned_testing.ctypes import CType, Pointer, standard_types, Array
 from aligned_testing.graph import ExpressionGenerator
 from aligned_testing.machines import machine_models
-
+from aligned_testing.expressions import LiteralExpression
 
 sys.dont_write_bytecode = True  # prevent creation of .pyc files
 # os.environ['PYTHONPATH'] += (
