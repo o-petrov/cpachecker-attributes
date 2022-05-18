@@ -13,8 +13,9 @@ Generate expressions and text to check their alignment.
 1. No assigns and ++/--, as CPAchecker simplifies it to lhs.
 2. TODO expressions of two+ varibles?
 """
-import logging
 
+
+import logging
 from .misc import Alignment, Variable
 from .ctypes import CType, Pointer, standard_types, Number, Void
 from .expressions import (
@@ -76,11 +77,11 @@ class Node:
     def __init__(self, align_class, loops, loop_depth=2):
         """
         :param align_class: maps declared variable to variable or type representing size
-        and alignment with respect to expressions of this node :type align_class:
-        (Variable | CType) -> Variable | CType :param loops: (pseudo-) unary operators
-        for loops on every node of this class :type loops: list[(Expression) ->
-        Expression] :param loop-depth: how many ops from loop operators to apply at the
-        same time at max
+            and alignment with respect to expressions of this node
+        :type align_class: (Variable | CType) -> Variable | CType
+        :param loops: (pseudo-) unary operators for loops on every node of this class
+        :type loops: list[(Expression) -> Expression]
+        :param loop-depth: how many ops from loop operators to apply at the same time at max
         """
         self.align_class = align_class
         self.loops = [lambda x: x] + loops
@@ -92,7 +93,8 @@ class Node:
         Extend node's expressions with ``vs`` using loops. Return newly added
         expressions.
 
-        :type vs: list[Expression] :rtype: list[Expression]
+        :type vs: list[Expression]
+        :rtype: list[Expression]
         """
         result = []
         for v in vs:
@@ -114,12 +116,9 @@ class ExpressionGenerator:
 
     An edge is applying some (pseudo-)operators to a node, e.g.
 
-    ( v )--[ +0, +z ]->( v+0, v+z )
+    v --{ e+0, e+zero }--> v+0, v+zero
 
-    ( p, p+0 )--[ *, [0] ]->( *p, *(p+0), p[0], (p+0)[0] ).
-
-    Operators are coded with one character, so `ov` means ``v+0``, `Ov` means ``v[0]``,
-    `zv` means ``v+zero``, `Zv` means ``v[zero]``.
+    p, p+0 --{ *e, e[0] }--> *p, *(p+0), p[0], (p+0)[0]
     """
 
     __l0 = LiteralExpression(0)
@@ -154,8 +153,11 @@ class ExpressionGenerator:
         self.pointer_arithmetic = pointer_arithmetic
         self.number_arithmetic = number_arithmetic
 
-    def __graph_kind(self, variable):
-        """Describe the graph needed for the variable in a short string"""
+    def __graph_kind(self, variable: Variable) -> str:
+        """
+        Describe the graph needed for the variable in a short string. Use it to check if the
+        graph is already constructed and can be used for another variable.
+        """
         ctype = variable.ctype
         result = ""
         while isinstance(ctype, Pointer):
