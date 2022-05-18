@@ -93,7 +93,7 @@ def compile_and_run(command, filename, outfilename):
         run(["./a.out"], output=output)
 
 
-def check_numbers(args):
+def check_types(args):
     """
     Make expressions for an arbitrary number type and check them on char, short, int,
     long double.
@@ -104,25 +104,12 @@ def check_numbers(args):
         pointer_arithmetic=args.pointer_arithmetic,
         number_arithmetic=args.number_arithmetic,
     )
-    for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
-        ctype = standard_types[typekey]
-        __check_type(args, ALIGNED_DIR + "/numbers_as_tava", ctype, eg)
-
-
-def check_pointers(args):
-    """
-    Make expressions for a pointer to an arbitrary number type and check them on char,
-    short, int, long double.
-    """
-    eg = ExpressionGenerator(
-        loop_depth=args.loop_depth,
-        cycle_depth=args.cycle_depth,
-        pointer_arithmetic=args.pointer_arithmetic,
-        number_arithmetic=args.number_arithmetic,
-    )
-    for typekey in "VOID", "CHAR", "SHORT", "INT", "LDOUBLE":
-        ctype = Pointer(standard_types[typekey])
-        __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
+    types = [standard_types[typekey] for typekey in ("CHAR", "SHORT", "INT", "LDOUBLE")]
+    if args.types == "pointers":
+        types.append(standard_types["VOID"])
+        types = [Pointer(ctype) for ctype in types]
+    for ctype in types:
+        __check_type(args, ALIGNED_DIR, ctype, eg)
 
 
 def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
@@ -254,13 +241,13 @@ def main():
     if not args.only_gen and args.do_prints and args.cc_command is None:
         print("Programs with prints require a compiler to compare results.")
         sys.exit(1)
-    if not args.main:
+    if not args.types:
         print(
             "To generate (and check) programs for some number types specify --numbers. "
             "To generate (and check) programs for some pointer types specify --pointers."
         )
         sys.exit(1)
-    args.main(args)
+    check_types(args)
 
 
 def parse_arguments():
@@ -333,16 +320,16 @@ def parse_arguments():
     types = progs.add_mutually_exclusive_group()
     types.add_argument(
         "--numbers",
-        dest="main",
+        dest="types",
         action="store_const",
-        const=check_numbers,
+        const="numbers",
         help="Check alignments for some number types.",
     )
     types.add_argument(
         "--pointers",
-        dest="main",
+        dest="types",
         action="store_const",
-        const=check_pointers,
+        const="pointers",
         help="Check alignments for some pointer types.",
     )
 
