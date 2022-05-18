@@ -104,7 +104,7 @@ def check_numbers(args):
         pointer_arithmetic=args.pointer_arithmetic,
         number_arithmetic=args.number_arithmetic,
     )
-    eg.graph_ta_va()
+    eg.graph(standard_types["_T"].declare("v", Alignment.NoAttr))
     for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = standard_types[typekey]
         __check_type(args, ALIGNED_DIR + "/numbers_as_tava", ctype, eg)
@@ -115,13 +115,14 @@ def check_pointers(args):
     Make expressions for a pointer to an arbitrary number type and check them on char,
     short, int, long double.
     """
+    pointer_variable = Pointer(standard_types["_T"]).declare("v", Alignment.NoAttr)
     eg = ExpressionGenerator(
         loop_depth=args.loop_depth,
         cycle_depth=args.cycle_depth,
         pointer_arithmetic=args.pointer_arithmetic,
         number_arithmetic=args.number_arithmetic,
     )
-    eg.graph_pa_va()
+    eg.graph(pointer_variable)
     for typekey in "CHAR", "SHORT", "INT", "LDOUBLE":
         ctype = Pointer(standard_types[typekey])
         __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
@@ -133,7 +134,7 @@ def check_pointers(args):
             pointer_arithmetic=args.pointer_arithmetic,
             number_arithmetic=False,
         )
-    eg.graph_pa_va()
+    eg.graph(pointer_variable)
     ctype = Pointer(standard_types["VOID"])
     __check_type(args, ALIGNED_DIR + "/pointers_as_pava", ctype, eg)
 
@@ -247,28 +248,17 @@ def main():
     logging.basicConfig(level=numeric_level)
 
     if args.print_nodes or args.print_graphs:
-        tava = ExpressionGenerator(
+        eg = ExpressionGenerator(
             loop_depth=args.loop_depth,
             cycle_depth=args.cycle_depth,
             pointer_arithmetic=args.pointer_arithmetic,
             number_arithmetic=args.number_arithmetic,
         )
-        tava.graph_ta_va()
+        eg.graph(Pointer(Pointer(standard_types["INT"])).declare("v", Alignment.NoAttr))
         if args.print_nodes:
-            tava.print_stats()
+            eg.print_stats()
         else:
-            tava.print_dot()
-        pava = ExpressionGenerator(
-            loop_depth=args.loop_depth,
-            cycle_depth=args.cycle_depth,
-            pointer_arithmetic=args.pointer_arithmetic,
-            number_arithmetic=args.number_arithmetic,
-        )
-        pava.graph_pa_va()
-        if args.print_nodes:
-            pava.print_stats()
-        else:
-            pava.print_dot()
+            eg.print_dot()
         sys.exit(0)
 
     if not args.only_gen and args.do_prints and args.cc_command is None:

@@ -16,7 +16,7 @@ Generate expressions and text to check their alignment.
 import logging
 
 from .misc import Alignment, Variable
-from .ctypes import CType, Pointer, standard_types
+from .ctypes import CType, Pointer, standard_types, Number, Void
 from .expressions import (
     Expression,
     Operator,
@@ -154,10 +154,32 @@ class ExpressionGenerator:
         self.pointer_arithmetic = pointer_arithmetic
         self.number_arithmetic = number_arithmetic
 
+    def __graph_kind(self, variable):
+        """Describe the graph needed for the variable in a short string"""
+        ctype = variable.ctype
+        result = ""
+        while isinstance(ctype, Pointer):
+            result += "P"
+            ctype = ctype.ref_type
+        if isinstance(ctype, Number):
+            result += "number" if self.number_arithmetic else "void"
+        elif isinstance(ctype, Void):
+            result += "void"
+        else:
+            raise ValueError(
+                "variable %s of unexpected C type %s (%s occured)"
+                % (variable, variable.ctype, ctype)
+            )
+        return result
+
     def __cycle2(self, from_, to_, ops1, ops2, depth=None):
         """
         Add two edges in cycle ``from_`` -- ``to_`` -- ``from_``. Nodes with cycles can
         be populated infinitely, so cap this process using ``depth``.
+
+        This is enough to populate graph with reference--dereference cycles: even if two cycles
+        have a common node, path with two address-of operators in a row is illegal, as ``&(&...)``
+        expression is illegal in C.
 
         :param str from_: title of a node
         :param str to_: title of another node
@@ -200,6 +222,7 @@ class ExpressionGenerator:
                 Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
             )
             exprs = ", ".join(str(op(e)) for op in ops)
+            logging.debug("edge %s --{ %s }--> %s", from_, exprs, to_)
             self.__edges.append((from_, to_, exprs))
             from_ = self.__node[from_].expressions
         n2s = []
@@ -218,24 +241,21 @@ class ExpressionGenerator:
         logging.debug("added %i expressions to %s: %s", len(result), to_, first_exprs)
         return result
 
-    def graph_ta_va(self):
+    def __graph_variable(self, variable: VariableNameExpression):
         """
         Generate expressions to check a variable `v` of arbitrary type. Expressions
         include taking address of `v` and dereferencing it in different ways.
 
-        Type can be aligned with attribute in type declaration for struct or union, in
-        typedef declaration, and after ``*`` in declarator. (CDT ignores the last case.)
+        See `__graph_pointer` for expressions that will added for pointer variables.
         """
-        if self.__graph == "ta va":
-            return
-        elif self.__graph is not None:
+        if self.__graph is not None:
             raise Exception("Already filled graph for '%s' case" % self.__graph)
-        self.__graph = "ta va"
-
         # operator sets for edges and loops
         plus0 = [self.__add0, self.__addz]
         deref0 = [Operator.pointer.operation, self.__get0]
         derefz = deref0 + [self.__getz]
+
+        v_arithmetic = self.__do_arithmetics(variable.ctype)
 
         # setup nodes
         self.__node["v"] = Node(Node.variable, [], loop_depth=self.loop_depth)
@@ -251,18 +271,12 @@ class ExpressionGenerator:
         )
         self.__node["(&v)[z]"] = Node(
             Node.typeof,
-            plus0 if self.number_arithmetic else [],
+            plus0 if v_arithmetic else [],
             loop_depth=self.loop_depth,
         )
 
         # all expressions derive from v
-        self.__node["v"].extend(
-            [
-                VariableNameExpression(
-                    standard_types["_T"].declare("v", Alignment.NoAttr)
-                )
-            ]
-        )
+        self.__node["v"].extend([variable])
         # add edges to &v: &v; *&v, O&v; &*&v...
         self.__cycle2("v", "&v", [Operator.addressof.operation], deref0)
         # add 1 edge: &v --> (&v)[zero]
@@ -273,71 +287,78 @@ class ExpressionGenerator:
         self.__cycle2("(&v)[z]", "&v+z", [Operator.addressof.operation], derefz)
 
         # add edges to v+0
-        if self.number_arithmetic:
+        if v_arithmetic:
             self.__edge("v", "(&v)[z]", plus0)
 
-    def graph_pa_va(self):
+        if isinstance(variable.ctype, Pointer):
+            self.__graph_pointer(variable, "(&v)[z]")
+
+    def __do_arithmetics(self, ctype: CType):
+        """Return whether to do arithmetics (plus) on the type."""
+        if isinstance(ctype, Void):
+            return False
+        if isinstance(ctype, Number):
+            return self.number_arithmetic
+        if isinstance(ctype, Pointer):
+            return self.pointer_arithmetic
+        raise ValueError("unexpected C type %s" % ctype)
+
+    def graph(self, variable):
         """
-        Generate expressions to check a variable `v` of arbitrary pointer type.
-        Expressions include taking address of `v` and dereferencing it in different
-        ways, as in ``graph_ta_va``, but also dereferencing `v` itself.
+        Generate expressions to check a variable `v` of arbitrary type. Expressions
+        include taking address of `v` and dereferencing it in different ways, and dereferencing
+        `v` itself if it is of a pointer type. Expressions include `...+0` and `...+zero` where
+        possible if appropriate ``--arithmetics`` options were specified.
 
         Type can be aligned with attribute in type declaration for struct or union, in
         typedef declaration, and after ``*`` in declarator. (CDT ignores the last case.)
         """
-        if self.__graph == "pa va":
+        if self.__graph == self.__graph_kind(variable):
             return
         elif self.__graph is not None:
             raise Exception("Already filled graph for '%s' case" % self.__graph)
-        self.__graph = "pa va"
+        self.__graph_variable(VariableNameExpression(variable))
+        self.__graph = self.__graph_kind(variable)
 
+    def __graph_pointer(self, pointer, other_title=None):
+        """
+        Generate expressions to check dereference of a pointer.
+
+        :param Expression pointer: an expression to be dereferenced
+        :param str other_title: the title of existing node to add &*pointer to, in case it is not
+            the same node as pointer
+        """
         # operator sets for edges and loops
         plus0 = [self.__add0, self.__addz]
         deref0 = [Operator.pointer.operation, self.__get0]
         derefz = deref0 + [self.__getz]
 
-        # setup nodes
-        self.__node["v"] = Node(Node.variable, [], loop_depth=self.loop_depth)
-        self.__node["&v"] = Node(
-            Node.a_pointer,
-            [self.__add0] if self.pointer_arithmetic else [],
-            loop_depth=self.loop_depth,
-        )
-        self.__node["&v+z"] = Node(
-            Node.a_pointer,
-            plus0 if self.pointer_arithmetic else [],
-            loop_depth=self.loop_depth,
-        )
-        self.__node["(&v)[z]"] = Node(
-            Node.typeof,
-            plus0 if self.number_arithmetic else [],
-            loop_depth=self.loop_depth,
-        )
-        self.__node["*v"] = Node(Node.ref_type, [], loop_depth=self.loop_depth)
+        def referenced_type(pointer):
+            return pointer.ctype.ref_type
 
-        # all expressions derive from v
-        self.__node["v"].extend(
-            [
-                VariableNameExpression(
-                    Pointer(standard_types["_T"]).declare("v", Alignment.NoAttr)
-                )
-            ]
+        pointed = None * pointer
+        self.__node[str(pointed)] = Node(
+            referenced_type,
+            plus0 if self.__do_arithmetics(pointed.ctype) else [],
+            loop_depth=self.loop_depth,
         )
-        # add edges to &v: &v; *&v, O&v; &*&v...
-        self.__cycle2("v", "&v", [Operator.addressof.operation], deref0)
-        # add 1 edge: &v --> (&v)[zero]
-        self.__edge("&v", "(&v)[z]", [self.__getz])
-        # add 1 edge: &v --> &v + zero
-        self.__edge("&v", "&v+z", [self.__addz])
-        # add edges between: &v+z and (&v)[z]
-        self.__cycle2("(&v)[z]", "&v+z", [Operator.addressof.operation], derefz)
-        if self.number_arithmetic:
-            # add edges to v+0
-            self.__edge("v", "(&v)[z]", plus0)
-        # add edges to *v
-        self.__edge("v", "*v", derefz)
-        # edge from *v to &*v, &*&*v, ...
-        self.__cycle2("*v", "(&v)[z]", [Operator.addressof.operation], derefz)
+
+        if other_title:
+            # add edge p -> *p in case p is different from &*p
+            self.__edge(str(pointer), str(pointed), derefz)
+            # cycle *p -> &*p -> *p
+            self.__cycle2(
+                str(pointed), other_title, [Operator.addressof.operation], derefz
+            )
+        else:
+            # cycle p -> *p -> p in case p is same as &*p
+            self.__cycle2(
+                str(pointer), str(pointed), derefz, [Operator.addressof.operation]
+            )
+
+        # dereference pointed if possible...
+        if isinstance(pointed.ctype, Pointer):
+            self.__graph_pointer(pointed)  # &** p is *p
 
     def text_graph(self, *, mode, variable, machine):
         """
@@ -438,9 +459,8 @@ class ExpressionGenerator:
         for i_node, (title, node) in enumerate(self.__node.items()):
             dot_node[title] = "n" + str(i_node)
             align_class = str(node.align_class)
-            assert align_class.startswith("<function Node.")
             align_class = align_class[
-                len("<function Node.") : align_class.find(" at 0x")
+                align_class.rfind(".") + 1 : align_class.find(" at 0x")
             ]
             print(dot_node[title], '[label="%s\\n%s"]' % (title, align_class))
         print("in ->", dot_node["v"])
