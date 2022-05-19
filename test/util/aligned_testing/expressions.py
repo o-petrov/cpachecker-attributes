@@ -89,6 +89,9 @@ class Expression:
         ctype = right if isinstance(right, Pointer) else left
         return BinaryExpression(op=Operator.add, left=self, right=other, ctype=ctype)
 
+    def __hash__(self):
+        raise NotImplementedError
+
 
 # Note that the associativity is meaningful for member access operators,
 # even though they are grouped with unary postfix operators:
@@ -214,6 +217,10 @@ class BinaryExpression(Expression):
         super().__init__(op=op, ctype=ctype)
         self.left = left
         self.right = right
+        self.hash = hash(self.op) + 31 * hash(self.left) + 37 * hash(self.right)
+
+    def __hash__(self):
+        return self.hash
 
     def __str__(self):
         left = str(self.left)
@@ -244,6 +251,10 @@ class UnaryExpression(Expression):
         """
         super().__init__(op=op, ctype=ctype, is_lvalue=op == Operator.pointer)
         self.arg = arg
+        self.hash = hash(self.op) + 31 * hash(self.arg)
+
+    def __hash__(self):
+        return self.hash
 
     def __str__(self):
         arg = str(self.arg)
@@ -271,6 +282,12 @@ class ArrayExpression(Expression):
         super().__init__(op=Operator.subscript, ctype=ctype, is_lvalue=True)
         self.primary = primary
         self.item = item
+        self.hash = (
+            hash(Operator.subscript) + 31 * hash(self.primary) + 37 * hash(self.item)
+        )
+
+    def __hash__(self):
+        return self.hash
 
     def __str__(self):
         primary = str(self.primary)
@@ -295,6 +312,9 @@ class LiteralExpression(Expression):
         super().__init__(op=Operator.nop, ctype=t, is_lvalue=isinstance(t, Array))
         self.value = value
 
+    def __hash__(self):
+        return hash(self.value) * 39
+
     def __str__(self):
         return str(self.value)
 
@@ -311,6 +331,9 @@ class IdentifierExpression(Expression):
         """:type ctype: CType"""
         super().__init__(op=Operator.nop, ctype=ctype, is_lvalue=is_lvalue)
         self.name = name
+
+    def __hash__(self):
+        return hash(self.name) * 41
 
     def __str__(self):
         return self.name
