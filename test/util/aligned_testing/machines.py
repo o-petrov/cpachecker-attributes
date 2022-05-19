@@ -108,7 +108,7 @@ class Machine:
         """
         if isinstance(t, Array):
             sb, ab = self.size_align_of(t.ref_type)
-            return sb * int(t.size), self.align_of(t.align) or ab  # TODO
+            return sb * int(t.size), self.align_of(t.align) or ab
         elif isinstance(t, Pointer):
             return self.pointer, self.align_of(t.align) or self.align_pointer
         elif isinstance(t, Void):

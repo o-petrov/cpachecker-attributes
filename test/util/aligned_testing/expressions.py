@@ -298,6 +298,11 @@ class LiteralExpression(Expression):
     def __str__(self):
         return str(self.value)
 
+    def __int__(self):
+        if isinstance(self.value, int):
+            return self.value
+        raise TypeError("literal %s can not be converted to int" % self.value)
+
 
 class IdentifierExpression(Expression):
     """Any name-expression, a variable name or a type id."""
