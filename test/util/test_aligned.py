@@ -104,12 +104,35 @@ def check_types(args):
         pointer_arithmetic=args.pointer_arithmetic,
         number_arithmetic=args.number_arithmetic,
     )
-    types = [standard_types[typekey] for typekey in ("CHAR", "SHORT", "INT", "LDOUBLE")]
-    if args.types == "pointers":
-        types.append(standard_types["VOID"])
-        types = [Pointer(ctype) for ctype in types]
-    for ctype in types:
-        __check_type(args, ALIGNED_DIR, ctype, eg)
+
+    all_types = []
+    for decl_spec in args.declarators.split(","):
+        types = [
+            standard_types[typekey] for typekey in ("CHAR", "SHORT", "INT", "LDOUBLE")
+        ]
+        if decl_spec.startswith("p"):
+            # something of pointers to types, so add void by default
+            types = [standard_types["VOID"]] + types
+        for letter in decl_spec:
+            if letter == "p":
+                types = [Pointer(t) for t in types]
+            elif letter == "a":
+                types = [Array(t, LiteralExpression(5)) for t in types]
+            else:
+                raise ValueError("unexpected letter in declarator spec: " + letter)
+        all_types.extend(types)
+
+    for ctype in all_types:
+        if args.print_nodes or args.print_graphs:
+            eg.program_for(
+                mode="graph", variable=ctype.declare("v", align=Alignment.NoAttr)
+            )
+        else:
+            __check_type(args, ALIGNED_DIR, ctype, eg)
+    if args.print_nodes:
+        eg.print_stats()
+    elif args.print_graphs:
+        eg.print_dot()
 
 
 def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
@@ -224,33 +247,15 @@ def main():
         sys.exit(1)
     logging.basicConfig(level=numeric_level)
 
-    if args.print_nodes or args.print_graphs:
-        eg = ExpressionGenerator(
-            loop_depth=args.loop_depth,
-            cycle_depth=args.cycle_depth,
-            pointer_arithmetic=args.pointer_arithmetic,
-            number_arithmetic=args.number_arithmetic,
-        )
-        a = lambda t: Array(t, LiteralExpression(3))
-        p = lambda t: Pointer(t)
-        t = a
-        eg.program_for(
-            mode="graph",
-            variable=t(t(standard_types["INT"])).declare("v", Alignment.NoAttr)
-        )
-        if args.print_nodes:
-            eg.print_stats()
-        else:
-            eg.print_dot()
-        sys.exit(0)
-
-    if not args.only_gen and args.do_prints and args.cc_command is None:
+    no_run = args.print_nodes or args.print_graphs or args.only_gen
+    if not no_run and args.do_prints and args.cc_command is None:
         print("Programs with prints require a compiler to compare results.")
         sys.exit(1)
-    if not args.types:
+    if args.declarators is None:
         print(
-            "To generate (and check) programs for some number types specify --numbers. "
-            "To generate (and check) programs for some pointer types specify --pointers."
+            "To generate (and check) programs for some number types specify --numbers.\n"
+            "To generate (and check) programs for some pointer types specify --pointers.\n"
+            "You can also specify other pointer&array declarators with --declarators."
         )
         sys.exit(1)
     check_types(args)
@@ -326,17 +331,28 @@ def parse_arguments():
     types = progs.add_mutually_exclusive_group()
     types.add_argument(
         "--numbers",
-        dest="types",
+        dest="declarators",
         action="store_const",
-        const="numbers",
+        const="",
         help="Check alignments for some number types.",
     )
     types.add_argument(
         "--pointers",
-        dest="types",
+        dest="declarators",
         action="store_const",
-        const="pointers",
+        const="p",
         help="Check alignments for some pointer types.",
+    )
+    types.add_argument(
+        "--declarators",
+        dest="declarators",
+        action="store",
+        help="Specify pointer&array modifiers as letter string ('p' for pointer to... and 'a' for "
+        "array of...). Variables will be declared as such type. Separate strings with comma to "
+        "check different declarators in a row. Examples: 1. '' is same as --numbers. 2. 'p' is "
+        "same as --pointers. 3. 'pp', for given types void, int, char*, declare variables "
+        "as void**, int**, char***. 4. 'ap,paa', for given type char, declare variables as "
+        "`char (*v)[5]` and `char *v[5][5]`.",
     )
 
     parse_graph_options(parser)
