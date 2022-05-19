@@ -375,6 +375,7 @@ class ExpressionGenerator:
                 "variable %s of unexpected C type %s (%s occured)"
                 % (variable, variable.ctype, ctype)
             )
+        logging.info("kind %s for declaration %s", result, variable.declaration)
         return result
 
     def __graph_variable(self, variable: Variable) -> Graph:
@@ -433,7 +434,9 @@ class ExpressionGenerator:
             return "+0,+z" * self.pointer_arithmetic
         raise ValueError("unexpected C type %s" % ctype)
 
-    def __graph_pointer(self, graph, pointer, other_title=None, pointed_align_class=Node.ref_type):
+    def __graph_pointer(
+        self, graph, pointer, other_title=None, pointed_align_class=Node.ref_type
+    ):
         """
         Generate expressions to check dereference of a pointer.
 
@@ -446,9 +449,7 @@ class ExpressionGenerator:
         is_array = isinstance(pointer.ctype, Array)
         pointed = None * pointer
         graph.add_node(
-            str(pointed),
-            pointed_align_class,
-            self.__do_arithmetics(pointed.ctype)
+            str(pointed), pointed_align_class, self.__do_arithmetics(pointed.ctype)
         )
 
         if other_title:
@@ -470,8 +471,10 @@ class ExpressionGenerator:
 
         # dereference pointed if possible...
         if isinstance(pointed.ctype, Pointer):
+
             def deep_deref(v):
                 return pointed_align_class(v).ref_type
+
             # &** p is *p
             self.__graph_pointer(graph, pointed, pointed_align_class=deep_deref)
 

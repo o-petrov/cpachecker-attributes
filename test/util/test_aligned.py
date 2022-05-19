@@ -144,7 +144,10 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
     def write_cfile(mode):
         filename_prefix = fprefix + mode.replace(" ", "-") + machine.name
         filenames = eg.program_for(
-            mode=mode.strip(), variable=v, machine=machine, filename_prefix=filename_prefix
+            mode=mode.strip(),
+            variable=v,
+            machine=machine,
+            filename_prefix=filename_prefix,
         )
         return filenames
 
@@ -192,7 +195,7 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
                 logger.debug(
                     "generating programs for variable of type %s (%s)",
                     v.ctype.declare("", align=Alignment.NoAttr, as_string=True),
-                    v.ctype
+                    v.ctype,
                 )
                 fprefix = fdir + "/" + str(ta.code) + "v" + str(va.code)
 
