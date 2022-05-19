@@ -211,10 +211,13 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
                         # Check computed alignments match compiler alignments
                         run(args.cc_command + [machine.gcc_option, filename + ".c"])
 
-                filenames = write_cfile(" asserts ")
-                for filename in [] if args.only_gen else filenames:
-                    # Check CPAchecker alignments match computed alignments
-                    run_cpachecker(CPA_COMMAND + [machine.cpa_option], filename + ".c")
+                if not args.check_model:
+                    filenames = write_cfile(" asserts ")
+                    for filename in [] if args.only_gen else filenames:
+                        # Check CPAchecker alignments match computed alignments
+                        run_cpachecker(
+                            CPA_COMMAND + [machine.cpa_option], filename + ".c"
+                        )
 
 
 ALIGNED_DIR = "test/programs/c_attributes/aligned"
@@ -251,6 +254,14 @@ def main():
     logging.basicConfig(level=numeric_level)
 
     no_run = args.print_nodes or args.print_graphs or args.only_gen
+    if args.check_model and args.cc_command is None:
+        print("Specify compiler to check model.")
+        sys.exit(1)
+    if args.check_model and args.do_prints:
+        print(
+            "Can not check model using prints. Do not specify --prints with --check-model."
+        )
+        sys.exit(1)
     if not no_run and args.do_prints and args.cc_command is None:
         print("Programs with prints require a compiler to compare results.")
         sys.exit(1)
@@ -310,6 +321,13 @@ def parse_arguments():
         action="store_true",
         help="Construct graphs for --numbers and --pointers and print them in .dot Graphviz "
         "format. Do not generate programs.",
+    )
+    modes.add_argument(
+        "--check-model",
+        dest="check_model",
+        action="store_true",
+        help="Do not generate programs for CPAchecker or analyze them. Generate programs with "
+        "static asserts and try to compile them to check the alignments match compiler's.",
     )
 
     progs = parser.add_argument_group(title="program generation options")
