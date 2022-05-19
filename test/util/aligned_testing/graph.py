@@ -86,8 +86,7 @@ class Node:
         """
         self.align_class = align_class
         self.loop_string = loops
-        self.loops = [lambda x: x]
-        self.loops += [_operators[op] for op in loops.split(",")] if loops else []
+        self.loops = [_operators[op] for op in loops.split(",")] if loops else []
         self.loop_depth = loop_depth
         self.expressions = []
 
@@ -99,13 +98,30 @@ class Node:
         :type vs: list[Expression]
         :rtype: list[Expression]
         """
+        len_arg = len(vs)
+        if len_arg > 10000:
+            logging.info("adding %i expressions to node", len_arg)
         result = []
         for v in vs:
-            loop_vs = [v]
-            for _ in range(self.loop_depth):
-                loop_vs = [op(v) for v in loop_vs for op in self.loops]
-            result.extend(loop_vs)
+            if v in self.expressions:
+                continue
+            vs1 = [v]
+            result.extend(vs1)
+            for _ in range(self.loop_depth if self.loops else 0):
+                vs2 = [
+                    op(v) for v in vs1 for op in self.loops if v not in self.expressions
+                ]
+                result.extend(vs2)
+                vs1 = vs2
+        len_before = len(self.expressions)
         self.expressions.extend(result)
+        logging.debug(
+            "extending from %i to %i, arg len is %i (%i with loops)",
+            len_before,
+            len(self.expressions),
+            len_arg,
+            len(result),
+        )
         return result
 
 
