@@ -81,12 +81,13 @@ class Node:
         :param align_class: maps declared variable to variable or type representing size
             and alignment with respect to expressions of this node
         :type align_class: (Variable | CType) -> Variable | CType
-        :param loops: (pseudo-) unary operators for loops on every node of this class
-        :type loops: list[(Expression) -> Expression]
+        :param str loops: (pseudo-) unary operators for loops on every node of this class
         :param loop-depth: how many ops from loop operators to apply at the same time at max
         """
         self.align_class = align_class
-        self.loops = [lambda x: x] + loops
+        self.loop_string = loops
+        self.loops = [lambda x: x]
+        self.loops += [_operators[op] for op in loops.split(",")] if loops else []
         self.loop_depth = loop_depth
         self.expressions = []
 
@@ -142,10 +143,10 @@ class Graph:
         self.loop_depth = loop_depth
 
     def add_node(self, title, align_class, loops="", loop_depth=None):
-        ops = [_operators[op] for op in loops.split(",")] if loops else []
         self.__node[title] = Node(
-            align_class, ops, loop_depth=loop_depth or self.loop_depth
+            align_class, loops, loop_depth=loop_depth or self.loop_depth
         )
+        self.__edge(title, title, loops)
 
     def init_node(self, title, expressions):
         self.__node[title].extend(expressions)
@@ -180,6 +181,18 @@ class Graph:
             n2s = self.edge(n1s, to_, ops1)
             n1s = self.edge(n2s, from_, ops2)
 
+    def __edge(self, from_, to_, ops):
+        if not ops:
+            return
+        e = VariableNameExpression(
+            Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
+        )
+        if isinstance(ops, str):
+            ops = [_operators[op] for op in ops.split(",")]
+        exprs = ", ".join(str(op(e)) for op in ops)
+        logging.debug("edge %s --{ %s }--> %s", from_, exprs, to_)
+        self.__edges.append((from_, to_, exprs))
+
     def edge(self, from_, to_, ops_string):
         """
         Add expressions applying ``ops`` to expressions in ``from_``.
@@ -193,14 +206,10 @@ class Graph:
         :rtype: list[Expression]
         """
         ops = [_operators[op] for op in ops_string.split(",")]
+        assert ops
 
         if isinstance(from_, str):
-            e = VariableNameExpression(
-                Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
-            )
-            exprs = ", ".join(str(op(e)) for op in ops)
-            logging.debug("edge %s --{ %s }--> %s", from_, exprs, to_)
-            self.__edges.append((from_, to_, exprs))
+            self.__edge(from_, to_, ops)
             from_ = self.__node[from_].expressions
         n2s = []
         for n1 in from_:
@@ -215,7 +224,15 @@ class Graph:
         first_exprs = ", ".join(
             str(e) for e in (result[:3] + ["..."] if len(result) > 3 else result)
         )
-        logging.debug("added %i expressions to %s: %s", len(result), to_, first_exprs)
+
+        added = len(result)
+        logging.log(
+            logging.INFO if added > 2500 else logging.DEBUG,
+            "added %i expressions to %s: %s",
+            added,
+            to_,
+            first_exprs,
+        )
         return result
 
     def print_nodes(self):
@@ -225,7 +242,8 @@ class Graph:
             align_class = align_class[
                 align_class.rfind(".") + 1 : align_class.find(" at 0x")
             ]
-            print(title, align_class, len(node.expressions))
+
+            print(title, align_class, node.loop_string, len(node.expressions))
 
     def print_dot(self, name: str):
         """Print constructed graph in Graphviz .dot format."""
