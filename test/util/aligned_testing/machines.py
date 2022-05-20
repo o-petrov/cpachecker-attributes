@@ -15,7 +15,7 @@ target options).
 
 import re
 from .misc import Alignment
-from .ctypes import Void, Number, Pointer, Array
+from .ctypes import CType, Void, Number, Pointer, Array
 
 
 class Machine:
@@ -108,30 +108,21 @@ class Machine:
         """
         if isinstance(t, Array):
             sb, ab = self.size_align_of(t.ref_type)
-            return sb * int(t.size), self.align_of(t.align) or ab
+            return sb * int(t.size), self.align_of(t.alignment) or ab
         elif isinstance(t, Pointer):
-            return self.pointer, self.align_of(t.align) or self.align_pointer
+            return self.pointer, self.align_of(t.alignment) or self.align_pointer
         elif isinstance(t, Void):
             return self.void, self.align_void
         elif isinstance(t, Number):
-            typenick = t.typeid
-            align = self.align_of(t.align)
-            if align:
-                # number type was typedef'd to attach alignment attribute
-                typenick = t.declaration
-                if ";" in t.declaration:
-                    typenick = t.declaration[: t.declaration.find(";")]
-            remove = re.compile(
-                "\s*(unsigned|signed|typedef|__attribute__\(\(.*\)\))\s*"
-            )
+            typenick = t.default_typeid
+            remove = re.compile("\s*(unsigned|signed)\s*")
             long = re.compile("\s*long\s+")
             typenick = re.sub(pattern=long, string=typenick, repl="l")
             typenick = re.sub(pattern=remove, string=typenick, repl=" ")
-            if " " in typenick:
-                typenick = typenick.split()[0]
-            return self.__getattribute__(typenick), align or self.__getattribute__(
+            align = self.align_of(t.alignment) or self.__getattribute__(
                 "align_" + typenick
             )
+            return self.__getattribute__(typenick), align
         else:
             raise NotImplementedError("C type %s is unsupported" % t)
 

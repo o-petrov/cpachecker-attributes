@@ -35,10 +35,12 @@ logger = logging.getLogger(__name__)
 
 
 def __nick(ctype: CType):
-    if ctype.typeid:
-        return ctype.typeid
+    if isinstance(ctype, Array):
+        return "A" + __nick(ctype.ref_type)
     if isinstance(ctype, Pointer):
-        return __nick(ctype.ref_type) + "P"
+        return "P" + __nick(ctype.ref_type)
+    if ctype.default_typeid:
+        return ctype.default_typeid
     raise NotImplementedError(ctype)
 
 
@@ -165,10 +167,13 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
         run(["diff", filename + ".cc_out", filename + ".cpa_out"])
 
     logger.info("checking type " + __nick(ctype))
+    logger.debug("declaration is\n%s", ctype.declaration or "none")
+    logger.debug(
+        "variable declaration is\n%s",
+        ctype.declare("v", align=Alignment.NoAttr, as_string=True),
+    )
     fdir = subdir + os.path.sep + __nick(ctype)
     os.makedirs(fdir, exist_ok=True)
-    old_typeid = ctype.typeid
-    old_ctype_decl = ctype.declaration + ";\n" if ctype.declaration else ""
 
     for machine in machine_models:
         logger.info("\tchecking machine " + machine.name)
@@ -181,22 +186,12 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
 
         for ta in alignments_to_check:
             logger.info("\t\tchecking type align " + str(ta.code))
-            ctype.declaration = old_ctype_decl
-            ctype.typeid = old_typeid
             if ta != Alignment.NoAttr:
-                ctype.declaration += "typedef " + ctype.declare("t", ta, as_string=True)
-                ctype.typeid = "t"
-            ctype.align = ta
+                ctype.add_typedef(align=ta)
 
             for va in alignments_to_check:
                 logger.info("\t\t\tchecking var align " + str(va.code))
                 v = ctype.declare(name="v", align=va)
-
-                logger.debug(
-                    "generating programs for variable of type %s (%s)",
-                    v.ctype.declare("", align=Alignment.NoAttr, as_string=True),
-                    v.ctype,
-                )
                 fprefix = fdir + "/" + str(ta.code) + "v" + str(va.code)
 
                 if args.do_prints:
@@ -218,6 +213,9 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
                         run_cpachecker(
                             CPA_COMMAND + [machine.cpa_option], filename + ".c"
                         )
+
+            if ta != Alignment.NoAttr:
+                ctype.remove_typedef()
 
 
 ALIGNED_DIR = "test/programs/c_attributes/aligned"

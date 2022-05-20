@@ -97,10 +97,13 @@ class Variable:
 
     def __init__(self, *, name, align=Alignment.NoAttr, ctype, declaration, init=None):
         """
-        :type name: str :type align: Alignment :type ctype: CType :type declaration: str
+        :type name: str
+        :type align: Alignment
+        :type ctype: CType
+        :type declaration: str
         :type init: Expression
         """
-        assert name and ctype.typeid != "void"
+        assert name and ctype.default_typeid != "void"
         self.name = name
         self.align = align
         self.ctype = ctype
