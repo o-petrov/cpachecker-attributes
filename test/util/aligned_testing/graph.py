@@ -28,6 +28,8 @@ from .expressions import (
     VariableNameExpression,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class PartialExpression:
     """A partially substituted binary expression"""
@@ -109,7 +111,7 @@ class Node:
             to_add //= len(self.loops) - 1
         if len_arg * to_add > 50000:
             depth = 1 if depth > 1 else 0
-            logging.info(
+            logger.info(
                 "for each of %i adding %i expressions is too much, "
                 "dropping current loop depth from %i to %i",
                 len_arg,
@@ -118,7 +120,7 @@ class Node:
                 depth,
             )
         elif len_arg * to_add > 20000:
-            logging.info("for each of %i adding %i expressions", len_arg, to_add)
+            logger.info("for each of %i adding %i expressions", len_arg, to_add)
         result = []
         for v in vs:
             if v in self.expressions:
@@ -133,7 +135,7 @@ class Node:
                 vs1 = vs2
         len_before = len(self.expressions)
         self.expressions.extend(result)
-        logging.debug(
+        logger.debug(
             "extending from %i to %i, arg len is %i (%i with loops)",
             len_before,
             len(self.expressions),
@@ -222,7 +224,7 @@ class Graph:
         if isinstance(ops, str):
             ops = [_operators[op] for op in ops.split(",")]
         exprs = ", ".join(str(op(e)) for op in ops)
-        logging.debug("edge %s --{ %s }--> %s", from_, exprs, to_)
+        logger.debug("edge %s --{ %s }--> %s", from_, exprs, to_)
         self.__edges.append((from_, to_, exprs))
 
     def edge(self, from_, to_, ops_string):
@@ -258,7 +260,7 @@ class Graph:
         )
 
         added = len(result)
-        logging.log(
+        logger.log(
             logging.INFO if added > 2500 else logging.DEBUG,
             "added %i expressions to %s: %s",
             added,
@@ -425,7 +427,7 @@ class ExpressionGenerator:
                 "variable %s of unexpected C type %s (%s occured)"
                 % (variable, variable.ctype, ctype)
             )
-        logging.info("kind %s for declaration %s", result, variable.declaration)
+        logger.debug("kind %s for declaration %s", result, variable.declaration.strip())
         return result
 
     def __graph_variable(self, variable: Variable) -> Graph:
@@ -439,9 +441,11 @@ class ExpressionGenerator:
         """
         kind = self.__graph_kind(variable)
         if kind in self.__graph:
-            logging.debug("found graph for %s (%s)", kind, variable.declaration)
+            logger.debug("found graph for %s (%s)", kind, variable.declaration.strip())
             return self.__graph[kind]
-        logging.debug("constructing graph for %s (%s)", kind, variable.declaration)
+        logger.debug(
+            "constructing graph for %s (%s)", kind, variable.declaration.strip()
+        )
         variable = VariableNameExpression(variable)
 
         v_arithmetics = self.__do_arithmetics(variable.ctype)
@@ -556,10 +560,8 @@ class ExpressionGenerator:
         elif mode != "static asserts":
             raise ValueError("wrong mode " + mode)
 
-        td = variable.ctype.declaration + ";\n" if variable.ctype.declaration else ""
         text += (
-            td + variable.declaration + ";\n"
-            "int main() {\n"
+            variable.ctype.declaration + variable.declaration + "int main() {\n"
             "int zero = 0;\n"
             "int unit = zero + 1;\n"
         )

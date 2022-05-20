@@ -8,6 +8,7 @@
 
 
 """Module with C number, pointer and array types."""
+
 from typing import NamedTuple
 
 from .misc import Alignment, NonScalarTypeException, Variable

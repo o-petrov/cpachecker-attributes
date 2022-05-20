@@ -166,13 +166,13 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
         #  3. Compare results
         run(["diff", filename + ".cc_out", filename + ".cpa_out"])
 
-    logger.info("checking type " + __nick(ctype))
-    logger.debug("declaration is\n%s", ctype.declaration or "none")
+    typenick = __nick(ctype)
+    logger.info("checking type %s", typenick)
     logger.debug(
-        "variable declaration is\n%s",
-        ctype.declare("v", align=Alignment.NoAttr, as_string=True),
+        "variable declaration is %s",
+        ctype.declare("v", align=Alignment.NoAttr, as_string=True).strip(),
     )
-    fdir = subdir + os.path.sep + __nick(ctype)
+    fdir = subdir + os.path.sep + typenick
     os.makedirs(fdir, exist_ok=True)
 
     for machine in machine_models:
@@ -187,7 +187,7 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
         for ta in alignments_to_check:
             logger.info("\t\tchecking type align " + str(ta.code))
             if ta != Alignment.NoAttr:
-                ctype.add_typedef(align=ta)
+                ctype.add_typedef(typeid=typenick + str(ta.code), align=ta)
 
             for va in alignments_to_check:
                 logger.info("\t\t\tchecking var align " + str(va.code))
