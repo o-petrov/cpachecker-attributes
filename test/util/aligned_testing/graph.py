@@ -99,15 +99,33 @@ class Node:
         :rtype: list[Expression]
         """
         len_arg = len(vs)
-        if len_arg > 10000:
-            logging.info("adding %i expressions to node", len_arg)
+        depth = self.loop_depth if self.loops else 0
+        if not depth:
+            to_add = 0
+        elif len(self.loops) == 1:
+            to_add = depth
+        else:
+            to_add = len(self.loops) ** self.loop_depth - 1
+            to_add //= len(self.loops) - 1
+        if len_arg * to_add > 50000:
+            depth = 1 if depth > 1 else 0
+            logging.info(
+                "for each of %i adding %i expressions is too much, "
+                "dropping current loop depth from %i to %i",
+                len_arg,
+                to_add,
+                self.loop_depth,
+                depth,
+            )
+        elif len_arg * to_add > 20000:
+            logging.info("for each of %i adding %i expressions", len_arg, to_add)
         result = []
         for v in vs:
             if v in self.expressions:
                 continue
             vs1 = [v]
             result.extend(vs1)
-            for _ in range(self.loop_depth if self.loops else 0):
+            for _ in range(depth):
                 vs2 = [
                     op(v) for v in vs1 for op in self.loops if v not in self.expressions
                 ]
