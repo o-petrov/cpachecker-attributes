@@ -37,21 +37,20 @@ class CType:
         """
         raise NonScalarTypeException(self)
 
-    def declare(self, name, align, init=None, as_string=False):
+    def declare(self, name, align, as_string=False):
         """
         Declare a variable of this C type. Return a string of the declaration or the
         declared variable.
 
         :param str name: name of the variable
         :param Alignment align: alignment attribute in the declaration
-        :param Expression init: initializer of the variable
         :param bool as_string: if to return just a declaration string, not a Variable
         :rtype: str | Variable
         """
         d = " ".join((self.typeid, name, align.attr))
         if as_string:
             return d
-        return Variable(name=name, align=align, ctype=self, declaration=d, init=init)
+        return Variable(name=name, align=align, ctype=self, declaration=d)
 
 
 class Void(CType):
@@ -60,7 +59,7 @@ class Void(CType):
     def __init__(self):
         super().__init__("void")
 
-    def declare(self, name, align, init=None, as_typedef=False):
+    def declare(self, name, align, as_string=False):
         raise TypeError("cannot declare variables of void C type")
 
 
@@ -115,7 +114,7 @@ class Pointer(CType):
         self.ref_type = ref_type
         self.is_scalar = True
 
-    def declare(self, name, align, init=None, as_string=False):
+    def declare(self, name, align, as_string=False):
         if self.typeid:
             d = " ".join((self.typeid, name, align.attr))
         elif isinstance(self.ref_type, Array):
@@ -126,7 +125,7 @@ class Pointer(CType):
             d = self.ref_type.declare("* " + name, align, as_string=True)
         if as_string:
             return d
-        return Variable(name=name, align=align, ctype=self, declaration=d, init=init)
+        return Variable(name=name, align=align, ctype=self, declaration=d)
 
     def as_scalar(self):
         return self
@@ -143,14 +142,14 @@ class Array(Pointer):
         super().__init__(ref_type)
         self.size = size
 
-    def declare(self, name, align, init=None, as_string=False):
+    def declare(self, name, align, as_string=False):
         if self.typeid:
             d = " ".join((self.typeid, name, align.attr))
         else:
             d = self.ref_type.declare(name + "[%s]" % self.size, align, as_string=True)
         if as_string:
             return d
-        return Variable(name=name, align=align, ctype=self, declaration=d, init=init)
+        return Variable(name=name, align=align, ctype=self, declaration=d)
 
     def as_scalar(self):
         """Convert array type to pointer type and return it."""

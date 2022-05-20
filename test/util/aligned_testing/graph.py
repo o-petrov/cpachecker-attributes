@@ -128,11 +128,11 @@ class Node:
 __l0 = LiteralExpression(0)
 __l1 = LiteralExpression(1)
 __zero = VariableNameExpression(
-    standard_types["INT"].declare("zero", Alignment.NoAttr, __l0)
-)
+    standard_types["INT"].declare("zero", Alignment.NoAttr)
+)  # TODO init
 __unit = VariableNameExpression(
-    standard_types["INT"].declare("unit", Alignment.NoAttr, __l1)
-)
+    standard_types["INT"].declare("unit", Alignment.NoAttr)
+)  # TODO init
 
 _operators = {
     "+0": PartialExpression(op=Operator.add, right=__l0),
@@ -201,7 +201,7 @@ class Graph:
         if not ops:
             return
         e = VariableNameExpression(
-            Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
+            Pointer(standard_types["_T"]).declare("e", Alignment.NoAttr)
         )
         if isinstance(ops, str):
             ops = [_operators[op] for op in ops.split(",")]
