@@ -64,7 +64,7 @@ class Node:
 
     @staticmethod
     def a_pointer(v):
-        return Pointer(None)
+        return Pointer(standard_types["_T"])
 
     @staticmethod
     def typeof(v):

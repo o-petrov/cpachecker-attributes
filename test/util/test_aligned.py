@@ -34,16 +34,6 @@ sys.dont_write_bytecode = True  # prevent creation of .pyc files
 logger = logging.getLogger(__name__)
 
 
-def __nick(ctype: CType):
-    if isinstance(ctype, Array):
-        return "A" + __nick(ctype.ref_type)
-    if isinstance(ctype, Pointer):
-        return "P" + __nick(ctype.ref_type)
-    if ctype.default_typeid:
-        return ctype.default_typeid
-    raise NotImplementedError(ctype)
-
-
 def run(command, output=None):
     """
     Execute the given command.
@@ -166,13 +156,12 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
         #  3. Compare results
         run(["diff", filename + ".cc_out", filename + ".cpa_out"])
 
-    typenick = __nick(ctype)
-    logger.info("checking type %s", typenick)
+    logger.info("checking type %s", ctype.typenick)
     logger.debug(
         "variable declaration is %s",
         ctype.declare("v", align=Alignment.NoAttr, as_string=True).strip(),
     )
-    fdir = subdir + os.path.sep + typenick
+    fdir = subdir + os.path.sep + ctype.typenick
     os.makedirs(fdir, exist_ok=True)
 
     for machine in machine_models:
@@ -187,7 +176,7 @@ def __check_type(args, subdir: str, ctype: CType, eg: ExpressionGenerator):
         for ta in alignments_to_check:
             logger.info("\t\tchecking type align " + str(ta.code))
             if ta != Alignment.NoAttr:
-                ctype.add_typedef(typeid=typenick + str(ta.code), align=ta)
+                ctype.add_typedef(typeid=ctype.typenick + str(ta.code), align=ta)
 
             for va in alignments_to_check:
                 logger.info("\t\t\tchecking var align " + str(va.code))

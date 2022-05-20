@@ -9,6 +9,8 @@
 
 """Module with C number, pointer and array types."""
 
+
+import re
 from typing import NamedTuple
 
 from .misc import Alignment, NonScalarTypeException, Variable
@@ -42,6 +44,7 @@ class CType:
         :param declaration: use the string to declare the type itself in a program
         """
         self.default_typeid = typeid
+        self.typenick = None
         self._typedecl = [Typedef(typeid, align, declaration)]
 
     @property
@@ -106,6 +109,7 @@ class Void(CType):
 
     def __init__(self):
         super().__init__(typeid="void")
+        self.typenick = "void"
 
     def declare(self, name, align, as_string=False):
         raise TypeError("cannot declare variables of void C type")
@@ -118,13 +122,20 @@ class Number(CType):
         super().__init__(typeid=typeid)
         self.is_scalar = True
 
+        typenick = self.default_typeid
+        remove = re.compile("\s*(unsigned|signed)\s*")
+        long = re.compile("\s*long\s+")
+        typenick = re.sub(pattern=long, string=typenick, repl="l")
+        typenick = re.sub(pattern=remove, string=typenick, repl="")
+        self.typenick = typenick
+
     def as_scalar(self):
         return self
 
 
 standard_types = {
     "VOID": Void(),
-    "_T": Number("t"),
+    "_T": Number("any_t"),
     "BOOL": Number("_Bool"),
     "SIZE": Number("size_t"),
     "PTRDIFF": Number("ptrdiff_t"),
@@ -154,6 +165,7 @@ class Pointer(CType):
         super().__init__(align=align)
         self.ref_type = ref_type
         self.is_scalar = True
+        self.typenick = "P" + self.ref_type.typenick
 
     def declare(self, name, align, as_string=False):
         if len(self._typedecl) > 1:
@@ -203,6 +215,7 @@ class Array(Pointer):
         """
         super().__init__(ref_type)
         self.size = size
+        self.typenick = "A" + self.ref_type.typenick
 
     def declare(self, name, align, as_string=False):
         if len(self._typedecl) > 1:

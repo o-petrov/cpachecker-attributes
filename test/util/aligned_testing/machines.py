@@ -13,7 +13,6 @@ target options).
 """
 
 
-import re
 from .misc import Alignment
 from .ctypes import CType, Void, Number, Pointer, Array
 
@@ -114,15 +113,10 @@ class Machine:
         elif isinstance(t, Void):
             return self.void, self.align_void
         elif isinstance(t, Number):
-            typenick = t.default_typeid
-            remove = re.compile("\s*(unsigned|signed)\s*")
-            long = re.compile("\s*long\s+")
-            typenick = re.sub(pattern=long, string=typenick, repl="l")
-            typenick = re.sub(pattern=remove, string=typenick, repl=" ")
             align = self.align_of(t.alignment) or self.__getattribute__(
-                "align_" + typenick
+                "align_" + t.typenick
             )
-            return self.__getattribute__(typenick), align
+            return self.__getattribute__(t.typenick), align
         else:
             raise NotImplementedError("C type %s is unsupported" % t)
 
