@@ -270,6 +270,9 @@ def main():
             "You can also specify other pointer&array declarators with --declarators."
         )
         sys.exit(1)
+    if args.print_graphs:
+        args.cycle_depth = 0
+        args.loop_depth = 0
     check_types(args)
 
 
@@ -318,7 +321,7 @@ def parse_arguments():
         dest="print_graphs",
         action="store_true",
         help="Construct graphs for --numbers and --pointers and print them in .dot Graphviz "
-        "format. Do not generate programs.",
+        "format. Do not generate programs. Ignore loop and cycle depth.",
     )
     modes.add_argument(
         "--check-model",

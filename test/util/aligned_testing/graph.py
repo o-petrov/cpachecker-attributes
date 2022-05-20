@@ -186,11 +186,9 @@ class Graph:
         if depth is None:
             depth = self.cycle_depth
 
-        e = VariableNameExpression(
-            Pointer(standard_types["INT"]).declare("e", Alignment.NoAttr)
-        )
-        exprs = ", ".join(str(_operators[op](e)) for op in ops2.split(","))
-        self.__edges.append((to_, from_, exprs))
+        self.__edge(to_, from_, ops2)
+        if not depth:
+            self.__edge(from_, to_, ops1)
 
         n1s = from_
         for _ in range(depth):
