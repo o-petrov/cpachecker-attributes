@@ -551,33 +551,42 @@ class ExpressionGenerator:
             return
         assert machine
 
-        text = "extern void abort( void );\n"
+        prefix = ["extern void abort( void );\n"]
         if mode == "prints":
             # program is filled with prints only
-            text += "extern int printf( const char *restrict format, ... );\n"
+            prefix.append("extern int printf( const char *restrict format, ... );\n")
         elif mode == "asserts":
-            text += "#include <assert.h>\n"
+            prefix.append("#include <assert.h>\n")
         elif mode != "static asserts":
             raise ValueError("wrong mode " + mode)
 
-        text += (
-            variable.ctype.declaration + variable.declaration + "int main() {\n"
-            "int zero = 0;\n"
-            "int unit = zero + 1;\n"
+        t = variable.ctype
+        d = []
+        while isinstance(t, Pointer):
+            d.append(t.declaration)
+            t = t.ref_type
+        d.append(t.declaration)
+        prefix.extend(d[::-1])
+        prefix.extend(
+            [
+                variable.declaration,
+                "int main() {\n",
+                "int zero = 0;\n",
+                "int unit = zero + 1;\n",
+            ]
         )
 
         programs = []
-        prefix = text
-        suffix = "return unit - 1;\n}\n"
+        suffix = ["return unit - 1;\n", "}\n"]
         HARD_LIMIT = 1500
         lines = []
         for i, line in enumerate(graph.lines(mode, variable, machine)):
             lines.append(line)
-            if i % HARD_LIMIT == 1:
-                programs.append([prefix] + lines + [suffix])
+            if i % HARD_LIMIT == HARD_LIMIT - 1:
+                programs.append(prefix + lines + suffix)
                 lines = []
         if lines:
-            programs.append([prefix] + lines + [suffix])
+            programs.append(prefix + lines + suffix)
             lines = []
 
         filenames = []
