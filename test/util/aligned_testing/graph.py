@@ -334,41 +334,28 @@ class Graph:
     def lines(self, mode: str, variable: Variable, machine: Machine):
         for node in self.__node.values():
             title = node.expressions[0]
-
             x = node.align_class(variable)
+            t = x if isinstance(x, CType) else x.ctype
+            size, align = machine.size_align_of(t)
             if isinstance(x, Variable):
-                v = x
-                size, align = machine.size_align_of(v.ctype)
-                align = machine.align_of(v.align) or align
-            elif isinstance(x, CType):
-                t = x
-                size, align = machine.size_align_of(t)
-            else:
-                raise TypeError("unexpected type of x=%s: %s" % (x, type(x)))
+                align = machine.align_of(x.align) or align
+            elif not isinstance(x, CType):
+                raise TypeError(x)
 
             for expr in node.expressions:
+                align_class = str(node.align_class)
+                align_class = align_class[
+                    align_class.rfind(".") + 1 : align_class.find(" at 0x")
+                ]
+                end_msg = "title is %s of %s  //  %s" % (title, title.ctype, align_class)
                 asserts = [
-                    (
-                        "sizeof(%s) == sizeof(%s)" % (expr, title),
-                        "%s differs from %s by size" % (expr, title),
-                    ),
-                    (
-                        "_Alignof(%s) == _Alignof(%s)" % (expr, title),
-                        "%s differs from %s by align" % (expr, title),
-                    ),
-                    (
-                        "_Alignof(%s) == %s" % (expr, align),
-                        "align of %s differs from expected" % expr,
-                    ),
-                    (
-                        "sizeof(%s) == %s" % (expr, size),
-                        "size of %s differs from expected" % expr,
-                    ),
+                    ("_Alignof(%s) == %s" % (expr, align), end_msg),
+                    ("sizeof(%s) == %s" % (expr, size), end_msg)
                 ]
                 if mode == "prints":
                     yield (
-                        'printf("%s\\ta:%%ld, s:%%ld\\n", _Alignof(%s), sizeof(%s));\n'
-                        % (expr, expr, expr)
+                        'printf("' + str(expr) + '\\ta:%ld, s:%ld  //  expected a:' + str(align) + ', s:' + str(size) +
+                        '  //  ' + node.align_class.__doc__ + '\\n", _Alignof(' + str(expr) + '), sizeof(' + str(expr) + '));\n'
                     )
                 elif mode == "static asserts":
                     for check, message in asserts:
@@ -407,8 +394,8 @@ class ExpressionGenerator:
 
     def __graph_kind(self, variable: Variable) -> str:
         """
-        Describe the graph needed for the variable in a short string. Use it to check if the
-        graph is already constructed and can be used for another variable.
+        Describe the graph needed for the variable in a short string. Use it to check
+        if the graph is already constructed and can be used for another variable.
         """
         ctype = variable.ctype
         result = ""
@@ -432,10 +419,11 @@ class ExpressionGenerator:
 
     def __graph_variable(self, variable: Variable) -> Graph:
         """
-        Generate expressions to check a variable `v` of arbitrary type. Expressions include taking
-        address of `v` and dereferencing it in different ways, and dereferencing `v` itself if it
-        is of a pointer type. Expressions include `...+0` and `...+zero` where possible if
-        appropriate arithmetic options were specified.
+        Generate expressions to check a variable `v` of arbitrary type. Expressions
+        include taking address of `v` and dereferencing it in different ways, and
+        dereferencing `v` itself if it is of a pointer type. Expressions include
+        `...+0` and `...+zero` where possible if appropriate arithmetic options
+        were specified.
 
         See `__graph_pointer` for expressions that will be added for pointer variables.
         """

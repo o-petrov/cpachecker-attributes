@@ -47,6 +47,9 @@ class CType:
         self.typenick = None
         self._typedecl = [Typedef(typeid, align, declaration)]
 
+    def __str__(self):
+        raise NotImplementedError
+
     @property
     def declaration(self):
         """Full declaration of the type. Use in program text."""
@@ -111,6 +114,9 @@ class Void(CType):
         super().__init__(typeid="void")
         self.typenick = "void"
 
+    def __str__(self):
+        return "void"
+
     def declare(self, name, align, as_string=False):
         raise TypeError("cannot declare variables of void C type")
 
@@ -128,6 +134,14 @@ class Number(CType):
         typenick = re.sub(pattern=long, string=typenick, repl="l")
         typenick = re.sub(pattern=remove, string=typenick, repl="")
         self.typenick = typenick
+
+    def __str__(self):
+        result = ""
+        if self.alignment != Alignment.NoAttr:
+            result = "aligned=%s " % self.alignment.code
+        if len(self._typedecl) > 1:
+            result += self._typedecl[-1].typeid + " aka "
+        return result + self.default_typeid
 
     def as_scalar(self):
         return self
@@ -166,6 +180,15 @@ class Pointer(CType):
         self.ref_type = ref_type
         self.is_scalar = True
         self.typenick = "P" + self.ref_type.typenick
+
+    def __str__(self):
+        result = ""
+        if self.alignment != Alignment.NoAttr:
+            result = "aligned=%s " % self.alignment.code
+        if len(self._typedecl) > 1:
+            result += self._typedecl[-1].typeid + " aka "
+        result += "*" + str(self.ref_type)
+        return result
 
     def declare(self, name, align, as_string=False):
         if len(self._typedecl) > 1:
@@ -216,6 +239,15 @@ class Array(Pointer):
         super().__init__(ref_type)
         self.size = size
         self.typenick = "A" + self.ref_type.typenick
+
+    def __str__(self):
+        result = ""
+        if self.alignment != Alignment.NoAttr:
+            result = "aligned=%s " % self.alignment.code
+        if len(self._typedecl) > 1:
+            result += self._typedecl[-1].typeid + " aka "
+        result += "[%s]" % self.size + str(self.ref_type)
+        return result
 
     def declare(self, name, align, as_string=False):
         if len(self._typedecl) > 1:

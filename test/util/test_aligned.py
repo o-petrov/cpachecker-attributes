@@ -102,6 +102,7 @@ def check_types(args):
         types = [
             standard_types[typekey] for typekey in ("CHAR", "SHORT", "INT", "LDOUBLE")
         ]
+        decl_spec = decl_spec[::-1]
         if decl_spec.startswith("p"):
             # something of pointers to types, so add void by default
             types = [standard_types["VOID"]] + types
@@ -427,7 +428,7 @@ def parse_compiler_args(parser):
         "--gcc",
         dest="cc_command",
         action="store_const",
-        const=("gcc " + strict).split(),
+        const=("gcc -fmax-errors=5 " + strict).split(),
         help="Use GCC to check testing model. Generate program with static asserts and "
         "try to compile it with GCC.",
     )
