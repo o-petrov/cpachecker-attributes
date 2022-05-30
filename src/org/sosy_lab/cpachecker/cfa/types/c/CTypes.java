@@ -12,10 +12,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.common.base.Equivalence;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
+import java.util.TreeMap;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.types.c.CComplexType.ComplexTypeKind;
@@ -680,7 +681,7 @@ public final class CTypes {
   private static class ForceAlignVisitor implements CTypeVisitor<CType, NoException> {
 
     private final Alignment alignment;
-    private static HashMap<Alignment, ForceAlignVisitor> instances = new HashMap<>();
+    private static Map<Alignment, ForceAlignVisitor> instances = new TreeMap<>();
 
     public static ForceAlignVisitor create(Alignment alignment) {
       ForceAlignVisitor v = instances.get(alignment);

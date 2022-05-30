@@ -22,7 +22,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * https://en.cppreference.com/w/c/language/_Alignas
  */
 @Immutable
-public class Alignment implements Serializable {
+public class Alignment implements Serializable, Comparable<Alignment> {
   private static final long serialVersionUID = -8482191760254848303L;
 
   private final int typeAligned;
@@ -109,5 +109,18 @@ public class Alignment implements Serializable {
     return typeAligned == other.typeAligned
         && varAligned == other.varAligned
         && alignas == other.alignas;
+  }
+
+  @Override
+  public int compareTo(Alignment pOther) {
+    int r = Integer.compare(typeAligned, pOther.typeAligned);
+    if (r != 0) {
+      return r;
+    }
+    r = Integer.compare(varAligned, pOther.varAligned);
+    if (r != 0) {
+      return r;
+    }
+    return Integer.compare(alignas, pOther.alignas);
   }
 }
