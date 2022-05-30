@@ -730,10 +730,29 @@ public enum MachineModel {
       this.model = model;
     }
 
+    private int getAlign(Alignment pAlignment) {
+      int aligned = pAlignment.getVarAligned();
+      int alignas = pAlignment.getAlignas();
+      // Biggest applies. NO_SPECIFIER is smaller than any specified alignment.
+      if (aligned < alignas) {
+        aligned = alignas;
+      }
+      if (aligned != Alignment.NO_SPECIFIER) {
+        return aligned;
+      }
+      // If 'variable' has no alignment, 'type' can still have some.
+      return pAlignment.getTypeAligned();
+    }
+
     @Override
     public Integer visit(CArrayType pArrayType) throws IllegalArgumentException {
       // the alignment of an array is the same as the alignment of an member of the array
-      return getAlign(pArrayType.getAlignment(), pArrayType.getType().accept(this));
+      int result = getAlign(pArrayType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
+      return pArrayType.getType().accept(this);
     }
 
     @Override
@@ -786,7 +805,12 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CPointerType pPointerType) throws IllegalArgumentException {
-      return getAlign(pPointerType.getAlignment(), model.getAlignofPtr());
+      int result = getAlign(pPointerType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
+      return model.getAlignofPtr();
     }
 
     @Override
@@ -794,27 +818,13 @@ public enum MachineModel {
       throw new IllegalArgumentException("Unknown C-Type: " + pProblemType.getClass());
     }
 
-    private Integer getAlign(Alignment pAlignment, Integer pDefault) {
-      int aligned = pAlignment.getVarAligned();
-      int alignas = pAlignment.getAlignas();
-      // Biggest applies. NO_SPECIFIER is smaller than any specified alignment.
-      if (aligned < alignas) {
-        aligned = alignas;
-      }
-      if (aligned != Alignment.NO_SPECIFIER) {
-        return aligned;
-      }
-      // If 'variable' has no alignment, 'type' can still have some.
-      aligned = pAlignment.getTypeAligned();
-      return aligned == Alignment.NO_SPECIFIER ? pDefault : aligned;
-    }
-
     @Override
     public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
-      return getAlign(pSimpleType.getAlignment(), getAlignOfSimpleType(pSimpleType));
-    }
+      int result = getAlign(pSimpleType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
 
-    private Integer getAlignOfSimpleType(CSimpleType pSimpleType) {
       switch (pSimpleType.getType()) {
         case BOOL:
           return model.getAlignofBool();
@@ -850,7 +860,11 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CTypedefType pTypedefType) throws IllegalArgumentException {
-      return getAlign(pTypedefType.getAlignment(), pTypedefType.getRealType().accept(this));
+      int result = getAlign(pTypedefType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+      return pTypedefType.getRealType().accept(this);
     }
 
     @Override
