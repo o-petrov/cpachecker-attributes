@@ -33,19 +33,31 @@ public final class CEnumType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
   private int hashCache = 0;
 
   public CEnumType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final List<CEnumerator> pEnumerators,
-      final String pName,
-      final String pOrigName) {
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      List<CEnumerator> pEnumerators,
+      String pName,
+      String pOrigName) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     enumerators = ImmutableList.copyOf(pEnumerators);
     name = pName.intern();
     origName = pOrigName.intern();
+  }
+
+  public CEnumType(
+      boolean pConst,
+      boolean pVolatile,
+      List<CEnumerator> pEnumerators,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pEnumerators, pName, pOrigName);
   }
 
   @Override
@@ -61,6 +73,11 @@ public final class CEnumType implements CComplexType {
   @Override
   public boolean isIncomplete() {
     return false;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
   }
 
   public ImmutableList<CEnumerator> getEnumerators() {
@@ -91,6 +108,11 @@ public final class CEnumType implements CComplexType {
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
     StringBuilder lASTString = new StringBuilder();
+    String aligned = alignment.stringAlignas();
+    if (!aligned.isEmpty()) {
+      lASTString.append(aligned);
+      lASTString.append(" ");
+    }
 
     if (isConst()) {
       lASTString.append("const ");
@@ -105,14 +127,55 @@ public final class CEnumType implements CComplexType {
     lASTString.append(" {\n  ");
     Joiner.on(",\n  ").appendTo(lASTString, transform(enumerators, CEnumerator::toASTString));
     lASTString.append("\n} ");
+
+    aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      lASTString.append(aligned);
+      lASTString.append(" ");
+    }
+
     lASTString.append(pDeclarator);
+    aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      lASTString.append(" ");
+      lASTString.append(aligned);
+    }
 
     return lASTString.toString();
   }
 
   @Override
   public String toString() {
-    return (isConst() ? "const " : "") + (isVolatile() ? "volatile " : "") + "enum " + name;
+    StringBuilder lASTString = new StringBuilder();
+    String aligned = alignment.stringAlignas();
+    if (!aligned.isEmpty()) {
+      lASTString.append(aligned);
+      lASTString.append(" ");
+    }
+
+    if (isConst()) {
+      lASTString.append("const ");
+    }
+    if (isVolatile()) {
+      lASTString.append("volatile ");
+    }
+
+    lASTString.append("enum ");
+    lASTString.append(name);
+
+    aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      lASTString.append(aligned);
+      lASTString.append(" /* type */");
+    }
+
+    aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      lASTString.append(" /* var */ ");
+      lASTString.append(aligned);
+    }
+
+    return lASTString.toString();
   }
 
   public static final class CEnumerator extends AbstractSimpleDeclaration
@@ -221,7 +284,7 @@ public final class CEnumType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, name);
+      hashCache = Objects.hash(isConst, isVolatile, name, alignment);
     }
     return hashCache;
   }
@@ -245,6 +308,7 @@ public final class CEnumType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && Objects.equals(name, other.name)
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -263,6 +327,7 @@ public final class CEnumType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -278,6 +343,11 @@ public final class CEnumType implements CComplexType {
       return this;
     }
     return new CEnumType(
-        isConst || pForceConst, isVolatile || pForceVolatile, enumerators, name, origName);
+        isConst || pForceConst,
+        isVolatile || pForceVolatile,
+        alignment,
+        enumerators,
+        name,
+        origName);
   }
 }

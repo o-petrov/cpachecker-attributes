@@ -778,6 +778,11 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CElaboratedType pElaboratedType) throws IllegalArgumentException {
+      int result = getAlign(pElaboratedType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       CType def = pElaboratedType.getRealType();
       if (def != null) {
         return def.accept(this);
@@ -793,6 +798,12 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CEnumType pEnumType) throws IllegalArgumentException {
+      // enums themselves cant have alignment attribute, but variables (elaborated types) can
+      int result = getAlign(pEnumType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       // enums are always ints
       return model.getAlignofInt();
     }

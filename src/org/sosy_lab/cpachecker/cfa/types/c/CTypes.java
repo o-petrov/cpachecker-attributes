@@ -533,13 +533,24 @@ public final class CTypes {
     @Override
     public CElaboratedType visit(CElaboratedType t) {
       return new CElaboratedType(
-          constValue, t.isVolatile(), t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+          constValue,
+          t.isVolatile(),
+          t.getAlignment(),
+          t.getKind(),
+          t.getName(),
+          t.getOrigName(),
+          t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
       return new CEnumType(
-          constValue, t.isVolatile(), t.getEnumerators(), t.getName(), t.getOrigName());
+          constValue,
+          t.isVolatile(),
+          t.getAlignment(),
+          t.getEnumerators(),
+          t.getName(),
+          t.getOrigName());
     }
 
     @Override
@@ -619,13 +630,24 @@ public final class CTypes {
     @Override
     public CElaboratedType visit(CElaboratedType t) {
       return new CElaboratedType(
-          t.isConst(), volatileValue, t.getKind(), t.getName(), t.getOrigName(), t.getRealType());
+          t.isConst(),
+          volatileValue,
+          t.getAlignment(),
+          t.getKind(),
+          t.getName(),
+          t.getOrigName(),
+          t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
       return new CEnumType(
-          t.isConst(), volatileValue, t.getEnumerators(), t.getName(), t.getOrigName());
+          t.isConst(),
+          volatileValue,
+          t.getAlignment(),
+          t.getEnumerators(),
+          t.getName(),
+          t.getOrigName());
     }
 
     @Override
@@ -710,12 +732,20 @@ public final class CTypes {
 
     @Override
     public CElaboratedType visit(CElaboratedType t) {
-      return t;
+      return new CElaboratedType(
+          t.isConst(),
+          t.isVolatile(),
+          alignment,
+          t.getKind(),
+          t.getName(),
+          t.getOrigName(),
+          t.getRealType());
     }
 
     @Override
     public CEnumType visit(CEnumType t) {
-      return t;
+      return new CEnumType(
+          t.isConst(), t.isVolatile(), alignment, t.getEnumerators(), t.getName(), t.getOrigName());
     }
 
     @Override

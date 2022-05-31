@@ -23,6 +23,7 @@ public final class CElaboratedType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private Alignment alignment;
 
   private int hashCache = 0;
 
@@ -30,17 +31,29 @@ public final class CElaboratedType implements CComplexType {
 
   public CElaboratedType(
       boolean pConst,
-      final boolean pVolatile,
-      final ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName,
-      final @Nullable CComplexType pRealType) {
+      boolean pVolatile,
+      Alignment pAlignment,
+      ComplexTypeKind pKind,
+      String pName,
+      String pOrigName,
+      @Nullable CComplexType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();
     realType = pRealType;
+  }
+
+  public CElaboratedType(
+      boolean pConst,
+      boolean pVolatile,
+      ComplexTypeKind pKind,
+      String pName,
+      String pOrigName,
+      @Nullable CComplexType pRealType) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pKind, pName, pOrigName, pRealType);
   }
 
   @Override
@@ -100,6 +113,11 @@ public final class CElaboratedType implements CComplexType {
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
     StringBuilder lASTString = new StringBuilder();
+    String aligned = alignment.stringAlignas();
+    if (!aligned.isEmpty()) {
+      lASTString.append(aligned);
+      lASTString.append(" ");
+    }
 
     if (isConst()) {
       lASTString.append("const ");
@@ -112,14 +130,27 @@ public final class CElaboratedType implements CComplexType {
     lASTString.append(" ");
     lASTString.append(name);
     lASTString.append(" ");
+
+    aligned = alignment.stringTypeAligned();
+    if (!aligned.isEmpty()) {
+      lASTString.append(aligned);
+      lASTString.append(" ");
+    }
+
     lASTString.append(pDeclarator);
+
+    aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      lASTString.append(" ");
+      lASTString.append(aligned);
+    }
 
     return lASTString.toString();
   }
 
   @Override
   public String toString() {
-    return getKind().toASTString() + " " + getName();
+    return toASTString("/* <-type aligned var-> */");
   }
 
   @Override
@@ -130,6 +161,11 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
   }
 
   @Override
@@ -149,7 +185,7 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, kind, name, realType);
+      hashCache = Objects.hash(isConst, isVolatile, alignment, kind, name, realType);
     }
     return hashCache;
   }
@@ -173,6 +209,7 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && kind == other.kind
         && Objects.equals(name, other.name)
         && Objects.equals(realType, other.realType);
@@ -192,6 +229,7 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && kind == other.kind
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(realType, other.realType);
@@ -209,9 +247,17 @@ public final class CElaboratedType implements CComplexType {
         return this;
       }
       return new CElaboratedType(
-          isConst || pForceConst, isVolatile || pForceVolatile, kind, name, origName, null);
+          isConst || pForceConst,
+          isVolatile || pForceVolatile,
+          alignment,
+          kind,
+          name,
+          origName,
+          null);
     } else {
-      return realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+      CType result =
+          realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+      return CTypes.updateAlignment(result, alignment);
     }
   }
 }
