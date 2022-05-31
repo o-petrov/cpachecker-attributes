@@ -527,7 +527,13 @@ public final class CTypes {
     @Override
     public CCompositeType visit(CCompositeType t) {
       return new CCompositeType(
-          constValue, t.isVolatile(), t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+          constValue,
+          t.isVolatile(),
+          t.getAlignment(),
+          t.getKind(),
+          t.getMembers(),
+          t.getName(),
+          t.getOrigName());
     }
 
     @Override
@@ -624,7 +630,13 @@ public final class CTypes {
     @Override
     public CCompositeType visit(CCompositeType t) {
       return new CCompositeType(
-          t.isConst(), volatileValue, t.getKind(), t.getMembers(), t.getName(), t.getOrigName());
+          t.isConst(),
+          volatileValue,
+          t.getAlignment(),
+          t.getKind(),
+          t.getMembers(),
+          t.getName(),
+          t.getOrigName());
     }
 
     @Override
@@ -727,7 +739,14 @@ public final class CTypes {
 
     @Override
     public CCompositeType visit(CCompositeType t) {
-      return t;
+      return new CCompositeType(
+          t.isConst(),
+          t.isVolatile(),
+          alignment,
+          t.getKind(),
+          t.getMembers(),
+          t.getName(),
+          t.getOrigName());
     }
 
     @Override

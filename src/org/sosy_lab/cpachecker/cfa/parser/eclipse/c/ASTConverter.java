@@ -259,6 +259,7 @@ class ASTConverter {
 
   private final Sideassignments sideAssignmentStack;
   private final String staticVariablePrefix;
+  private final List<IASTDeclSpecifier> specifiersForCompositeTypes = new ArrayList<>();
 
   private static final ContainsProblemTypeVisitor containsProblemTypeVisitor =
       new ContainsProblemTypeVisitor();
@@ -2060,14 +2061,25 @@ class ASTConverter {
    * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html
    * https://en.cppreference.com/w/c/language/_Alignas
    */
-  public CType handleAlignment(CType type, IASTDeclarator declarator, IASTDeclSpecifier specifier) {
+  public CType handleAlignment(
+      CType type, @Nullable IASTDeclarator declarator, IASTDeclSpecifier specifier) {
     // get attributes from declSpecifier (it is an attribute after type, and applies to all
     // variables in declaration) and declarator (it is an attribute after variable)
-    int aligned = getAlignmentFromAttributes(specifier.getAttributes());
-    aligned = getBiggerAlignmentFromAttributes(declarator.getAttributes(), aligned);
+    int aligned;
+    if (declarator == null) {
+      // Attribute after composite type declaration applies to the type,
+      // not to all declared names in the declaration.
+      // Use it first time (with the type), ignore it after (with declarators).
+      specifiersForCompositeTypes.add(specifier);
+      aligned = getAlignmentFromAttributes(specifier.getAttributes());
+    } else if (specifiersForCompositeTypes.contains(specifier)) {
+      aligned = getAlignmentFromAttributes(declarator.getAttributes());
+    } else {
+      aligned = getAlignmentFromAttributes(specifier.getAttributes());
+      aligned = getBiggerAlignmentFromAttributes(declarator.getAttributes(), aligned);
+    }
 
-    Alignment alignment =
-        aligned == Alignment.NO_SPECIFIER ? Alignment.NO_SPECIFIERS : Alignment.ofVar(aligned);
+    Alignment alignment = Alignment.ofVar(aligned);
 
     // get specifier from declSpecifier (it applies to all variables like attribute in declSpecifier)
     int alignas = Alignment.NO_SPECIFIER;
@@ -2708,8 +2720,10 @@ class ASTConverter {
         }
       }
     }
+
     CCompositeType compositeType =
         new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
+    compositeType = (CCompositeType) handleAlignment(compositeType, null, d);
 
     // in cases like struct s { (struct s)* f }
     // we need to fill in the binding from the inner "struct s" type to the outer
