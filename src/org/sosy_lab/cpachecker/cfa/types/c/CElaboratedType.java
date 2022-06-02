@@ -169,6 +169,11 @@ public final class CElaboratedType implements CComplexType {
   }
 
   @Override
+  public boolean isPacked() {
+    return realType.isPacked();
+  }
+
+  @Override
   public boolean isIncomplete() {
     if (realType == null) {
       return kind != ComplexTypeKind.ENUM; // enums are always complete
@@ -259,5 +264,10 @@ public final class CElaboratedType implements CComplexType {
           realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
       return CTypes.updateAlignment(result, alignment);
     }
+  }
+
+  @Override
+  public CType copyWithPacked(boolean pPacked) {
+    throw new UnsupportedOperationException("Can not pack elaborated type " + this);
   }
 }

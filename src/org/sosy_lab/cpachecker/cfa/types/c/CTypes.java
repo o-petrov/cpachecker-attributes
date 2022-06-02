@@ -530,6 +530,7 @@ public final class CTypes {
           constValue,
           t.isVolatile(),
           t.getAlignment(),
+          t.isPacked(),
           t.getKind(),
           t.getMembers(),
           t.getName(),
@@ -554,6 +555,7 @@ public final class CTypes {
           constValue,
           t.isVolatile(),
           t.getAlignment(),
+          t.isPacked(),
           t.getEnumerators(),
           t.getName(),
           t.getOrigName());
@@ -633,6 +635,7 @@ public final class CTypes {
           t.isConst(),
           volatileValue,
           t.getAlignment(),
+          t.isPacked(),
           t.getKind(),
           t.getMembers(),
           t.getName(),
@@ -657,6 +660,7 @@ public final class CTypes {
           t.isConst(),
           volatileValue,
           t.getAlignment(),
+          t.isPacked(),
           t.getEnumerators(),
           t.getName(),
           t.getOrigName());
@@ -743,6 +747,7 @@ public final class CTypes {
           t.isConst(),
           t.isVolatile(),
           alignment,
+          t.isPacked(),
           t.getKind(),
           t.getMembers(),
           t.getName(),
@@ -764,7 +769,13 @@ public final class CTypes {
     @Override
     public CEnumType visit(CEnumType t) {
       return new CEnumType(
-          t.isConst(), t.isVolatile(), alignment, t.getEnumerators(), t.getName(), t.getOrigName());
+          t.isConst(),
+          t.isVolatile(),
+          alignment,
+          t.isPacked(),
+          t.getEnumerators(),
+          t.getName(),
+          t.getOrigName());
     }
 
     @Override

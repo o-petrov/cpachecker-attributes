@@ -13,6 +13,17 @@ public interface CComplexType extends CType {
 
   ComplexTypeKind getKind();
 
+  /** Returns true if the type was declared or forced to be packed. */
+  boolean isPacked();
+
+  /**
+   * Returns the type if pPacked == this.isPacked, else the copy with this.isPacked set as pPacked.
+   *
+   * @param pPacked desired packing
+   * @return same C type, but packed or unpacked according to pPacked
+   */
+  CType copyWithPacked(boolean pPacked);
+
   /**
    * Returns the unqualified name, e.g. for the type "struct s", this returns "s".
    *

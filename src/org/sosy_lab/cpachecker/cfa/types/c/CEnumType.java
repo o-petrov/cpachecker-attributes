@@ -34,18 +34,21 @@ public final class CEnumType implements CComplexType {
   private final boolean isConst;
   private final boolean isVolatile;
   private final Alignment alignment;
+  private final boolean isPacked;
   private int hashCache = 0;
 
   public CEnumType(
       boolean pConst,
       boolean pVolatile,
       Alignment pAlignment,
+      boolean pPacked,
       List<CEnumerator> pEnumerators,
       String pName,
       String pOrigName) {
     isConst = pConst;
     isVolatile = pVolatile;
     alignment = checkNotNull(pAlignment);
+    isPacked = pPacked;
     enumerators = ImmutableList.copyOf(pEnumerators);
     name = pName.intern();
     origName = pOrigName.intern();
@@ -57,7 +60,7 @@ public final class CEnumType implements CComplexType {
       List<CEnumerator> pEnumerators,
       String pName,
       String pOrigName) {
-    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pEnumerators, pName, pOrigName);
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, false, pEnumerators, pName, pOrigName);
   }
 
   @Override
@@ -78,6 +81,11 @@ public final class CEnumType implements CComplexType {
   @Override
   public Alignment getAlignment() {
     return alignment;
+  }
+
+  @Override
+  public boolean isPacked() {
+    return isPacked;
   }
 
   public ImmutableList<CEnumerator> getEnumerators() {
@@ -128,6 +136,10 @@ public final class CEnumType implements CComplexType {
     Joiner.on(",\n  ").appendTo(lASTString, transform(enumerators, CEnumerator::toASTString));
     lASTString.append("\n} ");
 
+    if (isPacked) {
+      lASTString.append("__attribute__((__packed__)) ");
+    }
+
     aligned = alignment.stringTypeAligned();
     if (!aligned.isEmpty()) {
       lASTString.append(aligned);
@@ -163,8 +175,13 @@ public final class CEnumType implements CComplexType {
     lASTString.append("enum ");
     lASTString.append(name);
 
+    if (isPacked) {
+      lASTString.append(" __attribute__((__packed__))");
+    }
+
     aligned = alignment.stringTypeAligned();
     if (!aligned.isEmpty()) {
+      lASTString.append(' ');
       lASTString.append(aligned);
       lASTString.append(" /* type */");
     }
@@ -284,7 +301,7 @@ public final class CEnumType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, name, alignment);
+      hashCache = Objects.hash(isConst, isVolatile, name, alignment, isPacked);
     }
     return hashCache;
   }
@@ -309,6 +326,7 @@ public final class CEnumType implements CComplexType {
     return isConst == other.isConst
         && isVolatile == other.isVolatile
         && alignment.equals(other.alignment)
+        && isPacked == other.isPacked
         && Objects.equals(name, other.name)
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -328,6 +346,7 @@ public final class CEnumType implements CComplexType {
     return isConst == other.isConst
         && isVolatile == other.isVolatile
         && alignment.equals(other.alignment)
+        && isPacked == other.isPacked
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -346,8 +365,17 @@ public final class CEnumType implements CComplexType {
         isConst || pForceConst,
         isVolatile || pForceVolatile,
         alignment,
+        isPacked,
         enumerators,
         name,
         origName);
+  }
+
+  @Override
+  public CType copyWithPacked(boolean pPacked) {
+    if (isPacked == pPacked) {
+      return this;
+    }
+    return new CEnumType(isConst, isVolatile, alignment, pPacked, enumerators, name, origName);
   }
 }
