@@ -2065,12 +2065,24 @@ class ASTConverter {
     return handleAlignment(type, declarator, specifier, true);
   }
 
-  public CType handleAlignmentOfNotPackedMember(
-      CType type, @Nullable IASTDeclarator declarator, IASTDeclSpecifier specifier) {
-    return handleAlignment(type, declarator, specifier, false);
+  /**
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and
+   * <code>_Alignas(<i>alignment</i>)</code> attached to a member declaration.
+   * A member of not packed struct/union can not be less aligned then default.
+   *
+   * <p>Documentation: https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html
+   * https://en.cppreference.com/w/c/language/_Alignas
+   */
+  private CType handleAlignmentOfMember(
+      CType type,
+      @Nullable IASTDeclarator declarator,
+      IASTDeclSpecifier specifier,
+      boolean pPacked) {
+    return handleAlignment(type, declarator, specifier, pPacked);
   }
 
-  public CType handleAlignment(
+  private CType handleAlignment(
       CType type,
       @Nullable IASTDeclarator declarator,
       IASTDeclSpecifier specifier,
@@ -2162,11 +2174,18 @@ class ASTConverter {
     return aligned;
   }
 
-  private List<CCompositeTypeMemberDeclaration> convertDeclarationInCompositeType(
-      final IASTDeclaration d, int nofMember) {
-    if (d.getParent() instanceof CASTCompositeTypeSpecifier) {
-      // FIXME: remove conditional after debugging
+  boolean hasPackedAttribute(IASTAttribute[] attributeArray) {
+    for (IASTAttribute attribute : attributeArray) {
+      String name = getAttributeString(attribute.getName());
+      if (name.equals("packed")) {
+        return true;
+      }
     }
+    return false;
+  }
+
+  private List<CCompositeTypeMemberDeclaration> convertDeclarationInCompositeType(
+      final IASTDeclaration d, int nofMember, boolean pPacked) {
     if (d instanceof IASTProblemDeclaration) {
       throw parseContext.parseError((IASTProblemDeclaration) d);
     }
@@ -2202,19 +2221,21 @@ class ASTConverter {
     if (declarators == null || declarators.length == 0) {
       // declaration without declarator, anonymous struct field?
       CCompositeTypeMemberDeclaration newD =
-          createDeclarationForCompositeType(type, null, sd.getDeclSpecifier(), nofMember);
+          createDeclarationForCompositeType(type, null, sd.getDeclSpecifier(), pPacked, nofMember);
       result = Collections.singletonList(newD);
 
     } else if (declarators.length == 1) {
       CCompositeTypeMemberDeclaration newD =
-          createDeclarationForCompositeType(type, declarators[0], sd.getDeclSpecifier(), nofMember);
+          createDeclarationForCompositeType(
+              type, declarators[0], sd.getDeclSpecifier(), pPacked, nofMember);
       result = Collections.singletonList(newD);
 
     } else {
       result = new ArrayList<>(declarators.length);
       for (IASTDeclarator c : declarators) {
 
-        result.add(createDeclarationForCompositeType(type, c, sd.getDeclSpecifier(), nofMember));
+        result.add(
+            createDeclarationForCompositeType(type, c, sd.getDeclSpecifier(), pPacked, nofMember));
       }
     }
 
@@ -2222,7 +2243,7 @@ class ASTConverter {
   }
 
   private CCompositeTypeMemberDeclaration createDeclarationForCompositeType(
-      CType type, IASTDeclarator d, IASTDeclSpecifier dspec, int nofMember) {
+      CType type, IASTDeclarator d, IASTDeclSpecifier dspec, boolean pPacked, int nofMember) {
     String name = null;
 
     if (d != null) {
@@ -2234,7 +2255,7 @@ class ASTConverter {
 
       type = declarator.getFirst();
       name = declarator.getThird();
-      type = handleAlignmentOfNotPackedMember(type, d, dspec);
+      type = handleAlignmentOfMember(type, d, dspec, pPacked);
     }
 
     if (isNullOrEmpty(name)) {
@@ -2696,8 +2717,10 @@ class ASTConverter {
     List<CCompositeTypeMemberDeclaration> list = new ArrayList<>(d.getMembers().length);
 
     int nofMember = 0;
+    boolean isPacked = hasPackedAttribute(d.getAttributes());
     for (IASTDeclaration c : d.getMembers()) {
-      List<CCompositeTypeMemberDeclaration> newCs = convertDeclarationInCompositeType(c, nofMember);
+      List<CCompositeTypeMemberDeclaration> newCs =
+          convertDeclarationInCompositeType(c, nofMember, isPacked);
       nofMember++;
       assert !newCs.isEmpty();
       list.addAll(newCs);
@@ -2752,6 +2775,7 @@ class ASTConverter {
     CCompositeType compositeType =
         new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
     compositeType = (CCompositeType) handleAlignment(compositeType, null, d);
+    compositeType = (CCompositeType) compositeType.copyWithPacked(isPacked);
 
     // in cases like struct s { (struct s)* f }
     // we need to fill in the binding from the inner "struct s" type to the outer

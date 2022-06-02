@@ -731,24 +731,28 @@ public enum MachineModel {
       this.model = model;
     }
 
-    private int getAlign(Alignment pAlignment) {
+    private int alignmentFromAttributes(Alignment pAlignment) {
       int aligned = pAlignment.getVarAligned();
       int alignas = pAlignment.getAlignas();
       // Biggest applies. NO_SPECIFIER is smaller than any specified alignment.
       if (aligned < alignas) {
         aligned = alignas;
       }
+      if (aligned == Alignment.NO_SPECIFIER) {
+        // If 'variable' has no alignment, 'type' can still have some.
+        aligned = pAlignment.getTypeAligned();
+      }
       if (aligned != Alignment.NO_SPECIFIER) {
         return aligned;
       }
-      // If 'variable' has no alignment, 'type' can still have some.
-      return pAlignment.getTypeAligned();
+      // If no alignment, but in a packed structure, return 1
+      return pAlignment.isInsidePacked() ? 1 : Alignment.NO_SPECIFIER;
     }
 
     @Override
     public Integer visit(CArrayType pArrayType) throws IllegalArgumentException {
       // the alignment of an array is the same as the alignment of an member of the array
-      int result = getAlign(pArrayType.getAlignment());
+      int result = alignmentFromAttributes(pArrayType.getAlignment());
       if (result != Alignment.NO_SPECIFIER) {
         return result;
       }
@@ -761,7 +765,7 @@ public enum MachineModel {
       switch (pCompositeType.getKind()) {
         case STRUCT:
         case UNION:
-          int alignof = getAlign(pCompositeType.getAlignment());
+          int alignof = Math.max(1, alignmentFromAttributes(pCompositeType.getAlignment()));
           int alignOfType = 0;
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
@@ -778,7 +782,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CElaboratedType pElaboratedType) throws IllegalArgumentException {
-      int result = getAlign(pElaboratedType.getAlignment());
+      int result = alignmentFromAttributes(pElaboratedType.getAlignment());
       if (result != Alignment.NO_SPECIFIER) {
         return result;
       }
@@ -799,7 +803,7 @@ public enum MachineModel {
     @Override
     public Integer visit(CEnumType pEnumType) throws IllegalArgumentException {
       // enums themselves cant have alignment attribute, but variables (elaborated types) can
-      int result = getAlign(pEnumType.getAlignment());
+      int result = alignmentFromAttributes(pEnumType.getAlignment());
       if (result != Alignment.NO_SPECIFIER) {
         return result;
       }
@@ -816,7 +820,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CPointerType pPointerType) throws IllegalArgumentException {
-      int result = getAlign(pPointerType.getAlignment());
+      int result = alignmentFromAttributes(pPointerType.getAlignment());
       if (result != Alignment.NO_SPECIFIER) {
         return result;
       }
@@ -831,7 +835,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
-      int result = getAlign(pSimpleType.getAlignment());
+      int result = alignmentFromAttributes(pSimpleType.getAlignment());
       if (result != Alignment.NO_SPECIFIER) {
         return result;
       }
@@ -871,7 +875,7 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CTypedefType pTypedefType) throws IllegalArgumentException {
-      int result = getAlign(pTypedefType.getAlignment());
+      int result = alignmentFromAttributes(pTypedefType.getAlignment());
       if (result != Alignment.NO_SPECIFIER) {
         return result;
       }
