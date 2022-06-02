@@ -14,12 +14,14 @@ import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
- * This class stores alignment attribute specified for c type, alignment attribute specified for
- * variable of c type, and _Alignas specifier for variable.
+ * This class stores alignment attribute specified for C type, alignment attribute specified for
+ * variable of C type, and _Alignas specifier for variable.
  *
  * <p>Documentation: https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html
  * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html
  * https://en.cppreference.com/w/c/language/_Alignas
+ *
+ * <p>Also stores if a type is a member of a packed structure, so it is 1-aligned by default.
  */
 @Immutable
 public class Alignment implements Serializable, Comparable<Alignment> {
@@ -28,11 +30,20 @@ public class Alignment implements Serializable, Comparable<Alignment> {
   private final int typeAligned;
   private final int varAligned;
   private final int alignas;
+  private final boolean insidePacked;
 
   public Alignment(int pTypeAligned, int pVarAligned, int pAlignas) {
     typeAligned = pTypeAligned;
     varAligned = pVarAligned;
     alignas = pAlignas;
+    insidePacked = false;
+  }
+
+  public Alignment(int pTypeAligned, int pVarAligned, int pAlignas, boolean pPacked) {
+    typeAligned = pTypeAligned;
+    varAligned = pVarAligned;
+    alignas = pAlignas;
+    insidePacked = pPacked;
   }
 
   // Zero is chosen because _Alignas(0) has no effect.
@@ -54,15 +65,19 @@ public class Alignment implements Serializable, Comparable<Alignment> {
 
   // XXX how to name to clarify it creates new, not changes left
   public Alignment withTypeAligned(int pTypeAligned) {
-    return new Alignment(pTypeAligned, varAligned, alignas);
+    return new Alignment(pTypeAligned, varAligned, alignas, insidePacked);
   }
 
   public Alignment withVarAligned(int pVarAligned) {
-    return new Alignment(typeAligned, pVarAligned, alignas);
+    return new Alignment(typeAligned, pVarAligned, alignas, insidePacked);
   }
 
   public Alignment withAlignas(int pAlignas) {
-    return new Alignment(typeAligned, varAligned, pAlignas);
+    return new Alignment(typeAligned, varAligned, pAlignas, insidePacked);
+  }
+
+  public Alignment withInsidePacked(boolean pPacked) {
+    return new Alignment(typeAligned, varAligned, alignas, pPacked);
   }
 
   public int getTypeAligned() {
@@ -75,6 +90,10 @@ public class Alignment implements Serializable, Comparable<Alignment> {
 
   public int getAlignas() {
     return alignas;
+  }
+
+  public boolean isInsidePacked() {
+    return insidePacked;
   }
 
   public String stringTypeAligned() {
@@ -91,7 +110,7 @@ public class Alignment implements Serializable, Comparable<Alignment> {
 
   @Override
   public int hashCode() {
-    return Objects.hash(typeAligned, varAligned, alignas);
+    return Objects.hash(typeAligned, varAligned, alignas, insidePacked);
   }
 
   @Override
@@ -108,11 +127,15 @@ public class Alignment implements Serializable, Comparable<Alignment> {
 
     return typeAligned == other.typeAligned
         && varAligned == other.varAligned
-        && alignas == other.alignas;
+        && alignas == other.alignas
+        && insidePacked == other.insidePacked;
   }
 
   @Override
   public int compareTo(Alignment pOther) {
+    if (insidePacked != pOther.insidePacked) {
+      return !insidePacked && pOther.insidePacked ? 1 : -1;
+    }
     int r = Integer.compare(typeAligned, pOther.typeAligned);
     if (r != 0) {
       return r;
@@ -122,5 +145,12 @@ public class Alignment implements Serializable, Comparable<Alignment> {
       return r;
     }
     return Integer.compare(alignas, pOther.alignas);
+  }
+
+  @Override
+  public String toString() {
+    return String.format(
+        "Alignment(type=%d, var=%d, alignas=%d, inPacked=%b)",
+        typeAligned, varAligned, alignas, insidePacked);
   }
 }

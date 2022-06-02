@@ -15,6 +15,7 @@ import static com.google.common.base.Preconditions.checkState;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -399,8 +400,14 @@ public final class CCompositeType implements CComplexType {
     CCompositeType result =
         new CCompositeType(isConst, isVolatile, alignment, pPacked, kind, name, origName);
     if (members != null) {
-      // TODO copy members but as members of packed
-      result.setMembers(members);
+      List<CCompositeTypeMemberDeclaration> newMembers = new ArrayList<>();
+      for (CCompositeTypeMemberDeclaration m : members) {
+        CType mType = m.getType();
+        Alignment mAlign = mType.getAlignment();
+        mType = CTypes.overrideAlignment(mType, mAlign.withInsidePacked(pPacked));
+        newMembers.add(new CCompositeTypeMemberDeclaration(mType, m.getName()));
+      }
+      result.setMembers(newMembers);
     }
     return result;
   }
