@@ -56,6 +56,11 @@ public final class CVoidType implements CType {
   }
 
   @Override
+  public Alignment getAlignment() {
+    return Alignment.NO_SPECIFIERS;
+  }
+
+  @Override
   public boolean isIncomplete() {
     return true; // C standard § 6.2.5 (19)
   }

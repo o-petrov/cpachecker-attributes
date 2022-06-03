@@ -816,6 +816,7 @@ public final class CTypes {
 
     @Override
     public CType visit(CVoidType t) {
+      // void ignores alignments
       return t;
     }
 
