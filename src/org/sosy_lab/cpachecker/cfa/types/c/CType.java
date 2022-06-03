@@ -33,12 +33,11 @@ public interface CType extends Type {
 
   /**
    * @return alignment <i>x</i> specified in <code>__attribute__((aligned(<i>x</i>)))</code> for the
-   *     C type, alignment specified in attribute for the variable of the C type, and alignment
-   *     specified in <code>_Alignas</code> specifier for the same variable.
+   *     C type, alignment specified in attribute for the variable of the C type, alignment
+   *     specified in <code>_Alignas</code> specifier for the same variable, and if it is actually a
+   *     member of a packed struct/union.
    */
-  default Alignment getAlignment() {
-    throw new UnsupportedOperationException("Not implemented");
-  }
+  Alignment getAlignment();
 
   /**
    * Check whether the current type is *incomplete* as defined by the C standard in § 6.2.5 (1).
