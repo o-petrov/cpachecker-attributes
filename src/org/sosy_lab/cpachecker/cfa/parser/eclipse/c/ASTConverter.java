@@ -2108,6 +2108,10 @@ class ASTConverter {
     // members of not packed structs or unions can not be
     // less aligned than their default alignment
     // (do not check alignment if it is not neccessary)
+    // but bitfields never ignore alignment
+    if (type instanceof CBitFieldType) {
+      canBeLessAligned = true;
+    }
     BigInteger defaultAlignment =
         BigInteger.valueOf(canBeLessAligned ? -1 : machinemodel.getAlignof(type));
 

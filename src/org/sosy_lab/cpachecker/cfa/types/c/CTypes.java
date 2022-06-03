@@ -607,7 +607,9 @@ public final class CTypes {
     @Override
     public CType visit(CBitFieldType pCBitFieldType) {
       return new CBitFieldType(
-          pCBitFieldType.getType().accept(this), pCBitFieldType.getBitFieldSize());
+          pCBitFieldType.getType().accept(this),
+          pCBitFieldType.getBitFieldSize(),
+          pCBitFieldType.getAlignment());
     }
   }
 
@@ -712,7 +714,9 @@ public final class CTypes {
     @Override
     public CType visit(CBitFieldType pCBitFieldType) {
       return new CBitFieldType(
-          pCBitFieldType.getType().accept(this), pCBitFieldType.getBitFieldSize());
+          pCBitFieldType.getType().accept(this),
+          pCBitFieldType.getBitFieldSize(),
+          pCBitFieldType.getAlignment());
     }
   }
 
@@ -822,7 +826,7 @@ public final class CTypes {
 
     @Override
     public CType visit(CBitFieldType t) {
-      return t;
+      return new CBitFieldType(t.getType(), t.getBitFieldSize(), alignment);
     }
   }
 }

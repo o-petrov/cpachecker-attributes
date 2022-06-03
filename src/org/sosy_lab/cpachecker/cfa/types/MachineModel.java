@@ -769,7 +769,12 @@ public enum MachineModel {
           int alignOfType = 0;
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
-            alignOfType = decl.getType().accept(this);
+            CType memberType = decl.getType();
+            if (!pCompositeType.isPacked() && memberType instanceof CBitFieldType) {
+              // default alignment of type of bitfield is effective
+              memberType = ((CBitFieldType) memberType).getType();
+            }
+            alignOfType = memberType.accept(this);
             alignof = Math.max(alignof, alignOfType);
           }
           return alignof;
@@ -893,6 +898,11 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CBitFieldType pCBitFieldType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pCBitFieldType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       return pCBitFieldType.getType().accept(this);
     }
   }

@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.types.c;
 
 import com.google.common.base.Preconditions;
+import java.util.Objects;
 import org.sosy_lab.cpachecker.cfa.types.c.CComplexType.ComplexTypeKind;
 
 /** Instances of this class represent C bit-field types. */
@@ -19,6 +20,8 @@ public class CBitFieldType implements CType {
   private final CType type;
 
   private final int bitFieldSize;
+
+  private Alignment alignment;
 
   /**
    * Creates a new bit-field type.
@@ -37,11 +40,21 @@ public class CBitFieldType implements CType {
    *     if the given size is negative.
    */
   public CBitFieldType(CType pBitFieldType, int pBitFieldSize) {
+    this(pBitFieldType, pBitFieldSize, Alignment.NO_SPECIFIERS);
+  }
+
+  public CBitFieldType(CType pBitFieldType, int pBitFieldSize, Alignment pAlignment) {
     type = checkType(pBitFieldType);
     Preconditions.checkArgument(
         pBitFieldSize >= 0, "Bit-field size must not be negative, but was %s", pBitFieldSize);
     bitFieldSize = pBitFieldSize;
+    Preconditions.checkArgument(
+        pAlignment.getTypeAligned() == Alignment.NO_SPECIFIER,
+        "Bitfield can not be type-aligned (got %s)",
+        pAlignment);
+    alignment = Preconditions.checkNotNull(pAlignment);
   }
+
 
   private CType checkType(CType pBitFieldType) {
     CType canonicalType = pBitFieldType.getCanonicalType();
@@ -73,7 +86,18 @@ public class CBitFieldType implements CType {
       // bit-field types are valid only in fields, and zero-width bit fields need to be anonymous
       pDeclarator = "";
     }
-    return type.toASTString(pDeclarator) + " : " + bitFieldSize;
+
+    String alignas = alignment.stringAlignas();
+    if (!alignas.isEmpty()) {
+      alignas += ' ';
+    }
+
+    String aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      aligned = ' ' + aligned;
+    }
+
+    return alignas + type.toASTString(pDeclarator) + " : " + bitFieldSize + aligned;
   }
 
   @Override
@@ -84,6 +108,11 @@ public class CBitFieldType implements CType {
   @Override
   public boolean isVolatile() {
     return type.isVolatile();
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
   }
 
   @Override
@@ -107,7 +136,7 @@ public class CBitFieldType implements CType {
     if (type == canonicalBitFieldType) {
       return this;
     }
-    return new CBitFieldType(canonicalBitFieldType, bitFieldSize);
+    return new CBitFieldType(canonicalBitFieldType, bitFieldSize, alignment);
   }
 
   /**
@@ -130,12 +159,22 @@ public class CBitFieldType implements CType {
 
   @Override
   public String toString() {
-    return getType() + " : " + getBitFieldSize();
+    String alignas = alignment.stringAlignas();
+    if (!alignas.isEmpty()) {
+      alignas += ' ';
+    }
+
+    String aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      aligned = ' ' + aligned;
+    }
+
+    return alignas + getType() + " : " + getBitFieldSize() + aligned;
   }
 
   @Override
   public int hashCode() {
-    return bitFieldSize * 31 + type.hashCode();
+    return Objects.hash(bitFieldSize, alignment, type);
   }
 
   @Override
@@ -145,7 +184,9 @@ public class CBitFieldType implements CType {
     }
     if (pObj instanceof CBitFieldType) {
       CBitFieldType other = (CBitFieldType) pObj;
-      return bitFieldSize == other.bitFieldSize && type.equals(other.type);
+      return bitFieldSize == other.bitFieldSize
+          && alignment.equals(other.alignment)
+          && type.equals(other.type);
     }
     return false;
   }
