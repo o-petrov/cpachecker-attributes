@@ -814,6 +814,10 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CFunctionType pFunctionType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pFunctionType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
       // function types have per definition the value 1 if compiled with gcc
       return 1;
     }

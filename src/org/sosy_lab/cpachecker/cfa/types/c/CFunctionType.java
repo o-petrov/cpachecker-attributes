@@ -31,8 +31,16 @@ public class CFunctionType extends AFunctionType implements CType {
 
   private @Nullable String name = null;
 
+  private Alignment alignment;
+
   public CFunctionType(CType pReturnType, List<CType> pParameters, boolean pTakesVarArgs) {
+    this(pReturnType, pParameters, pTakesVarArgs, Alignment.NO_SPECIFIERS);
+  }
+
+  public CFunctionType(
+      CType pReturnType, List<CType> pParameters, boolean pTakesVarArgs, Alignment pAlignment) {
     super(pReturnType, pParameters, pTakesVarArgs);
+    alignment = checkNotNull(pAlignment);
   }
 
   @Override
@@ -84,9 +92,20 @@ public class CFunctionType extends AFunctionType implements CType {
     }
     lASTString.append(")");
 
+    String alignas = alignment.stringAlignas();
+    if (!alignas.isEmpty()) {
+      alignas += ' ';
+    }
+    String aligned = alignment.stringVarAligned();
+    if (!aligned.isEmpty()) {
+      aligned = ' ' + aligned;
+    }
+    if (!alignment.stringTypeAligned().isEmpty()) {
+      aligned += "/* type " + alignment.stringTypeAligned() + " */";
+    }
     // The return type can span the rest of the type, so we cannot prefix but need this trick.
     String nameAndParams = lASTString.toString();
-    return getReturnType().toASTString(nameAndParams);
+    return alignas + getReturnType().toASTString(nameAndParams) + aligned;
   }
 
   @Override
@@ -97,6 +116,11 @@ public class CFunctionType extends AFunctionType implements CType {
   @Override
   public boolean isVolatile() {
     return false;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
   }
 
   @Override
@@ -125,7 +149,9 @@ public class CFunctionType extends AFunctionType implements CType {
       return true;
     }
 
-    return obj instanceof CFunctionType && super.equals(obj);
+    return obj instanceof CFunctionType
+        && super.equals(obj)
+        && alignment.equals(((CFunctionType) obj).getAlignment());
   }
 
   @Override
@@ -145,6 +171,6 @@ public class CFunctionType extends AFunctionType implements CType {
       newParameterTypes.add(parameter.getCanonicalType());
     }
     return new CFunctionType(
-        getReturnType().getCanonicalType(), newParameterTypes.build(), takesVarArgs());
+        getReturnType().getCanonicalType(), newParameterTypes.build(), takesVarArgs(), alignment);
   }
 }

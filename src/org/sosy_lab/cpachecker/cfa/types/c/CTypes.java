@@ -668,7 +668,7 @@ public final class CTypes {
 
     @Override
     public CFunctionType visit(CFunctionType t) {
-      checkArgument(!volatileValue, "Cannot create const function type, this is undefined");
+      checkArgument(!volatileValue, "Cannot create volatile function type, this is undefined");
       return t;
     }
 
@@ -780,7 +780,7 @@ public final class CTypes {
 
     @Override
     public CFunctionType visit(CFunctionType t) {
-      return t;
+      return new CFunctionType(t.getReturnType(), t.getParameters(), t.takesVarArgs(), alignment);
     }
 
     @Override
