@@ -771,10 +771,16 @@ public enum MachineModel {
           for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
             CType memberType = decl.getType();
             if (!pCompositeType.isPacked() && memberType instanceof CBitFieldType) {
-              // default alignment of type of bitfield is effective
-              memberType = ((CBitFieldType) memberType).getType();
+              // alignment attrbute applies to the type of bitfield if structure is packed
+              // or if it is greater than default for declared type
+              alignOfType =
+                  Math.max(
+                      alignmentFromAttributes(memberType.getAlignment()),
+                      ((CBitFieldType) memberType).getType().accept(this));
+            } else {
+              // alignment attribute applies even if it is less than default
+              alignOfType = memberType.accept(this);
             }
-            alignOfType = memberType.accept(this);
             alignof = Math.max(alignof, alignOfType);
           }
           return alignof;
@@ -967,8 +973,6 @@ public enum MachineModel {
     List<CCompositeTypeMemberDeclaration> typeMembers = pOwnerType.getMembers();
 
     BigInteger bitOffset = BigInteger.ZERO;
-    BigInteger sizeOfConsecutiveBitFields = BigInteger.ZERO;
-
     long sizeOfByte = getSizeofCharInBits();
 
     if (ownerTypeKind == ComplexTypeKind.UNION) {
@@ -978,7 +982,7 @@ public enum MachineModel {
         // Otherwise, to indicate a problem, the return
         // will be null.
         if (typeMembers.stream().anyMatch(m -> m.getName().equals(pFieldName))) {
-          return bitOffset;
+          return BigInteger.ZERO;
         }
       } else {
         for (CCompositeTypeMemberDeclaration typeMember : typeMembers) {
@@ -1019,77 +1023,60 @@ public enum MachineModel {
           fieldSizeInBits = getSizeofInBits(type);
         }
 
-        if (type instanceof CBitFieldType) {
-          if (typeMember.getName().equals(pFieldName)) {
-            // just escape the loop and return the current offset
-            bitOffset = bitOffset.add(sizeOfConsecutiveBitFields);
-            return bitOffset;
-          }
+        boolean isBitfield = type instanceof CBitFieldType;
 
-          CType innerType = ((CBitFieldType) type).getType();
+        Alignment effectiveAlignment = type.getAlignment().withInsidePacked(false);
+        CType effectiveType =
+            isBitfield
+                ? CTypes.overrideAlignment(((CBitFieldType) type).getType(), effectiveAlignment)
+                : type;
 
-          if (fieldSizeInBits.compareTo(BigInteger.ZERO) == 0) {
-            // Bitfields with length 0 guarantee that
-            // the next bitfield starts at the beginning of the
-            // next address an object of the declaring
-            // type could be addressed by.
-            //
-            // E.g., if you have a struct like this:
-            //   struct s { int a : 8; char : 0; char b; };
-            //
-            // then the struct will be aligned to the size of int
-            // (4 Bytes) and will occupy 4 Bytes of memory.
-            //
-            // A struct like this:
-            //   struct t { int a : 8; int : 0; char b; };
-            //
-            // will also be aligned to the size of int, but
-            // since the 'int : 0;' member adjusts the next object
-            // to the next int-like addressable unit, t will
-            // occupy 8 Bytes instead of 4 (the char b is placed
-            // at the next 4-Byte addressable unit).
-            //
-            // At last, a struct like this:
-            //   struct u { char a : 4; char : 0; char b : 4; };
-            //
-            // will be aligned to size of char and occupy 2 Bytes
-            // in memory, while the same struct without the
-            // 'char : 0;' member would just occupy 1 Byte.
-            bitOffset =
-                calculatePaddedBitsize(
-                    bitOffset, sizeOfConsecutiveBitFields, innerType, sizeOfByte);
-            sizeOfConsecutiveBitFields = BigInteger.ZERO;
-          } else {
-            sizeOfConsecutiveBitFields =
-                calculateNecessaryBitfieldOffset(
-                        sizeOfConsecutiveBitFields.add(bitOffset),
-                        innerType,
-                        sizeOfByte,
-                        fieldSizeInBits)
-                    .subtract(bitOffset);
-            sizeOfConsecutiveBitFields = sizeOfConsecutiveBitFields.add(fieldSizeInBits);
-          }
-
-          // Put start offset of bitField to outParameterMap
-          if (outParameterMap != null) {
-            outParameterMap.put(
-                typeMember, bitOffset.add(sizeOfConsecutiveBitFields).subtract(fieldSizeInBits));
-          }
+        if (!isBitfield
+            || fieldSizeInBits.compareTo(BigInteger.ZERO) == 0
+            || !effectiveAlignment.equals(Alignment.NO_SPECIFIERS)) {
+          // Usual fields, bit-fields with length 0, and bit-fields
+          // with alignment attributes guarantee that
+          // the next bitfield starts at the beginning of the
+          // next address an object of the declaring
+          // type could be addressed by.
+          //
+          // E.g., if you have a struct like this:
+          //   struct s { int a : 8; char : 0; char b; };
+          //
+          // then the struct will be aligned to the size of int
+          // (4 Bytes) and will occupy 4 Bytes of memory.
+          //
+          // A struct like this:
+          //   struct t { int a : 8; int : 0; char b; };
+          //
+          // will also be aligned to the size of int, but
+          // since the 'int : 0;' member adjusts the next object
+          // to the next int-like addressable unit, t will
+          // occupy 8 Bytes instead of 4 (the char b is placed
+          // at the next 4-Byte addressable unit).
+          //
+          // At last, a struct like this:
+          //   struct u { char a : 4; char : 0; char b : 4; };
+          //
+          // will be aligned to size of char and occupy 2 Bytes
+          // in memory, while the same struct without the
+          // 'char : 0;' member would just occupy 1 Byte.
+          bitOffset = calculatePaddedBitsize(bitOffset, effectiveType, sizeOfByte);
         } else {
+          // usual bitfield
           bitOffset =
-              calculatePaddedBitsize(bitOffset, sizeOfConsecutiveBitFields, type, sizeOfByte);
-          sizeOfConsecutiveBitFields = BigInteger.ZERO;
-
-          if (typeMember.getName().equals(pFieldName)) {
-            // just escape the loop and return the current offset
-            return bitOffset;
-          }
-
-          if (outParameterMap != null) {
-            outParameterMap.put(typeMember, bitOffset);
-          }
-          bitOffset = bitOffset.add(fieldSizeInBits);
+              calculateNecessaryBitfieldOffset(bitOffset, type, sizeOfByte, fieldSizeInBits);
         }
+
+        if (typeMember.getName().equals(pFieldName)) {
+          // just escape the loop and return the current offset
+          return bitOffset;
+        }
+
+        if (outParameterMap != null) {
+          outParameterMap.put(typeMember, bitOffset);
+        }
+        bitOffset = bitOffset.add(fieldSizeInBits);
       }
     }
 
@@ -1099,7 +1086,7 @@ public enum MachineModel {
     }
 
     // call with byte size of 1 to return size in bytes instead of bits
-    return calculatePaddedBitsize(bitOffset, sizeOfConsecutiveBitFields, pOwnerType, 1L);
+    return calculatePaddedBitsize(bitOffset, pOwnerType, 1L);
   }
 
   @Deprecated
@@ -1126,10 +1113,8 @@ public enum MachineModel {
   @Deprecated
   public BigInteger calculatePaddedBitsize(
       BigInteger pBitOffset,
-      BigInteger pSizeOfConsecutiveBitFields,
       CType pType,
       long pSizeOfByte) {
-    pBitOffset = pBitOffset.add(pSizeOfConsecutiveBitFields);
     // once pad the bits to full bytes, then pad bytes to the
     // alignment of the current type
     pBitOffset = sizeofVisitor.calculateByteSize(pBitOffset);
