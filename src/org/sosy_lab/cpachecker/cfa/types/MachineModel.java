@@ -1030,15 +1030,17 @@ public enum MachineModel {
 
         boolean isBitfield = type instanceof CBitFieldType;
 
-        Alignment effectiveAlignment = type.getAlignment().withInsidePacked(false);
+        Alignment effectiveAlignment = type.getAlignment();
         CType effectiveType =
             isBitfield
                 ? CTypes.overrideAlignment(((CBitFieldType) type).getType(), effectiveAlignment)
                 : type;
 
-        if (!isBitfield
-            || fieldSizeInBits.compareTo(BigInteger.ZERO) == 0
-            || !effectiveAlignment.equals(Alignment.NO_SPECIFIERS)) {
+        boolean isZeroLength = fieldSizeInBits.compareTo(BigInteger.ZERO) == 0;
+        boolean hasAlignedAttr =
+            !effectiveAlignment.withInsidePacked(false).equals(Alignment.NO_SPECIFIERS);
+
+        if (!isBitfield || isZeroLength || hasAlignedAttr) {
           // Usual fields, bit-fields with length 0, and bit-fields
           // with alignment attributes guarantee that
           // the next bitfield starts at the beginning of the
@@ -1067,6 +1069,9 @@ public enum MachineModel {
           // in memory, while the same struct without the
           // 'char : 0;' member would just occupy 1 Byte.
           bitOffset = calculatePaddedBitsize(bitOffset, effectiveType, sizeOfByte);
+        } else if (effectiveAlignment.isInsidePacked()) {
+          // all bitfields are consequent in packed struct
+          // pass
         } else {
           // usual bitfield
           bitOffset =
