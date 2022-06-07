@@ -1070,7 +1070,8 @@ public enum MachineModel {
         } else {
           // usual bitfield
           bitOffset =
-              calculateNecessaryBitfieldOffset(bitOffset, type, sizeOfByte, fieldSizeInBits);
+              calculateNecessaryBitfieldOffset(
+                  bitOffset, effectiveType, sizeOfByte, fieldSizeInBits);
         }
 
         if (typeMember.getName().equals(pFieldName)) {
