@@ -617,7 +617,12 @@ public enum MachineModel {
     }
 
     private BigInteger handleSizeOfUnion(CCompositeType pCompositeType) {
-      // size of union cant be less than alignment
+      // empty union has size 0
+      if (pCompositeType.getMembers().size() == 0) {
+        return BigInteger.ZERO;
+      }
+
+      // size of union can not be less than alignment
       BigInteger size = BigInteger.valueOf(model.getAlignof(pCompositeType));
       BigInteger sizeOfType = BigInteger.ZERO;
       // TODO: Take possible padding into account
