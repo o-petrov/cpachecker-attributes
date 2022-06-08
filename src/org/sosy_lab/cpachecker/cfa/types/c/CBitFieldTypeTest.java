@@ -26,6 +26,8 @@ public class CBitFieldTypeTest {
 
   public CBitFieldTypeTest() {
     tester.setDefault(CType.class, CNumericTypes.INT);
+    tester.setDistinctValues(
+        Alignment.class, Alignment.NO_SPECIFIERS, new Alignment(0, 1, 0, true));
   }
 
   @Test
