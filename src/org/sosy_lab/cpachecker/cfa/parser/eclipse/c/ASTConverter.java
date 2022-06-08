@@ -13,7 +13,6 @@ import static org.sosy_lab.common.collect.Collections3.transformedImmutableListC
 import static org.sosy_lab.cpachecker.cfa.types.c.CTypes.withoutConst;
 import static org.sosy_lab.cpachecker.cfa.types.c.CTypes.withoutVolatile;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -28,7 +27,6 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.LongSummaryStatistics;
 import java.util.Optional;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -2810,38 +2808,107 @@ class ASTConverter {
       name = "__anon_type_" + anonTypeCounter++;
     }
 
-    CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), list, name, origName);
-    CSimpleType integerType = getEnumerationType(enumType);
+    boolean isPacked = hasPackedAttribute(d.getAttributes());
+    CSimpleType enumIntegerType = getEnumerationType(isPacked, list);
+    CEnumType enumType =
+        new CEnumType(
+            d.isConst(),
+            d.isVolatile(),
+            Alignment.NO_SPECIFIERS,
+            isPacked,
+            enumIntegerType,
+            list,
+            name,
+            origName);
     for (CEnumerator enumValue : enumType.getEnumerators()) {
       enumValue.setEnum(enumType);
-      enumValue.setType(integerType);
     }
     return enumType;
   }
 
+  private static final ImmutableList<CSimpleType> PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES =
+      ImmutableList.of( // list of types with incrementing size, less than int
+          CNumericTypes.CHAR,
+          CNumericTypes.UNSIGNED_CHAR,
+          CNumericTypes.SHORT_INT,
+          CNumericTypes.UNSIGNED_SHORT_INT);
+
   private static final ImmutableList<CSimpleType> ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size
-          CNumericTypes.SIGNED_INT, CNumericTypes.UNSIGNED_INT, CNumericTypes.SIGNED_LONG_LONG_INT);
+          CNumericTypes.SIGNED_INT,
+          CNumericTypes.UNSIGNED_INT,
+          CNumericTypes.SIGNED_LONG_INT, // XXX why were no longs
+          CNumericTypes.UNSIGNED_LONG_INT,
+          CNumericTypes.SIGNED_LONG_LONG_INT,
+          CNumericTypes.UNSIGNED_LONG_LONG_INT);
 
   /**
-   * Compute a matching integer type for an enumeration. We use SIGNED_INT and switch to larger type
-   * if needed.
+   * Compute a matching integer type for each enumerator and for enumeration.
    *
    * <p>§6.7.2.2 (4) Each enumerated type shall be compatible with char, a signed integer type, or
    * an unsigned integer type. The choice of type is implementation-defined, but shall be capable of
    * representing the values of all the members of the enumeration.
+   *
+   * <p>GCC allows enumerators with values out of <code>int</code> bounds (breaks §6.7.2.2 (2)). GCC
+   * allows enums to be packed (using <code>__packed__</code> attribute).
+   *
+   * <p>For all enumerators and not packed enums GCC selects smallest type from (signed/unsigned)
+   * int, long, long long. For packed enums GCC selects from all types staring with (signed/unsigned)
+   * char and ending with long long.
+   *
+   * <p>Note that types of enumerators are not the same as type of the enum and also may differ from
+   * each other.
+   *
+   * @return integer type compatible with this enum
    */
-  private CSimpleType getEnumerationType(final CEnumType enumType) {
-    LongSummaryStatistics enumStatistics =
-        enumType.getEnumerators().stream()
-            .filter(CEnumerator::hasValue) // some values might not have been simplified
-            .mapToLong(CEnumerator::getValue)
-            .summaryStatistics();
+  private CSimpleType getEnumerationType(boolean pPacked, List<CEnumerator> pEnumerators) {
+    BigInteger minValue = null;
+    BigInteger maxValue = null;
 
-    Preconditions.checkState(
-        enumStatistics.getCount() > 0, "enumeration does not provide any values: %s", enumType);
-    final BigInteger minValue = BigInteger.valueOf(enumStatistics.getMin());
-    final BigInteger maxValue = BigInteger.valueOf(enumStatistics.getMax());
+    for (CEnumerator enumerator : pEnumerators) {
+      if (!enumerator.hasValue()) {
+        // some values might not have been simplified
+        // well, let it be int then
+        enumerator.setType(CNumericTypes.SIGNED_INT);
+      }
+
+      BigInteger value = BigInteger.valueOf(enumerator.getValue());
+      if (minValue == null || value.compareTo(minValue) < 0) {
+        minValue = value;
+      }
+      if (maxValue == null || value.compareTo(maxValue) > 0) {
+        maxValue = value;
+      }
+
+      CSimpleType enumeratorIntegerType = null;
+      for (CSimpleType integerType : ENUM_REPRESENTATION_CANDIDATE_TYPES) {
+        if (machinemodel.getMinimalIntegerValue(integerType).compareTo(value) <= 0
+            && machinemodel.getMaximalIntegerValue(integerType).compareTo(value) >= 0) {
+          enumerator.setType(integerType);
+          enumeratorIntegerType = integerType;
+          break;
+        }
+      }
+      assert enumeratorIntegerType != null
+          : "Value of enumerator is out of bound for all integer types";
+    }
+
+    if (minValue == null || maxValue == null) {
+      // no values were simplified
+      // assume int
+      return CNumericTypes.SIGNED_INT;
+    }
+
+    if (pPacked) {
+      for (CSimpleType integerType : PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES) {
+        if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
+            && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
+          // if all enumeration values are matching into the range, we use it
+          return integerType;
+        }
+      }
+    }
+
     for (CSimpleType integerType : ENUM_REPRESENTATION_CANDIDATE_TYPES) {
       if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
           && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
@@ -2849,8 +2916,10 @@ class ASTConverter {
         return integerType;
       }
     }
-    // if nothing works, use the largest type we have: ULL
-    return CNumericTypes.UNSIGNED_LONG_LONG_INT;
+
+    // if nothing works, assert above has already failed
+    assert false : "Values of enum are out of bound for all integer types";
+    return null;
   }
 
   private CEnumerator convert(IASTEnumerationSpecifier.IASTEnumerator e, Long lastValue) {

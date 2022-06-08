@@ -35,6 +35,7 @@ public final class CEnumType implements CComplexType {
   private final boolean isVolatile;
   private final Alignment alignment;
   private final boolean isPacked;
+  private CSimpleType integerType;
   private int hashCache = 0;
 
   public CEnumType(
@@ -42,6 +43,7 @@ public final class CEnumType implements CComplexType {
       boolean pVolatile,
       Alignment pAlignment,
       boolean pPacked,
+      CSimpleType pIntegerType,
       List<CEnumerator> pEnumerators,
       String pName,
       String pOrigName) {
@@ -49,18 +51,10 @@ public final class CEnumType implements CComplexType {
     isVolatile = pVolatile;
     alignment = checkNotNull(pAlignment);
     isPacked = pPacked;
+    integerType = checkNotNull(pIntegerType);
     enumerators = ImmutableList.copyOf(pEnumerators);
     name = pName.intern();
     origName = pOrigName.intern();
-  }
-
-  public CEnumType(
-      boolean pConst,
-      boolean pVolatile,
-      List<CEnumerator> pEnumerators,
-      String pName,
-      String pOrigName) {
-    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, false, pEnumerators, pName, pOrigName);
   }
 
   @Override
@@ -86,6 +80,25 @@ public final class CEnumType implements CComplexType {
   @Override
   public boolean isPacked() {
     return isPacked;
+  }
+
+  /**
+   * Cf. C-Standard §6.7.2.2 (4), enumerated types shall be compatible with char, a signed integer
+   * type, or an unsigned integer type, dependent on implementation.
+   *
+   * <p>GCC allows enumerators with values out of <code>int</code> bounds (breaks C-Standard
+   * §6.7.2.2 (2)). GCC allows enums to be packed (using <code>__packed__</code> attribute). For all
+   * enumerators and not packed enums GCC selects smallest type from (signed/unsigned) int, long,
+   * long long. For packed enums GCC selects from all types staring with (signed/unsigned) char and
+   * ending with long long.
+   *
+   * <p>Note that types of enumerators are not the same as type of the enum and also may differ from
+   * each other.
+   *
+   * @return integer type compatible with this enum
+   */
+  public CSimpleType getIntegerType() {
+    return integerType;
   }
 
   public ImmutableList<CEnumerator> getEnumerators() {
@@ -327,6 +340,7 @@ public final class CEnumType implements CComplexType {
         && isVolatile == other.isVolatile
         && alignment.equals(other.alignment)
         && isPacked == other.isPacked
+        && integerType.equals(other.integerType)
         && Objects.equals(name, other.name)
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -347,6 +361,7 @@ public final class CEnumType implements CComplexType {
         && isVolatile == other.isVolatile
         && alignment.equals(other.alignment)
         && isPacked == other.isPacked
+        && integerType.equals(other.integerType)
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -366,6 +381,7 @@ public final class CEnumType implements CComplexType {
         isVolatile || pForceVolatile,
         alignment,
         isPacked,
+        integerType,
         enumerators,
         name,
         origName);
@@ -376,6 +392,7 @@ public final class CEnumType implements CComplexType {
     if (isPacked == pPacked) {
       return this;
     }
-    return new CEnumType(isConst, isVolatile, alignment, pPacked, enumerators, name, origName);
+    return new CEnumType(
+        isConst, isVolatile, alignment, pPacked, integerType, enumerators, name, origName);
   }
 }

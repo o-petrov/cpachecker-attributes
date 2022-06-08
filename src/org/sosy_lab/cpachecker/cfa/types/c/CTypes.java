@@ -365,18 +365,17 @@ public final class CTypes {
       return areTypesCompatible(pointerA.getType(), pointerB.getType());
     }
 
-    CType basicSignedInt =
-        CNumericTypes.INT.getCanonicalType(pTypeA.isConst(), pTypeA.isVolatile());
-
     // Cf. C-Standard §6.7.2.2 (4), enumerated types shall be compatible with
     // char, a signed integer type, or an unsigned integer type, dependent on
     // implementation.
-    // We chose the implementation with compatibility to 'signed int', that GCC
-    // seemingly uses.
     if (pTypeA instanceof CEnumType && pTypeB instanceof CSimpleType) {
-      return pTypeB.getCanonicalType().equals(basicSignedInt.getCanonicalType());
+      return pTypeB
+          .getCanonicalType()
+          .equals(((CEnumType) pTypeA).getIntegerType().getCanonicalType());
     } else if (pTypeA instanceof CSimpleType && pTypeB instanceof CEnumType) {
-      return pTypeA.getCanonicalType().equals(basicSignedInt.getCanonicalType());
+      return pTypeA
+          .getCanonicalType()
+          .equals(((CEnumType) pTypeB).getIntegerType().getCanonicalType());
     }
 
     if (pTypeA instanceof CArrayType && pTypeB instanceof CArrayType) {
@@ -556,6 +555,7 @@ public final class CTypes {
           t.isVolatile(),
           t.getAlignment(),
           t.isPacked(),
+          t.getIntegerType(),
           t.getEnumerators(),
           t.getName(),
           t.getOrigName());
@@ -663,6 +663,7 @@ public final class CTypes {
           volatileValue,
           t.getAlignment(),
           t.isPacked(),
+          t.getIntegerType(),
           t.getEnumerators(),
           t.getName(),
           t.getOrigName());
@@ -777,6 +778,7 @@ public final class CTypes {
           t.isVolatile(),
           alignment,
           t.isPacked(),
+          t.getIntegerType(),
           t.getEnumerators(),
           t.getName(),
           t.getOrigName());

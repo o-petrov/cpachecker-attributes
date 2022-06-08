@@ -724,7 +724,14 @@ class FunctionCloner implements CFAVisitor {
         l.add(enumType);
       }
       return new CEnumType(
-          type.isConst(), type.isVolatile(), l, type.getName(), type.getOrigName());
+          type.isConst(),
+          type.isVolatile(),
+          type.getAlignment(),
+          type.isPacked(),
+          type.getIntegerType(),
+          l,
+          type.getName(),
+          type.getOrigName());
     }
 
     @Override

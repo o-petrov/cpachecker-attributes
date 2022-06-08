@@ -431,7 +431,14 @@ class GlobalScope extends AbstractScope {
 
       CEnumType renamedEnumType =
           new CEnumType(
-              oldType.isConst(), oldType.isVolatile(), list, newName, oldType.getOrigName());
+              oldType.isConst(),
+              oldType.isVolatile(),
+              oldType.getAlignment(),
+              oldType.isPacked(),
+              ((CEnumType) oldType).getIntegerType(),
+              list,
+              newName,
+              oldType.getOrigName());
       for (CEnumerator enumValue : renamedEnumType.getEnumerators()) {
         enumValue.setEnum(renamedEnumType);
       }

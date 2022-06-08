@@ -212,11 +212,13 @@ public class CBinaryExpressionBuilder {
     /* 6.7.2.2 Enumeration specifiers
      * The expression, that defines the value of an enumeration constant,
      * shall be an integer constant expression, that has a value representable as an int.
+     *
+     * But GCC allows long constants and packed enums, so return enum's integer type.
      */
-    if (pType instanceof CEnumType
-        || (pType instanceof CElaboratedType
-            && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM)) {
-      return CNumericTypes.SIGNED_INT;
+    if (pType instanceof CEnumType) {
+      return ((CEnumType) pType).getIntegerType();
+    } else if (pType instanceof CElaboratedType && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM) {
+      return ((CEnumType) ((CElaboratedType) pType).getRealType()).getIntegerType();
     } else if (pType instanceof CBitFieldType) {
       CBitFieldType bitFieldType = (CBitFieldType) pType;
       CType handledInnerType = handleEnum(bitFieldType.getType());

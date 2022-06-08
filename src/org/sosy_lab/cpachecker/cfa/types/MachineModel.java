@@ -11,7 +11,6 @@ package org.sosy_lab.cpachecker.cfa.types;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigInteger;
@@ -650,9 +649,8 @@ public enum MachineModel {
 
     @Override
     public BigInteger visit(CEnumType pEnumType) throws IllegalArgumentException {
-      // We assume that all enumerator types are identical, and that there is at least one enum.
-      Preconditions.checkState(!pEnumType.getEnumerators().isEmpty());
-      return model.getSizeof(pEnumType.getEnumerators().get(0).getType());
+      // return size of compatible integer
+      return BigInteger.valueOf(model.getSizeof(pEnumType.getIntegerType()));
     }
 
     @Override
@@ -824,8 +822,8 @@ public enum MachineModel {
         return result;
       }
 
-      // enums are always ints
-      return model.getAlignofInt();
+      // return alignment of compatible integer type
+      return pEnumType.getIntegerType().accept(this);
     }
 
     @Override
