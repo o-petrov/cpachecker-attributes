@@ -37,7 +37,17 @@ public class CanonicalTypeTest {
 
     CType longType =
         new CSimpleType(
-            false, false, Alignment.NO_SPECIFIERS, CBasicType.UNSPECIFIED, true, false, false, false, false, false, false);
+            false,
+            false,
+            Alignment.NO_SPECIFIERS,
+            CBasicType.UNSPECIFIED,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false);
     assertThat(longType.getCanonicalType()).isEqualTo(CNumericTypes.SIGNED_LONG_INT);
   }
 

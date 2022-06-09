@@ -18,6 +18,8 @@ public final class CNumericTypes {
       new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.BOOL, false, false, false, false, false, false, false);
   public static final CSimpleType CHAR =
       new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.CHAR, false, false, false, false, false, false, false);
+  public static final CSimpleType CONST_CHAR =
+      new CSimpleType(true, false, Alignment.NO_SPECIFIERS, CBasicType.CHAR, false, false, false, false, false, false, false);
   public static final CSimpleType SIGNED_CHAR =
       new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.CHAR, false, false, true, false, false, false, false);
   public static final CSimpleType UNSIGNED_CHAR =

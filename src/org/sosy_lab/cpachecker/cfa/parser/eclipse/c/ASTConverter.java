@@ -2598,18 +2598,20 @@ class ASTConverter {
         throw parseContext.parseError("Unsupported mode " + mode, context);
     }
 
-    // Copy const, volatile, and signedness from original type, rest from newType
+    // Copy const, volatile, alignment and signedness from original type,
+    // rest ('size' modifiers) from newType
     return new CSimpleType(
         type.isConst(),
         type.isVolatile(),
-        Alignment.NO_SPECIFIERS,
+        type.getAlignment(),
         newType.getType(),
         newType.isLong(),
         newType.isShort(),
         type.isSigned(),
-        type.isUnsigned(), // checked above
+        type.isUnsigned(),
         false, // checked above
-        false, newType.isLongLong());
+        false, // checked above
+        newType.isLongLong());
   }
 
   private CType convert(IASTArrayModifier am, CType type) {

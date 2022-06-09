@@ -63,8 +63,7 @@ public class BuiltinFunctions {
     }
 
     if (isPopcountFunction(pFunctionName)) {
-      return new CSimpleType(
-          false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, false, false, false, false);
+      return CNumericTypes.INT;
     }
 
     return UNSPECIFIED_TYPE;
