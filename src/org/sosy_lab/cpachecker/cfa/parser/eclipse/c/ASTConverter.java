@@ -2918,8 +2918,7 @@ class ASTConverter {
     }
 
     // if nothing works, assert above has already failed
-    assert false : "Values of enum are out of bound for all integer types";
-    return null;
+    throw new AssertionError("Values of enum are out of bound for all integer types");
   }
 
   private CEnumerator convert(IASTEnumerationSpecifier.IASTEnumerator e, Long lastValue) {
