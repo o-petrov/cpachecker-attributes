@@ -2830,19 +2830,19 @@ class ASTConverter {
 
   private static final ImmutableList<CSimpleType> PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size, less than int
-          CNumericTypes.CHAR,
           CNumericTypes.UNSIGNED_CHAR,
-          CNumericTypes.SHORT_INT,
-          CNumericTypes.UNSIGNED_SHORT_INT);
+          CNumericTypes.CHAR,
+          CNumericTypes.UNSIGNED_SHORT_INT,
+          CNumericTypes.SHORT_INT);
 
   private static final ImmutableList<CSimpleType> ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size
-          CNumericTypes.SIGNED_INT,
           CNumericTypes.UNSIGNED_INT,
-          CNumericTypes.SIGNED_LONG_INT, // XXX why were no longs
+          CNumericTypes.SIGNED_INT,
           CNumericTypes.UNSIGNED_LONG_INT,
-          CNumericTypes.SIGNED_LONG_LONG_INT,
-          CNumericTypes.UNSIGNED_LONG_LONG_INT);
+          CNumericTypes.SIGNED_LONG_INT, // XXX why were no longs
+          CNumericTypes.UNSIGNED_LONG_LONG_INT,
+          CNumericTypes.SIGNED_LONG_LONG_INT);
 
   /**
    * Compute a matching integer type for each enumerator and for enumeration.
