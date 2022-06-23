@@ -2831,16 +2831,16 @@ class ASTConverter {
   private static final ImmutableList<CSimpleType> PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size, less than int
           CNumericTypes.UNSIGNED_CHAR,
-          CNumericTypes.CHAR,
+          CNumericTypes.SIGNED_CHAR,
           CNumericTypes.UNSIGNED_SHORT_INT,
-          CNumericTypes.SHORT_INT);
+          CNumericTypes.SIGNED_SHORT_INT);
 
   private static final ImmutableList<CSimpleType> ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size
           CNumericTypes.UNSIGNED_INT,
           CNumericTypes.SIGNED_INT,
           CNumericTypes.UNSIGNED_LONG_INT,
-          CNumericTypes.SIGNED_LONG_INT, // XXX why were no longs
+          CNumericTypes.SIGNED_LONG_INT,
           CNumericTypes.UNSIGNED_LONG_LONG_INT,
           CNumericTypes.SIGNED_LONG_LONG_INT);
 

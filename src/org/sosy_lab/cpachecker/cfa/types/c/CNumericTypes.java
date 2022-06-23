@@ -32,6 +32,8 @@ public final class CNumericTypes {
       new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, true, false, false, false);
   public static final CSimpleType SHORT_INT =
       new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, true, false, false, false, false, false);
+  public static final CSimpleType SIGNED_SHORT_INT =
+      new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, true, true, false, false, false, false);
   public static final CSimpleType UNSIGNED_SHORT_INT =
       new CSimpleType(false, false, Alignment.NO_SPECIFIERS, CBasicType.INT, false, true, false, true, false, false, false);
   public static final CSimpleType LONG_INT =
