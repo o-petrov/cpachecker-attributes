@@ -83,17 +83,21 @@ public final class CEnumType implements CComplexType {
   }
 
   /**
-   * Cf. C-Standard §6.7.2.2 (4), enumerated types shall be compatible with char, a signed integer
-   * type, or an unsigned integer type, dependent on implementation.
+   * §6.7.2.2 (4) Each enumerated type shall be compatible with char, a signed integer type, or an
+   * unsigned integer type. The choice of type is implementation-defined, but shall be capable of
+   * representing the values of all the members of the enumeration.
    *
-   * <p>GCC allows enumerators with values out of <code>int</code> bounds (breaks C-Standard
-   * §6.7.2.2 (2)). GCC allows enums to be packed (using <code>__packed__</code> attribute). For all
-   * enumerators and not packed enums GCC selects smallest type from (signed/unsigned) int, long,
-   * long long. For packed enums GCC selects from all types staring with (signed/unsigned) char and
-   * ending with long long.
+   * <p>GCC selects type that can represent all enumerator values. If enumerated type has no
+   * negative enumerators, GCC selects unsigned type. For a packed enum GCC selects smallest
+   * possible type from char, short, int, long, long long. For a not packed enum GCC selects type
+   * from int, long, long long.
    *
-   * <p>Note that types of enumerators are not the same as type of the enum and also may differ from
-   * each other.
+   * <p>Enumerator of any enumerated type has type int if its value is inside int bounds. GCC allows
+   * enumerators with values out of int bounds (breaks §6.7.2.2 (2)). The type for such enumerator
+   * is the compatible integer type of the enum.
+   *
+   * <p>Note that types of enumerators may be either int or the underlying type of the enum and so
+   * may differ from each other and the enum compatible type.
    *
    * @return integer type compatible with this enum
    */

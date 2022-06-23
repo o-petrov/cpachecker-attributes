@@ -2845,21 +2845,23 @@ class ASTConverter {
           CNumericTypes.SIGNED_LONG_LONG_INT);
 
   /**
-   * Compute a matching integer type for each enumerator and for enumeration.
+   * Compute an underlying integer type for enumerated type.
    *
    * <p>§6.7.2.2 (4) Each enumerated type shall be compatible with char, a signed integer type, or
    * an unsigned integer type. The choice of type is implementation-defined, but shall be capable of
    * representing the values of all the members of the enumeration.
    *
-   * <p>GCC allows enumerators with values out of <code>int</code> bounds (breaks §6.7.2.2 (2)). GCC
-   * allows enums to be packed (using <code>__packed__</code> attribute).
+   * <p>GCC selects type that can represent all enumerator values. If enumerated type has no
+   * negative enumerators, GCC selects unsigned type. For a packed enum GCC selects smallest
+   * possible type from char, short, int, long, long long. For a not packed enum GCC selects type
+   * from int, long, long long.
    *
-   * <p>For all enumerators and not packed enums GCC selects smallest type from (signed/unsigned)
-   * int, long, long long. For packed enums GCC selects from all types staring with (signed/unsigned)
-   * char and ending with long long.
+   * <p>Enumerator of any enumerated type has type <code>int</code> if its value is inside <code>int
+   * </code> bounds. GCC allows enumerators with values out of <code>int</code> bounds (breaks
+   * §6.7.2.2 (2)). The type for such enumerator is the compatible integer type of the enum.
    *
-   * <p>Note that types of enumerators are not the same as type of the enum and also may differ from
-   * each other.
+   * <p>Note that types of enumerators may be either int or the underlying type of the enum and so
+   * may differ from each other and the enum compatible type.
    *
    * @return integer type compatible with this enum
    */
