@@ -2790,7 +2790,8 @@ class ASTConverter {
 
   private CEnumType convert(IASTEnumerationSpecifier d) {
     List<CEnumerator> list = new ArrayList<>(d.getEnumerators().length);
-    Long lastValue = -1L; // initialize with -1, so the first one gets value 0
+    // initialize with -1, so the first one gets value 0
+    BigInteger lastValue = BigInteger.ONE.negate();
     for (IASTEnumerationSpecifier.IASTEnumerator c : d.getEnumerators()) {
       CEnumerator newC = convert(c, lastValue);
       list.add(newC);
@@ -2876,7 +2877,7 @@ class ASTConverter {
         enumerator.setType(CNumericTypes.SIGNED_INT);
       }
 
-      BigInteger value = BigInteger.valueOf(enumerator.getValue());
+      BigInteger value = enumerator.getValue();
       if (minValue == null || value.compareTo(minValue) < 0) {
         minValue = value;
       }
@@ -2925,11 +2926,11 @@ class ASTConverter {
     throw new AssertionError("Values of enum are out of bound for all integer types");
   }
 
-  private CEnumerator convert(IASTEnumerationSpecifier.IASTEnumerator e, Long lastValue) {
-    Long value = null;
+  private CEnumerator convert(IASTEnumerationSpecifier.IASTEnumerator e, BigInteger lastValue) {
+    BigInteger value = null;
 
     if (e.getValue() == null && lastValue != null) {
-      value = lastValue + 1;
+      value = lastValue.add(BigInteger.ONE);
     } else {
       CExpression v = convertExpressionWithoutSideEffects(e.getValue());
 
@@ -2938,26 +2939,10 @@ class ASTConverter {
       // Lets assume that there is never a signed integer overflow or another property violation.
       v = simplifyExpressionRecursively(v);
 
-      boolean negate = false;
-      boolean complement = false;
-
-      if (v instanceof CUnaryExpression
-          && ((CUnaryExpression) v).getOperator() == UnaryOperator.MINUS) {
-        CUnaryExpression u = (CUnaryExpression) v;
-        negate = true;
-        v = u.getOperand();
-      } else if (v instanceof CUnaryExpression
-          && ((CUnaryExpression) v).getOperator() == UnaryOperator.TILDE) {
-        CUnaryExpression u = (CUnaryExpression) v;
-        complement = true;
-        v = u.getOperand();
-      }
-      assert !(v instanceof CUnaryExpression) : v;
-
       if (v instanceof CIntegerLiteralExpression) {
-        value = ((CIntegerLiteralExpression) v).asLong();
+        value = ((CIntegerLiteralExpression) v).getValue();
       } else if (v instanceof CCharLiteralExpression) {
-        value = (long) ((CCharLiteralExpression) v).getCharacter();
+        value = BigInteger.valueOf(((CCharLiteralExpression) v).getCharacter());
       } else {
         // ignore unsupported enum value and set it to NULL.
         // TODO bug? constant enums are ignored, if 'cfa.simplifyConstExpressions' is disabled.
@@ -2966,14 +2951,11 @@ class ASTConverter {
             "enum constant '%s = %s' was not simplified and will be ignored in the following.",
             e.getName(),
             v.toQualifiedASTString());
-      }
 
-      if (value != null) {
-        if (negate) {
-          value = -value;
-        } else if (complement) {
-          value = ~value;
-        }
+        assert v.getExpressionType().isConst()
+                && v.getExpressionType() instanceof CSimpleType
+                && ((CSimpleType) v.getExpressionType()).getType().isIntegerType()
+            : "enumerator value for '" + e.getName() + "' is not an integer constant";
       }
     }
 

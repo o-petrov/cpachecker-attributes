@@ -14,6 +14,7 @@ import static com.google.common.collect.Iterables.transform;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -217,7 +218,7 @@ public final class CEnumType implements CComplexType {
 
     private static final long serialVersionUID = -2526725372840523651L;
 
-    private final @Nullable Long value;
+    private final @Nullable BigInteger value;
     private @Nullable CEnumType enumType;
     private final String qualifiedName;
 
@@ -226,7 +227,7 @@ public final class CEnumType implements CComplexType {
         final String pName,
         final String pQualifiedName,
         final @Nullable CType pType,
-        final @Nullable Long pValue) {
+        final @Nullable BigInteger pValue) {
       super(pFileLocation, pType, pName);
 
       checkNotNull(pName);
@@ -285,7 +286,7 @@ public final class CEnumType implements CComplexType {
       return (CType) super.getType();
     }
 
-    public long getValue() {
+    public @Nullable BigInteger getValue() {
       checkState(value != null, "Need to check hasValue() before calling getValue()");
       return value;
     }

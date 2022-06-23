@@ -23,6 +23,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFloatLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializer;
+import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CTypeIdExpression;
@@ -317,30 +318,28 @@ public class ExpressionSimplificationVisitor
 
     // enum constant
     if (decl instanceof CEnumType.CEnumerator && ((CEnumType.CEnumerator) decl).hasValue()) {
-      final long v = ((CEnumType.CEnumerator) decl).getValue();
-      return new CIntegerLiteralExpression(expr.getFileLocation(), type, BigInteger.valueOf(v));
+      return new CIntegerLiteralExpression(
+          expr.getFileLocation(), type, ((CEnumType.CEnumerator) decl).getValue());
     }
 
-    // const variable, inline initializer
+    // const variable, inline initializer casted to variable type
     if (!(type instanceof CProblemType) && type.isConst() && decl instanceof CVariableDeclaration) {
 
       final CInitializer init = ((CVariableDeclaration) decl).getInitializer();
-      if (init instanceof CExpression) {
-        NumericValue v = getValue((CExpression) init);
+      if (init instanceof CInitializerExpression) {
+        NumericValue v = getValue(((CInitializerExpression) init).getExpression());
+        if (v != null) {
+          v =
+              (NumericValue)
+                  AbstractExpressionValueVisitor.castCValue(
+                      v, decl.getType(), machineModel, logger, init.getFileLocation());
 
-        if (v != null && decl.getType() instanceof CSimpleType) {
-          switch (((CSimpleType) type).getType()) {
-            case BOOL:
-            case CHAR:
-            case INT:
-              return new CIntegerLiteralExpression(
-                  expr.getFileLocation(), type, BigInteger.valueOf(v.longValue()));
-            case FLOAT:
-            case DOUBLE:
-              return new CFloatLiteralExpression(
-                  expr.getFileLocation(), type, BigDecimal.valueOf(v.doubleValue()));
-            default:
-              // fall-through and return the original expression
+          if (decl.getType() instanceof CSimpleType) {
+            if (((CSimpleType) type).getType().isIntegerType()) {
+              return new CIntegerLiteralExpression(expr.getFileLocation(), type, v.bigInteger());
+            } else {
+              return new CFloatLiteralExpression(expr.getFileLocation(), type, v.bigDecimalValue());
+            }
           }
         }
       }

@@ -199,9 +199,9 @@ class ExpressionValueVisitor
 
     if (decl instanceof CEnumerator) {
 
-      long enumValue = ((CEnumerator) decl).getValue();
+      boolean zeroEnumValue = ((CEnumerator) decl).getValue().equals(BigInteger.ZERO);
 
-      SMGSymbolicValue val = enumValue == 0 ? SMGZeroValue.INSTANCE : SMGUnknownValue.INSTANCE;
+      SMGSymbolicValue val = zeroEnumValue ? SMGZeroValue.INSTANCE : SMGUnknownValue.INSTANCE;
       return singletonList(SMGValueAndState.of(getInitialSmgState(), val));
 
     } else if (decl instanceof CVariableDeclaration || decl instanceof CParameterDeclaration) {

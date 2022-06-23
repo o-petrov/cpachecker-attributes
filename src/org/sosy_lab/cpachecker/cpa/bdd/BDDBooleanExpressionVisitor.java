@@ -101,7 +101,7 @@ public class BDDBooleanExpressionVisitor extends DefaultCExpressionVisitor<Regio
     if (idExp.getDeclaration() instanceof CEnumerator) {
       CEnumerator enumerator = (CEnumerator) idExp.getDeclaration();
       if (enumerator.hasValue()) {
-        return getNum(enumerator.getValue());
+        return getNum(enumerator.getValue().longValueExact());
       } else {
         return null;
       }
