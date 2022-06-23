@@ -1,0 +1,51 @@
+<?xml version="1.0" ?>
+
+<!--
+This file is part of CPAchecker,
+a tool for configurable software verification:
+https://cpachecker.sosy-lab.org
+
+SPDX-FileCopyrightText: 2007-2020 Dirk Beyer <https://www.sosy-lab.org>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<!--
+Test underlying integer type for packed/not packed enums with one enumerator.
+See also: ../programs/c_attributes/enums/README.txt
+-->
+
+<benchmark hardtimelimit="300" timelimit="270" tool="cpachecker">
+    <option name="-heap">4000m</option>
+    <option name="-noout"/>
+
+    <rundefinition name="64">
+        <option name="-64"/>
+        <tasks name="memcpy">
+            <option name="-smg"/>
+            <include>../programs/c_attributes/enums/memcpy*/*.yml</include>
+            <propertyfile>../config/properties/valid-memsafety.prp</propertyfile>
+        </tasks>
+        <tasks name="shift">
+            <option name="-predicateAnalysis"/>
+            <include>../programs/c_attributes/enums/shift*/*.yml</include>
+            <propertyfile>../config/properties/unreach-label.prp</propertyfile>
+        </tasks>
+    </rundefinition>
+
+    <rundefinition name="32">
+        <option name="-32"/>
+        <tasks name="memcpy">
+            <option name="-smg"/>
+            <include>../programs/c_attributes/enums/memcpy*/*.yml</include>
+            <!-- long and int are same size -->
+            <exclude>../programs/c_attributes/enums/memcpy-unsafe*/*-long-*.yml</exclude>
+            <propertyfile>../config/properties/valid-memsafety.prp</propertyfile>
+        </tasks>
+        <tasks name="shift">
+            <option name="-predicateAnalysis"/>
+            <include>../programs/c_attributes/enums/shift*/*.yml</include>
+            <propertyfile>../config/properties/unreach-label.prp</propertyfile>
+        </tasks>
+    </rundefinition>
+</benchmark>
