@@ -813,11 +813,13 @@ public class CtoFormulaConverter {
       return machineModel.getPointerEquivalentSimpleType();
     }
     if (pType instanceof CEnumType) {
-      return ((CEnumType) pType).getEnumerators().get(0).getType();
+      return ((CEnumType) pType).getIntegerType();
     }
     if (pType instanceof CElaboratedType
         && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM) {
-      return CNumericTypes.INT;
+      CEnumType enumType = (CEnumType) ((CElaboratedType) pType).getRealType();
+      assert enumType != null : "No real type for enum";
+      return enumType.getIntegerType();
     }
     return pType;
   }
