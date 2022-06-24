@@ -2944,36 +2944,23 @@ class ASTConverter {
       } else if (v instanceof CCharLiteralExpression) {
         enumeratorValue = BigInteger.valueOf(((CCharLiteralExpression) v).getCharacter());
       } else {
-        // ignore unsupported enum value and set it to NULL.
-        // TODO bug? constant enums are ignored, if 'cfa.simplifyConstExpressions' is disabled.
-        logger.logf(
-            Level.WARNING,
-            "enum constant '%s = %s' was not simplified and will be ignored in the following.",
-            e.getName(),
-            v.toQualifiedASTString());
-
-        assert v.getExpressionType().isConst()
-                && v.getExpressionType() instanceof CSimpleType
-                && ((CSimpleType) v.getExpressionType()).getType().isIntegerType()
-            : "enumerator value for '" + e.getName() + "' is not an integer constant";
+        throw new AssertionError(
+            "enum constant '"
+                + e.getName()
+                + " = "
+                + v.toQualifiedASTString()
+                + "' was not simplified");
       }
     }
 
-    if (enumeratorValue != null) {
-      BigInteger intMin = machinemodel.getMinimalIntegerValue(CNumericTypes.SIGNED_INT);
-      BigInteger intMax = machinemodel.getMaximalIntegerValue(CNumericTypes.SIGNED_INT);
-      if (enumeratorValue.compareTo(intMax) <= 0 && enumeratorValue.compareTo(intMin) >= 0) {
-        enumeratorType = CNumericTypes.SIGNED_INT;
-      } else {
-        // may be uint or greater than int
-        // replace with enum compatible type later
-        enumeratorType = CNumericTypes.BOOL;
-      }
-
-    } else {
-      // int or enum underlying type if value does not fit in int
-      // do not know value, so let's say it is int
+    BigInteger intMin = machinemodel.getMinimalIntegerValue(CNumericTypes.SIGNED_INT);
+    BigInteger intMax = machinemodel.getMaximalIntegerValue(CNumericTypes.SIGNED_INT);
+    if (enumeratorValue.compareTo(intMax) <= 0 && enumeratorValue.compareTo(intMin) >= 0) {
       enumeratorType = CNumericTypes.SIGNED_INT;
+    } else {
+      // may be uint or greater than int
+      // replace with enum compatible type later
+      enumeratorType = CNumericTypes.BOOL;
     }
 
     String name = convert(e.getName());

@@ -327,7 +327,7 @@ public class ExpressionSimplificationVisitor
 
       final CInitializer init = ((CVariableDeclaration) decl).getInitializer();
       if (init instanceof CInitializerExpression) {
-        NumericValue v = getValue(((CInitializerExpression) init).getExpression());
+        NumericValue v = getValue(recursive(((CInitializerExpression) init).getExpression()));
         if (v != null) {
           v =
               (NumericValue)
