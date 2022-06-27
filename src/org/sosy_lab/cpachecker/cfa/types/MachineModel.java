@@ -616,20 +616,18 @@ public enum MachineModel {
     }
 
     private BigInteger handleSizeOfUnion(CCompositeType pCompositeType) {
-      // empty union has size 0
-      if (pCompositeType.getMembers().size() == 0) {
-        return BigInteger.ZERO;
-      }
-
-      // size of union can not be less than alignment
-      BigInteger size = BigInteger.valueOf(model.getAlignof(pCompositeType));
+      BigInteger size = BigInteger.ZERO;
       BigInteger sizeOfType = BigInteger.ZERO;
-      // TODO: Take possible padding into account
       for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
         sizeOfType = decl.getType().accept(this);
         size = size.max(sizeOfType);
       }
-      return size;
+
+      // size is padded to the alignment
+      BigInteger align = BigInteger.valueOf(model.getAlignof(pCompositeType));
+      // .negate().mod returns how many bytes needed to get multiple of align
+      BigInteger padding = size.negate().mod(align);
+      return size.add(padding);
     }
 
     @Override
@@ -1138,10 +1136,7 @@ public enum MachineModel {
 
   private BigInteger getPaddingInBits(BigInteger pOffset, CType pType, long pSizeOfByte) {
     BigInteger alignof = BigInteger.valueOf(getAlignof(pType) * pSizeOfByte);
-    BigInteger padding = alignof.subtract(pOffset.mod(alignof));
-    if (padding.compareTo(alignof) < 0) {
-      return padding;
-    }
-    return BigInteger.ZERO;
+    // .negate().mod returns how many bytes needed to get multiple of alignof
+    return pOffset.negate().mod(alignof);
   }
 }
