@@ -38,6 +38,9 @@ public class CTypeToStringAlignmentTest {
   private static final CType CONST_VOLATILE_INT =
       new CSimpleType(true, true, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, false, false, false, false);
 
+  public static final CIntegerLiteralExpression THREE =
+      CIntegerLiteralExpression.createDummyLiteral(3L, CNumericTypes.INT);
+
   private static String aligned(int a) {
     return "__attribute__((__aligned__(" + a + ")))";
   }
@@ -148,35 +151,21 @@ public class CTypeToStringAlignmentTest {
       // ARRAYS
       { // declare array of char, 1-aligned
         "char var[3] " + aligned(1),
-        new CArrayType(
-            false, false, Alignment.ofVar(1), CNumericTypes.CHAR, CIntegerLiteralExpression.THREE),
+        new CArrayType(false, false, Alignment.ofVar(1), CNumericTypes.CHAR, THREE),
       },
       { // declare array of char, alignas-2
         "_Alignas(2) char var[3]",
-        new CArrayType(
-            false,
-            false,
-            Alignment.ofAlignas(2),
-            CNumericTypes.CHAR,
-            CIntegerLiteralExpression.THREE),
+        new CArrayType(false, false, Alignment.ofAlignas(2), CNumericTypes.CHAR, THREE),
       },
       { // declare array of char, alignas-2 1-aligned
         "_Alignas(2) char var[3] " + aligned(1),
         new CArrayType(
-            false,
-            false,
-            Alignment.ofAlignas(2).withVarAligned(1),
-            CNumericTypes.CHAR,
-            CIntegerLiteralExpression.THREE),
+            false, false, Alignment.ofAlignas(2).withVarAligned(1), CNumericTypes.CHAR, THREE),
       },
       { // declare array of char, alignas-2 1-aligned
         "_Alignas(2) const char var[3] " + aligned(4),
         new CArrayType(
-            true,
-            false,
-            Alignment.ofAlignas(2).withVarAligned(4),
-            CNumericTypes.CHAR,
-            CIntegerLiteralExpression.THREE),
+            true, false, Alignment.ofAlignas(2).withVarAligned(4), CNumericTypes.CHAR, THREE),
       },
       { // declare matrix of long double, alignas-16 1-aligned
         "_Alignas(16) long double var[3][3] " + aligned(1),
@@ -184,13 +173,8 @@ public class CTypeToStringAlignmentTest {
             false,
             false,
             Alignment.ofAlignas(16).withVarAligned(1),
-            new CArrayType(
-                false,
-                false,
-                Alignment.NO_SPECIFIERS,
-                CNumericTypes.LONG_DOUBLE,
-                CIntegerLiteralExpression.THREE),
-            CIntegerLiteralExpression.THREE),
+            new CArrayType(false, false, Alignment.NO_SPECIFIERS, CNumericTypes.LONG_DOUBLE, THREE),
+            THREE),
       },
     };
   }

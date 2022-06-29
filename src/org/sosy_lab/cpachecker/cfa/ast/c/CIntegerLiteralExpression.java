@@ -21,7 +21,6 @@ public class CIntegerLiteralExpression extends AIntegerLiteralExpression
   private static final long serialVersionUID = 7691279268370356228L;
   public static final CIntegerLiteralExpression ONE = createDummyLiteral(1L, CNumericTypes.INT);
   public static final CIntegerLiteralExpression ZERO = createDummyLiteral(0L, CNumericTypes.INT);
-  public static final CIntegerLiteralExpression THREE = createDummyLiteral(3L, CNumericTypes.INT);
 
   public static CIntegerLiteralExpression createDummyLiteral(long value, CType type) {
     return new CIntegerLiteralExpression(FileLocation.DUMMY, type, BigInteger.valueOf(value));
