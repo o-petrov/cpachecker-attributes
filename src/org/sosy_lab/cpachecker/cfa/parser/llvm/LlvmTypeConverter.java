@@ -292,6 +292,7 @@ public class LlvmTypeConverter {
         isSigned,
         isUnsigned,
         isComplex,
-        isImaginary, isLongLong);
+        isImaginary,
+        isLongLong);
   }
 }

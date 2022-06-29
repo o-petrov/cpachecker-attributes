@@ -116,9 +116,7 @@ public final class CStringLiteralExpression extends AStringLiteralExpression
 
     CExpression length =
         new CIntegerLiteralExpression(
-            getFileLocation(),
-            CNumericTypes.INT,
-            BigInteger.valueOf(getValue().length() - 1));
+            getFileLocation(), CNumericTypes.INT, BigInteger.valueOf(getValue().length() - 1));
 
     if (getExpressionType() instanceof CArrayType) {
       CArrayType arrayType = (CArrayType) getExpressionType();

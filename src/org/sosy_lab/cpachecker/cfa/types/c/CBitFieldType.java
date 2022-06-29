@@ -55,7 +55,6 @@ public class CBitFieldType implements CType {
     alignment = Preconditions.checkNotNull(pAlignment);
   }
 
-
   private CType checkType(CType pBitFieldType) {
     CType canonicalType = pBitFieldType.getCanonicalType();
     if (canonicalType instanceof CSimpleType) {

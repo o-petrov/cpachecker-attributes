@@ -297,7 +297,8 @@ class ASTTypeConverter {
           c.isSigned(),
           c.isUnsigned(),
           c.isComplex(),
-          c.isImaginary(), c.isLongLong());
+          c.isImaginary(),
+          c.isLongLong());
 
     } else {
       throw new CFAGenerationRuntimeException("Unknown type " + t);

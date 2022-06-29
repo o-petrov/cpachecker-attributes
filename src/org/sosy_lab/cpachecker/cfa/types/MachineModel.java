@@ -1127,10 +1127,7 @@ public enum MachineModel {
   }
 
   @Deprecated
-  public BigInteger calculatePaddedBitsize(
-      BigInteger pBitOffset,
-      CType pType,
-      long pSizeOfByte) {
+  public BigInteger calculatePaddedBitsize(BigInteger pBitOffset, CType pType, long pSizeOfByte) {
     // once pad the bits to full bytes, then pad bytes to the
     // alignment of the current type
     pBitOffset = sizeofVisitor.calculateByteSize(pBitOffset);

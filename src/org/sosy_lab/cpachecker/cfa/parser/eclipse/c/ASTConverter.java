@@ -2119,7 +2119,8 @@ class ASTConverter {
     }
     Alignment alignment = Alignment.ofVar(aligned);
 
-    // get specifier from declSpecifier (it applies to all variables like attribute in declSpecifier)
+    // get specifier from declSpecifier
+    // (it applies to all variables like attribute in declSpecifier)
     int alignas = Alignment.NO_SPECIFIER;
     for (IASTAlignmentSpecifier alignSpec :
         ((ICASTDeclSpecifier) specifier).getAlignmentSpecifiers()) {

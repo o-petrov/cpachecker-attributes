@@ -217,7 +217,8 @@ public class CBinaryExpressionBuilder {
      */
     if (pType instanceof CEnumType) {
       return ((CEnumType) pType).getIntegerType();
-    } else if (pType instanceof CElaboratedType && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM) {
+    } else if (pType instanceof CElaboratedType
+        && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM) {
       return ((CEnumType) ((CElaboratedType) pType).getRealType()).getIntegerType();
     } else if (pType instanceof CBitFieldType) {
       CBitFieldType bitFieldType = (CBitFieldType) pType;

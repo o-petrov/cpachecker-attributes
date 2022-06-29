@@ -154,7 +154,8 @@ public final class CTypedefType implements CType, Serializable {
 
   @Override
   public CType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
-    CType underlyingType = realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+    CType underlyingType =
+        realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
     return CTypes.updateAlignment(underlyingType, alignment);
   }
 }
