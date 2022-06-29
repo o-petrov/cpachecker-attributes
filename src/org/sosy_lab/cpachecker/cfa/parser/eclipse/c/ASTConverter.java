@@ -2054,9 +2054,12 @@ class ASTConverter {
   }
 
   /**
-   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and
-   * <code>_Alignas(<i>alignment</i>)</code> attached to a declaration. Documentation:
-   * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
+   * _Alignas(<i>alignment</i>)</code> attached to a declaration.
+   *
+   * <p>Documentation:
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html#index-aligned-type-attribute
    * https://en.cppreference.com/w/c/language/_Alignas
    */
   public CType handleAlignment(
@@ -2065,12 +2068,13 @@ class ASTConverter {
   }
 
   /**
-   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and
-   * <code>_Alignas(<i>alignment</i>)</code> attached to a member declaration.
-   * A member of not packed struct/union can not be less aligned then default.
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
+   * _Alignas(<i>alignment</i>)</code> attached to a member declaration. A member of not packed
+   * struct/union can not be less aligned then default.
    *
-   * <p>Documentation: https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html
-   * https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html
+   * <p>Documentation:
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html#index-aligned-type-attribute
    * https://en.cppreference.com/w/c/language/_Alignas
    */
   private CType handleAlignmentOfMember(
