@@ -30,7 +30,17 @@ public class BuiltinFunctions {
 
   private static final CType UNSPECIFIED_TYPE =
       new CSimpleType(
-          false, false, Alignment.NO_SPECIFIERS, CBasicType.UNSPECIFIED, false, false, false, false, false, false, false);
+          false,
+          false,
+          Alignment.NO_SPECIFIERS,
+          CBasicType.UNSPECIFIED,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false);
 
   public static boolean isBuiltinFunction(String pFunctionName) {
     return pFunctionName.startsWith("__builtin_")

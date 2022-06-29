@@ -36,7 +36,18 @@ public class CTypeToStringAlignmentTest {
   private static final String VAR = "var";
 
   private static final CType CONST_VOLATILE_INT =
-      new CSimpleType(true, true, Alignment.NO_SPECIFIERS, CBasicType.INT, false, false, false, false, false, false, false);
+      new CSimpleType(
+          true,
+          true,
+          Alignment.NO_SPECIFIERS,
+          CBasicType.INT,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false);
 
   public static final CIntegerLiteralExpression THREE =
       CIntegerLiteralExpression.createDummyLiteral(3L, CNumericTypes.INT);

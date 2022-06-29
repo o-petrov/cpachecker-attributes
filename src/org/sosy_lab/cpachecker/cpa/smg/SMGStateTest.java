@@ -61,7 +61,17 @@ public class SMGStateTest {
 
   private CSimpleType unspecifiedType =
       new CSimpleType(
-          false, false, Alignment.NO_SPECIFIERS, CBasicType.UNSPECIFIED, false, false, true, false, false, false, false);
+          false,
+          false,
+          Alignment.NO_SPECIFIERS,
+          CBasicType.UNSPECIFIED,
+          false,
+          false,
+          true,
+          false,
+          false,
+          false,
+          false);
   private CType pointerType = new CPointerType(false, false, unspecifiedType);
   private static final MachineModel MM = MachineModel.LINUX32;
   private final long ptrSize = MM.getSizeofInBits(pointerType).longValueExact();

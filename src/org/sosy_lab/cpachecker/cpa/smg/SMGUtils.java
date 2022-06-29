@@ -88,7 +88,17 @@ public final class SMGUtils {
     private final MachineModel model;
     private static final CType UNKNOWN =
         new CSimpleType(
-            false, false, Alignment.NO_SPECIFIERS, CBasicType.UNSPECIFIED, false, false, false, false, false, false, false);
+            false,
+            false,
+            Alignment.NO_SPECIFIERS,
+            CBasicType.UNSPECIFIED,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false);
 
     public CFieldTypeVisitor(long pFieldOffset, MachineModel pModel) {
       fieldOffset = pFieldOffset;

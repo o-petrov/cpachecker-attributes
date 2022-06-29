@@ -613,12 +613,32 @@ public class CBinaryExpressionBuilder {
 
     if (t1.isSigned()) {
       return new CSimpleType(
-          false, false, Alignment.NO_SPECIFIERS, INT, t1.isLong(), false, false, true, false, false, t1.isLongLong());
+          false,
+          false,
+          Alignment.NO_SPECIFIERS,
+          INT,
+          t1.isLong(),
+          false,
+          false,
+          true,
+          false,
+          false,
+          t1.isLongLong());
     }
 
     if (t2.isSigned()) {
       return new CSimpleType(
-          false, false, Alignment.NO_SPECIFIERS, INT, t2.isLong(), false, false, true, false, false, t2.isLongLong());
+          false,
+          false,
+          Alignment.NO_SPECIFIERS,
+          INT,
+          t2.isLong(),
+          false,
+          false,
+          true,
+          false,
+          false,
+          t2.isLongLong());
     }
 
     throw new AssertionError("unhandled type: " + t1 + " or " + t2);
