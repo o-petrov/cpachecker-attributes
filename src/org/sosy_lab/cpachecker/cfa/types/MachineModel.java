@@ -771,15 +771,11 @@ public enum MachineModel {
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
             CType memberType = decl.getType();
-            if (!pCompositeType.isPacked() && memberType instanceof CBitFieldType) {
-              // alignment attrbute applies to the type of bitfield if structure is packed
-              // or if it is greater than default for declared type
-              alignOfType =
-                  Math.max(
-                      alignmentFromAttributes(memberType.getAlignment()),
-                      ((CBitFieldType) memberType).getType().accept(this));
+            if (memberType instanceof CBitFieldType
+                && ((CBitFieldType) memberType).getBitFieldSize() == 0) {
+              // zero bit-fields are ignored
+              continue;
             } else {
-              // alignment attribute applies even if it is less than default
               alignOfType = memberType.accept(this);
             }
             alignof = Math.max(alignof, alignOfType);
@@ -905,12 +901,16 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CBitFieldType pCBitFieldType) throws IllegalArgumentException {
-      int result = alignmentFromAttributes(pCBitFieldType.getAlignment());
-      if (result != Alignment.NO_SPECIFIER) {
-        return result;
-      }
+      // this method is called only when computing alignment of containing struct/union
 
-      return pCBitFieldType.getType().accept(this);
+      // alignment attribute applies to the type of bitfield if structure is packed
+      int attrs = alignmentFromAttributes(pCBitFieldType.getAlignment());
+      if (pCBitFieldType.getAlignment().isInsidePacked()) {
+        return attrs;
+      }
+      // or if it is greater than default for declared type
+      int def = pCBitFieldType.getType().accept(this);
+      return attrs > def ? attrs : def;
     }
   }
 
@@ -1025,17 +1025,27 @@ public enum MachineModel {
         }
 
         boolean isBitfield = type instanceof CBitFieldType;
-
-        Alignment effectiveAlignment = type.getAlignment();
-        CType effectiveType =
-            isBitfield
-                ? CTypes.overrideAlignment(((CBitFieldType) type).getType(), effectiveAlignment)
-                : type;
-
         boolean isZeroLength = fieldSizeInBits.compareTo(BigInteger.ZERO) == 0;
-        boolean hasAlignedAttr =
-            !effectiveAlignment.withInsidePacked(false).equals(Alignment.NO_SPECIFIERS);
+        Alignment effectiveAlignment = type.getAlignment().withInsidePacked(false);
+        boolean hasAlignedAttr = !effectiveAlignment.equals(Alignment.NO_SPECIFIERS);
+        CType effectiveType = type;
 
+        if (isBitfield) {
+          effectiveType = ((CBitFieldType) type).getType();
+          int alignFromAttr =
+              ((BaseAlignofVisitor) alignofVisitor).alignmentFromAttributes(effectiveAlignment);
+          boolean fieldFits =
+              fieldSizeInBits.compareTo(BigInteger.valueOf(sizeOfByte * alignFromAttr)) <= 0;
+          boolean greaterAlign = getAlignof(effectiveType) < alignFromAttr;
+          // lesser align applies if bit-field fits inside alignment or struct is packed
+          // but zero-length bit-fields can only be overaligned
+          boolean lesserAlignApplies = !isZeroLength && (pOwnerType.isPacked() || fieldFits);
+          if (greaterAlign || lesserAlignApplies) {
+            effectiveType = CTypes.overrideAlignment(effectiveType, effectiveAlignment);
+          }
+        }
+
+        // add padding bits if needed
         if (!isBitfield || isZeroLength || hasAlignedAttr) {
           // Usual fields, bit-fields with length 0, and bit-fields
           // with alignment attributes guarantee that
@@ -1065,11 +1075,10 @@ public enum MachineModel {
           // in memory, while the same struct without the
           // 'char : 0;' member would just occupy 1 Byte.
           bitOffset = calculatePaddedBitsize(bitOffset, effectiveType, sizeOfByte);
-        } else if (effectiveAlignment.isInsidePacked()) {
+
+        } else if (!pOwnerType.isPacked()) {
           // all bitfields are consequent in packed struct
-          // pass
-        } else {
-          // usual bitfield
+
           bitOffset =
               calculateNecessaryBitfieldOffset(
                   bitOffset, effectiveType, sizeOfByte, fieldSizeInBits);
