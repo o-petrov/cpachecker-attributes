@@ -1,0 +1,45 @@
+<?xml version="1.0" ?>
+
+<!--
+This file is part of CPAchecker,
+a tool for configurable software verification:
+https://cpachecker.sosy-lab.org
+
+SPDX-FileCopyrightText: 2007-2020 Dirk Beyer <https://www.sosy-lab.org>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<!--
+Test structs/unions with (aligned) (bit-)fields.
+See also: ../programs/c_attributes/structs-and-unions/README.txt
+-->
+
+<benchmark hardtimelimit="300" timelimit="270" tool="cpachecker">
+    <option name="-heap">4000m</option>
+    <option name="-noout"/>
+    <option name="-64"/>
+
+    <rundefinition name="smg">
+        <option name="-smg"/>
+        <propertyfile>../config/properties/valid-memsafety.prp</propertyfile>
+    </rundefinition>
+
+    <rundefinition name="predicate">
+        <option name="-predicateAnalysis"/>
+        <propertyfile>../config/properties/unreach-label.prp</propertyfile>
+    </rundefinition>
+
+    <tasks name="common">
+        <include>../programs/c_attributes/structs-and-unions/common/empties/*.yml</include>
+        <include>../programs/c_attributes/structs-and-unions/common/*/*/*.yml</include>
+    </tasks>
+    <tasks name="gcc-specific">
+        <include>../programs/c_attributes/structs-and-unions/gcc-specific/empties/*.yml</include>
+        <include>../programs/c_attributes/structs-and-unions/gcc-specific/*/*/*.yml</include>
+    </tasks>
+    <tasks name="clang-specific">
+        <include>../programs/c_attributes/structs-and-unions/clang-specific/empties/*.yml</include>
+        <include>../programs/c_attributes/structs-and-unions/clang-specific/*/*/*.yml</include>
+    </tasks>
+</benchmark>
