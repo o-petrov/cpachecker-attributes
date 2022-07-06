@@ -33,10 +33,7 @@ public class Alignment implements Serializable, Comparable<Alignment> {
   private final boolean insidePacked;
 
   public Alignment(int pTypeAligned, int pVarAligned, int pAlignas) {
-    typeAligned = pTypeAligned;
-    varAligned = pVarAligned;
-    alignas = pAlignas;
-    insidePacked = false;
+    this(pTypeAligned, pVarAligned, pAlignas, false);
   }
 
   public Alignment(int pTypeAligned, int pVarAligned, int pAlignas, boolean pPacked) {

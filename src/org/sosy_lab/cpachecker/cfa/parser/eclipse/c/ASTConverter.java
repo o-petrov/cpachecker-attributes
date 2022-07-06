@@ -2830,7 +2830,7 @@ class ASTConverter {
   private CEnumType convert(IASTEnumerationSpecifier d) {
     List<CEnumerator> list = new ArrayList<>(d.getEnumerators().length);
     // initialize with -1, so the first one gets value 0
-    BigInteger lastValue = BigInteger.ONE.negate();
+    BigInteger lastValue = BigInteger.valueOf(-1);
     for (IASTEnumerationSpecifier.IASTEnumerator c : d.getEnumerators()) {
       // if enumerator type is int, it is set here
       CEnumerator newC = convert(c, lastValue);
