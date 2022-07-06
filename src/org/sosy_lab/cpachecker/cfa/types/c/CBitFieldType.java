@@ -8,7 +8,12 @@
 
 package org.sosy_lab.cpachecker.cfa.types.c;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import java.util.ArrayList;
 import java.util.Objects;
 import org.sosy_lab.cpachecker.cfa.types.c.CComplexType.ComplexTypeKind;
 
@@ -81,22 +86,19 @@ public class CBitFieldType implements CType {
 
   @Override
   public String toASTString(String pDeclarator) {
+    checkNotNull(pDeclarator);
     if (bitFieldSize == 0) {
       // bit-field types are valid only in fields, and zero-width bit fields need to be anonymous
       pDeclarator = "";
     }
 
-    String alignas = alignment.stringAlignas();
-    if (!alignas.isEmpty()) {
-      alignas += ' ';
-    }
-
-    String aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      aligned = ' ' + aligned;
-    }
-
-    return alignas + type.toASTString(pDeclarator) + " : " + bitFieldSize + aligned;
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+    parts.add(type.toASTString(pDeclarator));
+    parts.add(":");
+    parts.add(String.valueOf(bitFieldSize));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
@@ -158,17 +160,11 @@ public class CBitFieldType implements CType {
 
   @Override
   public String toString() {
-    String alignas = alignment.stringAlignas();
-    if (!alignas.isEmpty()) {
-      alignas += ' ';
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
     }
-
-    String aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      aligned = ' ' + aligned;
-    }
-
-    return alignas + getType() + " : " + getBitFieldSize() + aligned;
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override

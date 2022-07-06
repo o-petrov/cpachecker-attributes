@@ -94,7 +94,19 @@ public class Alignment implements Serializable, Comparable<Alignment> {
   }
 
   public String stringTypeAligned() {
-    return typeAligned == NO_SPECIFIER ? "" : "__attribute__((__aligned__(" + typeAligned + ")))";
+    return stringTypeAligned(false);
+  }
+
+  public String stringTypeAlignedAsComment() {
+    return stringTypeAligned(true);
+  }
+
+  public String stringTypeAligned(boolean asComment) {
+    return typeAligned == NO_SPECIFIER
+        ? ""
+        : (asComment
+            ? "/* the type is aligned as " + typeAligned + " */"
+            : "__attribute__((__aligned__(" + typeAligned + ")))");
   }
 
   public String stringVarAligned() {

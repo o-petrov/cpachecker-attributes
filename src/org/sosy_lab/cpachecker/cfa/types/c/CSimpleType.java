@@ -172,11 +172,11 @@ public final class CSimpleType implements CType, Serializable {
 
   @Override
   public String toString() {
-    String aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      aligned = "/* " + aligned + " */";
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
     }
-    return toASTString(aligned);
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override

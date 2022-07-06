@@ -12,8 +12,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import java.util.ArrayList;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.types.AFunctionType;
@@ -64,6 +66,15 @@ public class CFunctionType extends AFunctionType implements CType {
   }
 
   @Override
+  public String toString() {
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
+    }
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
+  }
+
+  @Override
   public String toASTString(final String pDeclarator) {
     return toASTString(
         pDeclarator, Lists.transform(getParameters(), pInput -> pInput.toASTString("")));
@@ -92,20 +103,14 @@ public class CFunctionType extends AFunctionType implements CType {
     }
     lASTString.append(")");
 
-    String alignas = alignment.stringAlignas();
-    if (!alignas.isEmpty()) {
-      alignas += ' ';
-    }
-    String aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      aligned = ' ' + aligned;
-    }
-    if (!alignment.stringTypeAligned().isEmpty()) {
-      aligned += "/* type " + alignment.stringTypeAligned() + " */";
-    }
     // The return type can span the rest of the type, so we cannot prefix but need this trick.
     String nameAndParams = lASTString.toString();
-    return alignas + getReturnType().toASTString(nameAndParams) + aligned;
+
+    List<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+    parts.add(getReturnType().toASTString(nameAndParams));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override

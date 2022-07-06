@@ -11,7 +11,9 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.transform;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
@@ -141,96 +143,43 @@ public final class CCompositeType implements CComplexType {
 
   @Override
   public String toString() {
-    StringBuilder result = new StringBuilder();
-    String aligned = alignment.stringAlignas();
-    if (!aligned.isEmpty()) {
-      result.append(aligned);
-      result.append(" ");
-    }
-
-    if (isConst()) {
-      result.append("const ");
-    }
-    if (isVolatile()) {
-      result.append("volatile ");
-    }
-
-    result.append(kind.toASTString());
-    result.append(' ');
-    result.append(name);
-
-    if (isPacked) {
-      result.append(" __attribute__((__packed__))");
-    }
-
-    aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      result.append(' ');
-      result.append(aligned);
-      result.append(" /* type */");
-    }
-
-    aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      result.append(" /* var */ ");
-      result.append(aligned);
-    }
-
-    return result.toString();
+    return toASTString("");
   }
 
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    StringBuilder lASTString = new StringBuilder();
-    String aligned = alignment.stringAlignas();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
     if (isConst()) {
-      lASTString.append("const ");
+      parts.add("const");
     }
     if (isVolatile()) {
-      lASTString.append("volatile ");
+      parts.add("volatile");
     }
+    parts.add(kind.toASTString());
+    parts.add(name);
 
-    lASTString.append(kind.toASTString());
-    lASTString.append(' ');
-    lASTString.append(name);
-
-    if (members == null) {
-      lASTString.append(" /* missing member initialization */ ");
-    } else {
-      lASTString.append(" {\n");
-      for (CCompositeTypeMemberDeclaration lMember : members) {
-        lASTString.append("  ");
-        lASTString.append(lMember.toASTString());
-        lASTString.append("\n");
+    if (!pDeclarator.isEmpty()) {
+      if (members == null) {
+        parts.add("/* missing member initialization */");
+      } else {
+        parts.add(
+            "{\n  "
+                + Joiner.on(",\n  ")
+                    .join(transform(members, CCompositeTypeMemberDeclaration::toASTString))
+                + "\n}");
       }
-      lASTString.append("} ");
     }
 
     if (isPacked) {
-      lASTString.append("__attribute__((__packed__)) ");
+      parts.add("__attribute__((__packed__))");
     }
 
-    aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
-    lASTString.append(pDeclarator);
-
-    aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(" ");
-      lASTString.append(aligned);
-    }
-
-    return lASTString.toString();
+    parts.add(Strings.emptyToNull(alignment.stringTypeAligned()));
+    parts.add(pDeclarator);
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   /**

@@ -13,8 +13,10 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -133,84 +135,37 @@ public final class CEnumType implements CComplexType {
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    StringBuilder lASTString = new StringBuilder();
-    String aligned = alignment.stringAlignas();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
     if (isConst()) {
-      lASTString.append("const ");
+      parts.add("const");
     }
     if (isVolatile()) {
-      lASTString.append("volatile ");
+      parts.add("volatile");
     }
+    parts.add("enum");
+    parts.add(name);
 
-    lASTString.append("enum ");
-    lASTString.append(name);
-
-    lASTString.append(" {\n  ");
-    Joiner.on(",\n  ").appendTo(lASTString, transform(enumerators, CEnumerator::toASTString));
-    lASTString.append("\n} ");
+    if (!pDeclarator.isEmpty()) {
+      parts.add(
+          "{\n  "
+              + Joiner.on(",\n  ").join(transform(enumerators, CEnumerator::toASTString))
+              + "\n}");
+    }
 
     if (isPacked) {
-      lASTString.append("__attribute__((__packed__)) ");
+      parts.add("__attribute__((__packed__))");
     }
 
-    aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
-    lASTString.append(pDeclarator);
-    aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(" ");
-      lASTString.append(aligned);
-    }
-
-    return lASTString.toString();
+    parts.add(Strings.emptyToNull(alignment.stringTypeAligned()));
+    parts.add(Strings.emptyToNull(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
   public String toString() {
-    StringBuilder lASTString = new StringBuilder();
-    String aligned = alignment.stringAlignas();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
-    if (isConst()) {
-      lASTString.append("const ");
-    }
-    if (isVolatile()) {
-      lASTString.append("volatile ");
-    }
-
-    lASTString.append("enum ");
-    lASTString.append(name);
-
-    if (isPacked) {
-      lASTString.append(" __attribute__((__packed__))");
-    }
-
-    aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(' ');
-      lASTString.append(aligned);
-      lASTString.append(" /* type */");
-    }
-
-    aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(" /* var */ ");
-      lASTString.append(aligned);
-    }
-
-    return lASTString.toString();
+    return toASTString("");
   }
 
   public static final class CEnumerator extends AbstractSimpleDeclaration

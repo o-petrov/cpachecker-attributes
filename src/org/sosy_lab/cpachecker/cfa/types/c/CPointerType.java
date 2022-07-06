@@ -10,7 +10,10 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -77,54 +80,42 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public String toString() {
-    String aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      aligned += ' ';
-    }
-    String decl = "(" + type + ")*";
-    return (isConst() ? "const " : "") + (isVolatile() ? "volatile " : "") + aligned + decl;
+    return toASTString("");
   }
 
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
+    ArrayList<String> parts = new ArrayList<>();
     // ugly hack but it works:
     // We need to insert the "*" and qualifiers between the type and the name (e.g. "int *var").
-    StringBuilder inner = new StringBuilder("*");
+
     if (isConst()) {
-      inner.append(" const");
+      parts.add("const");
     }
     if (isVolatile()) {
-      inner.append(" volatile");
+      parts.add("volatile");
     }
+    if (alignment.getTypeAligned() != Alignment.NO_SPECIFIER) {
+      parts.add(alignment.stringTypeAligned());
+    }
+    // if qualifiers, add a space after asterisk
+    String asterisk = parts.size() == 0 ? "*" : "* ";
 
-    String aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      inner.append(' ').append(aligned);
-    }
-
-    if (inner.length() > 1) {
-      inner.append(' ');
-    }
-    inner.append(pDeclarator);
+    parts.add(Strings.emptyToNull(pDeclarator));
+    String declarator = asterisk + Joiner.on(' ').skipNulls().join(parts);
 
     if (type instanceof CArrayType) {
-      inner.insert(0, '(').append(')');
+      declarator = '(' + declarator + ')';
     }
+    declarator = type.toASTString(declarator);
 
-    String result = type.toASTString(inner.toString());
+    parts.clear();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+    parts.add(declarator);
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
 
-    String alignas = alignment.stringAlignas();
-    if (!alignas.isEmpty()) {
-      result = alignas + ' ' + result;
-    }
-
-    aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      result = result + ' ' + aligned;
-    }
-
-    return result;
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override

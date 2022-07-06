@@ -10,6 +10,10 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -75,26 +79,20 @@ public final class CArrayType extends AArrayType implements CType {
 
   private String toASTString(String pDeclarator, boolean pQualified) {
     checkNotNull(pDeclarator);
-    String alignas = alignment.stringAlignas();
-    if (!alignas.isEmpty()) {
-      alignas += ' ';
+    List<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+
+    if (isConst()) {
+      parts.add("const");
     }
-    String alignedType = alignment.stringTypeAligned();
-    if (!alignedType.isEmpty()) {
-      alignedType = "/* " + alignedType + " */ ";
+    if (isVolatile()) {
+      parts.add("volatile");
     }
-    String alignedVar = alignment.stringVarAligned();
-    if (!alignedVar.isEmpty()) {
-      alignedVar = ' ' + alignedVar;
-    }
-    return alignas
-        + (isConst() ? "const " : "")
-        + (isVolatile() ? "volatile " : "")
-        + alignedType
-        + getType()
-            .toASTString(
-                pDeclarator + ("[" + (length != null ? length.toASTString(pQualified) : "") + "]"))
-        + alignedVar;
+
+    pDeclarator += "[" + (length != null ? length.toASTString(pQualified) : "") + "]";
+    parts.add(getType().toASTString(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   public String toQualifiedASTString(String pDeclarator) {
@@ -123,16 +121,11 @@ public final class CArrayType extends AArrayType implements CType {
 
   @Override
   public String toString() {
-    String aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      aligned += ' ';
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
     }
-    return (isConst() ? "const " : "")
-        + (isVolatile() ? "volatile " : "")
-        + aligned
-        + "("
-        + getType()
-        + (")[" + (length != null ? length.toASTString() : "") + "]");
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override

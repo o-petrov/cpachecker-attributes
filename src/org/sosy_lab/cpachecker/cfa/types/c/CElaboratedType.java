@@ -12,6 +12,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import java.util.ArrayList;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -112,45 +115,28 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    StringBuilder lASTString = new StringBuilder();
-    String aligned = alignment.stringAlignas();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
     if (isConst()) {
-      lASTString.append("const ");
+      parts.add("const");
     }
     if (isVolatile()) {
-      lASTString.append("volatile ");
+      parts.add("volatile");
     }
-
-    lASTString.append(kind.toASTString());
-    lASTString.append(" ");
-    lASTString.append(name);
-    lASTString.append(" ");
-
-    aligned = alignment.stringTypeAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(aligned);
-      lASTString.append(" ");
-    }
-
-    lASTString.append(pDeclarator);
-
-    aligned = alignment.stringVarAligned();
-    if (!aligned.isEmpty()) {
-      lASTString.append(" ");
-      lASTString.append(aligned);
-    }
-
-    return lASTString.toString();
+    parts.add(kind.toASTString());
+    parts.add(name);
+    parts.add(Strings.emptyToNull(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
   public String toString() {
-    return toASTString("/* <-type aligned var-> */");
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
+    }
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override

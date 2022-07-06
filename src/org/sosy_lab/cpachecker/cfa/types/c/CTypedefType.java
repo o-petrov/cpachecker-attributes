@@ -10,7 +10,10 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -59,33 +62,29 @@ public final class CTypedefType implements CType, Serializable {
 
   @Override
   public String toString() {
-    String alignedType = alignment.stringTypeAligned();
-    if (!alignedType.isEmpty()) {
-      alignedType = "/* " + alignedType + " */";
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
     }
-    return toASTString(alignedType);
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    String alignas = alignment.stringAlignas();
-    if (!alignas.isEmpty()) {
-      alignas += ' ';
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+
+    if (isConst()) {
+      parts.add("const");
     }
-    String alignedVar = alignment.stringVarAligned();
-    if (!alignedVar.isEmpty()) {
-      alignedVar = ' ' + alignedVar;
+    if (isVolatile()) {
+      parts.add("volatile");
     }
-    if (!pDeclarator.isEmpty()) {
-      pDeclarator = ' ' + pDeclarator;
-    }
-    return alignas
-        + (isConst() ? "const " : "")
-        + (isVolatile() ? "volatile " : "")
-        + name
-        + pDeclarator
-        + alignedVar;
+    parts.add(name);
+    parts.add(pDeclarator);
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
