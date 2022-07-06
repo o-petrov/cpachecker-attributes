@@ -2114,6 +2114,23 @@ class ASTConverter {
     // but bitfields never ignore alignment
     if (type instanceof CBitFieldType) {
       canBeLessAligned = true;
+      boolean fieldFits =
+          aligned * machinemodel.getSizeofCharInBits() >= ((CBitFieldType) type).getBitFieldSize();
+      if (machinemodel.getAlignof(type) > aligned && !fieldFits) {
+        // Warn about difference in behavior between GCC and Clang
+        // struct { char before; int __align(2) bits : 17; };
+        // XXX is this exact example correct?
+        // GCC offsets bits at 4 (as int), Clang offsets bits at 2 (as in attribute)
+        // but bits:31 shows no difference :)
+        logger.log(
+            Level.WARNING,
+            getLocation(declarator) + ":",
+            "bit-field",
+            type,
+            "is aligned less than its type,",
+            "but its length exceeds alignment bytes,",
+            "so offsets of containing struct may be wrong");
+      }
     }
     BigInteger defaultAlignment =
         BigInteger.valueOf(canBeLessAligned ? -1 : machinemodel.getAlignof(type));
@@ -2148,7 +2165,23 @@ class ASTConverter {
       }
     }
 
-    if (!canBeLessAligned && BigInteger.valueOf(alignas).compareTo(defaultAlignment) <= 0) {
+    if (alignas != Alignment.NO_SPECIFIER && type instanceof CBitFieldType) {
+      // bit-fields can not have alignment specifiers by C standard
+      logger.log(Level.WARNING, "_ALignas is ignored, as it is specified for a bit-field %s", type);
+      alignas = Alignment.NO_SPECIFIER;
+    }
+    if (alignas != Alignment.NO_SPECIFIER
+        && BigInteger.valueOf(alignas).compareTo(defaultAlignment) <= 0) {
+      // alignment specifiers can not reduce alignment by C standard
+      logger.log(
+          Level.WARNING,
+          getLocation(specifier) + ":",
+          "_Alignas is ignored, as it specifies alignment",
+          alignas + ",",
+          "which is less than default",
+          defaultAlignment,
+          "for type",
+          type);
       alignas = Alignment.NO_SPECIFIER;
     }
     alignment = alignment.withAlignas(alignas);
