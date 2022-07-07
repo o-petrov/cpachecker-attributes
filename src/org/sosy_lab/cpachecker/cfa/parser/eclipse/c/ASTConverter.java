@@ -2055,7 +2055,8 @@ class ASTConverter {
 
   /**
    * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
-   * _Alignas(<i>alignment</i>)</code> attached to a declaration.
+   * _Alignas(<i>alignment</i>)</code> attached to a declaration. Alignment specifier <code>
+   * _Alignas</code> can not reduce alignment while alignment attribute can.
    *
    * <p>Documentation:
    * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
@@ -2070,7 +2071,8 @@ class ASTConverter {
   /**
    * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
    * _Alignas(<i>alignment</i>)</code> attached to a member declaration. A member of not packed
-   * struct/union can not be less aligned then default.
+   * struct/union can not be less aligned then default. Alignment specifier (<code>_Alignas</code>)
+   * can not reduce alignment and can not be applied to bit-fields.
    *
    * <p>Documentation:
    * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
@@ -2112,7 +2114,7 @@ class ASTConverter {
     // less aligned than their default alignment
     // (do not check alignment if it is not neccessary)
     // but bitfields never ignore alignment
-    if (type instanceof CBitFieldType) {
+    if (type instanceof CBitFieldType && aligned != Alignment.NO_SPECIFIER) {
       canBeLessAligned = true;
       boolean fieldFits =
           aligned * machinemodel.getSizeofCharInBits() >= ((CBitFieldType) type).getBitFieldSize();
@@ -2132,6 +2134,7 @@ class ASTConverter {
             "so offsets of containing struct may be wrong");
       }
     }
+
     BigInteger defaultAlignment =
         BigInteger.valueOf(canBeLessAligned ? -1 : machinemodel.getAlignof(type));
 
