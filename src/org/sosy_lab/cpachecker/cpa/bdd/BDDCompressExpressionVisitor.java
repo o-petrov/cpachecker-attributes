@@ -164,7 +164,7 @@ public class BDDCompressExpressionVisitor extends DefaultCExpressionVisitor<Regi
     if (idExp.getDeclaration() instanceof CEnumerator) {
       CEnumerator enumerator = (CEnumerator) idExp.getDeclaration();
       if (enumerator.hasValue()) {
-        return intToRegions.get(BigInteger.valueOf(enumerator.getValue()));
+        return intToRegions.get(enumerator.getValue());
       } else {
         return null;
       }

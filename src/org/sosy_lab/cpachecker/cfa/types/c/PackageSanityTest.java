@@ -19,6 +19,7 @@ public class PackageSanityTest extends AbstractPackageSanityTests {
   {
     setDefault(ComplexTypeKind.class, ComplexTypeKind.STRUCT);
     setDefault(CType.class, CVoidType.VOID);
+    setDefault(CSimpleType.class, CNumericTypes.INT);
 
     // CBitFieldType has its own test class
     ignoreClasses(Predicates.equalTo(CBitFieldType.class));

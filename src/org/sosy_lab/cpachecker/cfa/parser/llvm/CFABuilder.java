@@ -1748,11 +1748,7 @@ public class CFABuilder {
 
     if (pItem.canBeTransformedFromGetElementPtrToString()) {
       String constant = pItem.getGetElementPtrAsString();
-      CType constCharType =
-          new CSimpleType(
-              true, false, CBasicType.CHAR, false, false, false, false, false, false, false);
-
-      CType stringType = new CPointerType(false, false, constCharType);
+      CType stringType = CPointerType.POINTER_TO_CONST_CHAR;
 
       return new CStringLiteralExpression(fileLocation, stringType, '"' + constant + '"');
     }

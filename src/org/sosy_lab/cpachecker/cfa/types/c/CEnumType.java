@@ -13,7 +13,10 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -33,16 +36,25 @@ public final class CEnumType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
+  private final boolean isPacked;
+  private CSimpleType integerType;
   private int hashCache = 0;
 
   public CEnumType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final List<CEnumerator> pEnumerators,
-      final String pName,
-      final String pOrigName) {
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      boolean pPacked,
+      CSimpleType pIntegerType,
+      List<CEnumerator> pEnumerators,
+      String pName,
+      String pOrigName) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
+    isPacked = pPacked;
+    integerType = checkNotNull(pIntegerType);
     enumerators = ImmutableList.copyOf(pEnumerators);
     name = pName.intern();
     origName = pOrigName.intern();
@@ -61,6 +73,39 @@ public final class CEnumType implements CComplexType {
   @Override
   public boolean isIncomplete() {
     return false;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public boolean isPacked() {
+    return isPacked;
+  }
+
+  /**
+   * §6.7.2.2 (4) Each enumerated type shall be compatible with char, a signed integer type, or an
+   * unsigned integer type. The choice of type is implementation-defined, but shall be capable of
+   * representing the values of all the members of the enumeration.
+   *
+   * <p>GCC selects type that can represent all enumerator values. If enumerated type has no
+   * negative enumerators, GCC selects unsigned type. For a packed enum GCC selects smallest
+   * possible type from char, short, int, long, long long. For a not packed enum GCC selects type
+   * from int, long, long long.
+   *
+   * <p>Enumerator of any enumerated type has type int if its value is inside int bounds. GCC allows
+   * enumerators with values out of int bounds (breaks §6.7.2.2 (2)). The type for such enumerator
+   * is the compatible integer type of the enum.
+   *
+   * <p>Note that types of enumerators may be either int or the underlying type of the enum and so
+   * may differ from each other and the enum compatible type.
+   *
+   * @return integer type compatible with this enum
+   */
+  public CSimpleType getIntegerType() {
+    return integerType;
   }
 
   public ImmutableList<CEnumerator> getEnumerators() {
@@ -90,29 +135,37 @@ public final class CEnumType implements CComplexType {
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    StringBuilder lASTString = new StringBuilder();
-
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
     if (isConst()) {
-      lASTString.append("const ");
+      parts.add("const");
     }
     if (isVolatile()) {
-      lASTString.append("volatile ");
+      parts.add("volatile");
+    }
+    parts.add("enum");
+    parts.add(name);
+
+    if (!pDeclarator.isEmpty()) {
+      parts.add(
+          "{\n  "
+              + Joiner.on(",\n  ").join(transform(enumerators, CEnumerator::toASTString))
+              + "\n}");
     }
 
-    lASTString.append("enum ");
-    lASTString.append(name);
+    if (isPacked) {
+      parts.add("__attribute__((__packed__))");
+    }
 
-    lASTString.append(" {\n  ");
-    Joiner.on(",\n  ").appendTo(lASTString, transform(enumerators, CEnumerator::toASTString));
-    lASTString.append("\n} ");
-    lASTString.append(pDeclarator);
-
-    return lASTString.toString();
+    parts.add(Strings.emptyToNull(alignment.stringTypeAligned()));
+    parts.add(Strings.emptyToNull(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
   public String toString() {
-    return (isConst() ? "const " : "") + (isVolatile() ? "volatile " : "") + "enum " + name;
+    return toASTString("");
   }
 
   public static final class CEnumerator extends AbstractSimpleDeclaration
@@ -120,7 +173,7 @@ public final class CEnumType implements CComplexType {
 
     private static final long serialVersionUID = -2526725372840523651L;
 
-    private final @Nullable Long value;
+    private final @Nullable BigInteger value;
     private @Nullable CEnumType enumType;
     private final String qualifiedName;
 
@@ -129,7 +182,7 @@ public final class CEnumType implements CComplexType {
         final String pName,
         final String pQualifiedName,
         final @Nullable CType pType,
-        final @Nullable Long pValue) {
+        final @Nullable BigInteger pValue) {
       super(pFileLocation, pType, pName);
 
       checkNotNull(pName);
@@ -188,7 +241,7 @@ public final class CEnumType implements CComplexType {
       return (CType) super.getType();
     }
 
-    public long getValue() {
+    public @Nullable BigInteger getValue() {
       checkState(value != null, "Need to check hasValue() before calling getValue()");
       return value;
     }
@@ -221,7 +274,7 @@ public final class CEnumType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, name);
+      hashCache = Objects.hash(isConst, isVolatile, name, alignment, isPacked);
     }
     return hashCache;
   }
@@ -245,6 +298,9 @@ public final class CEnumType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
+        && isPacked == other.isPacked
+        && integerType.equals(other.integerType)
         && Objects.equals(name, other.name)
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -263,6 +319,9 @@ public final class CEnumType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
+        && isPacked == other.isPacked
+        && integerType.equals(other.integerType)
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(enumerators, other.enumerators);
   }
@@ -278,6 +337,22 @@ public final class CEnumType implements CComplexType {
       return this;
     }
     return new CEnumType(
-        isConst || pForceConst, isVolatile || pForceVolatile, enumerators, name, origName);
+        isConst || pForceConst,
+        isVolatile || pForceVolatile,
+        alignment,
+        isPacked,
+        integerType,
+        enumerators,
+        name,
+        origName);
+  }
+
+  @Override
+  public CType copyWithPacked(boolean pPacked) {
+    if (isPacked == pPacked) {
+      return this;
+    }
+    return new CEnumType(
+        isConst, isVolatile, alignment, pPacked, integerType, enumerators, name, origName);
   }
 }

@@ -45,6 +45,7 @@ import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.parser.Scope;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -289,6 +290,7 @@ class ASTTypeConverter {
       return new CSimpleType(
           false,
           false,
+          Alignment.NO_SPECIFIERS,
           type,
           c.isLong(),
           c.isShort(),
@@ -458,6 +460,7 @@ class ASTTypeConverter {
     return new CSimpleType(
         dd.isConst(),
         dd.isVolatile(),
+        Alignment.NO_SPECIFIERS,
         type,
         dd.isLong(),
         dd.isShort(),
@@ -544,11 +547,26 @@ class ASTTypeConverter {
     return new CElaboratedType(d.isConst(), d.isVolatile(), type, name, origName, realType);
   }
 
+  /**
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> attached to a {@code *}. See
+   * also: https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html
+   */
+  private CPointerType handleTypeAlignment(CPointerType type, IASTPointer p) {
+    // apparantly CDT loses attributes attached to a pointer operator
+    int aligned = converter.getAlignmentFromAttributes(p.getAttributes());
+    if (aligned == Alignment.NO_SPECIFIER) {
+      return type;
+    }
+    return CTypes.updateAlignment(type, Alignment.ofType(aligned));
+  }
+
   /** returns a pointerType, that wraps the type. */
   CPointerType convert(final IASTPointerOperator po, final CType type) {
     if (po instanceof IASTPointer) {
       IASTPointer p = (IASTPointer) po;
-      return new CPointerType(p.isConst(), p.isVolatile(), type);
+      CPointerType pointerType =
+          new CPointerType(p.isConst(), p.isVolatile(), Alignment.NO_SPECIFIERS, type);
+      return handleTypeAlignment(pointerType, p);
 
     } else {
       throw parseContext.parseError("Unknown pointer operator", po);

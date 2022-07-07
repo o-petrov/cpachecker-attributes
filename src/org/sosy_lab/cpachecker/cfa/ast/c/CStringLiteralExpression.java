@@ -14,10 +14,8 @@ import java.util.List;
 import org.sosy_lab.cpachecker.cfa.ast.AStringLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
-import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CNumericTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
-import org.sosy_lab.cpachecker.cfa.types.c.CSimpleType;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
@@ -118,10 +116,7 @@ public final class CStringLiteralExpression extends AStringLiteralExpression
 
     CExpression length =
         new CIntegerLiteralExpression(
-            getFileLocation(),
-            new CSimpleType(
-                false, false, CBasicType.INT, false, false, false, false, false, false, false),
-            BigInteger.valueOf(getValue().length() - 1));
+            getFileLocation(), CNumericTypes.INT, BigInteger.valueOf(getValue().length() - 1));
 
     if (getExpressionType() instanceof CArrayType) {
       CArrayType arrayType = (CArrayType) getExpressionType();

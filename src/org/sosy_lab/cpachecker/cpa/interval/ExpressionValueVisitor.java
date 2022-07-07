@@ -161,7 +161,8 @@ class ExpressionValueVisitor extends DefaultCExpressionVisitor<Interval, Unrecog
   @Override
   public Interval visit(CIdExpression identifier) {
     if (identifier.getDeclaration() instanceof CEnumerator) {
-      return new Interval(((CEnumerator) identifier.getDeclaration()).getValue());
+      // FIXME C unsigned long long values are > Long.MAX_VALUE, so this overflows
+      return new Interval(((CEnumerator) identifier.getDeclaration()).getValue().longValue());
     }
 
     final String variableName = identifier.getDeclaration().getQualifiedName();

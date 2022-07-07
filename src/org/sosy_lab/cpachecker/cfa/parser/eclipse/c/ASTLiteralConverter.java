@@ -97,6 +97,7 @@ class ASTLiteralConverter {
         new CSimpleType(
             type.isConst(),
             type.isVolatile(),
+            type.getAlignment(),
             type.getType(),
             type.isLong(),
             type.isShort(),

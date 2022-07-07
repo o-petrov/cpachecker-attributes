@@ -10,26 +10,47 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class CPointerType implements CType, Serializable {
 
   private static final long serialVersionUID = -6423006826454509009L;
-  public static final CPointerType POINTER_TO_VOID = new CPointerType(false, false, CVoidType.VOID);
+  public static final CPointerType POINTER_TO_VOID =
+      new CPointerType(false, false, Alignment.NO_SPECIFIERS, CVoidType.VOID);
   public static final CPointerType POINTER_TO_CHAR =
-      new CPointerType(false, false, CNumericTypes.CHAR);
+      new CPointerType(false, false, Alignment.NO_SPECIFIERS, CNumericTypes.CHAR);
   public static final CPointerType POINTER_TO_CONST_CHAR =
-      new CPointerType(false, false, CNumericTypes.CHAR.getCanonicalType(true, false));
+      new CPointerType(
+          false, false, Alignment.NO_SPECIFIERS, CNumericTypes.CHAR.getCanonicalType(true, false));
 
   private final CType type;
   private final boolean isConst;
   private final boolean isVolatile;
 
-  public CPointerType(final boolean pConst, final boolean pVolatile, final CType pType) {
+  /**
+   * As usual, <code>_Alignas</code> specifier and <code>aligned</code> attribute align pointer
+   * variable. But if aligned attribute is specified after <code>*</code>, it aligns 'type' itself,
+   * i.e. <code>int * __aligned(1) p;</code> means that not only <code>p</code> is aligned, but also
+   * {@code &p[zero]} and {@code (&p)[zero]}.
+   *
+   * <p>In GCC {@code &*...&*p} and {@code *&...*&p} are aligned as <code>p</code> anyway, but in
+   * Clang they are not. <code>p[0]</code> always behaves as <code>*p</code>.
+   */
+  private final Alignment alignment;
+
+  public CPointerType(boolean pConst, boolean pVolatile, CType pType) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pType);
+  }
+
+  public CPointerType(boolean pConst, boolean pVolatile, Alignment pAlignment, CType pType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     type = checkNotNull(pType);
   }
 
@@ -43,6 +64,11 @@ public final class CPointerType implements CType, Serializable {
     return isVolatile;
   }
 
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
   public CType getType() {
     return type;
   }
@@ -54,35 +80,46 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public String toString() {
-    String decl;
-
-    decl = "(" + type + ")*";
-
-    return (isConst() ? "const " : "") + (isVolatile() ? "volatile " : "") + decl;
+    return toASTString("", false);
   }
 
   @Override
   public String toASTString(String pDeclarator) {
+    return toASTString(pDeclarator, true);
+  }
+
+  public String toASTString(String pDeclarator, boolean compositeWithMembers) {
     checkNotNull(pDeclarator);
+    ArrayList<String> parts = new ArrayList<>();
+
     // ugly hack but it works:
     // We need to insert the "*" and qualifiers between the type and the name (e.g. "int *var").
-    StringBuilder inner = new StringBuilder("*");
     if (isConst()) {
-      inner.append(" const");
+      parts.add("const");
     }
     if (isVolatile()) {
-      inner.append(" volatile");
+      parts.add("volatile");
     }
-    if (inner.length() > 1) {
-      inner.append(' ');
+    if (alignment.getTypeAligned() != Alignment.NO_SPECIFIER) {
+      parts.add(alignment.stringTypeAligned());
     }
-    inner.append(pDeclarator);
+    // if any qualifiers, add a space after asterisk
+    String asterisk = parts.size() == 0 ? "*" : "* ";
 
-    if (type instanceof CArrayType) {
-      return type.toASTString("(" + inner + ")");
+    parts.add(Strings.emptyToNull(pDeclarator));
+    String declarator = asterisk + Joiner.on(' ').skipNulls().join(parts);
+    parts.clear();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+    // do not want to have different methods doing similar thing,
+    // so explicitly treat composite type as elaborated type in toString
+    if (type instanceof CCompositeType) {
+      parts.add(((CCompositeType) type).toASTString(declarator, compositeWithMembers));
     } else {
-      return type.toASTString(inner.toString());
+      parts.add(type.toASTString(declarator));
     }
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
@@ -92,7 +129,7 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(isConst, isVolatile, type);
+    return Objects.hash(isConst, isVolatile, alignment, type);
   }
 
   /**
@@ -114,6 +151,7 @@ public final class CPointerType implements CType, Serializable {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && Objects.equals(type, other.type);
   }
 
@@ -125,6 +163,6 @@ public final class CPointerType implements CType, Serializable {
   @Override
   public CPointerType getCanonicalType(boolean pForceConst, boolean pForceVolatile) {
     return new CPointerType(
-        isConst || pForceConst, isVolatile || pForceVolatile, type.getCanonicalType());
+        isConst || pForceConst, isVolatile || pForceVolatile, alignment, type.getCanonicalType());
   }
 }

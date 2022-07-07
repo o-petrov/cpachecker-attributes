@@ -11,7 +11,6 @@ package org.sosy_lab.cpachecker.cfa.types;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigInteger;
@@ -22,6 +21,7 @@ import java.util.Map;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -205,6 +205,9 @@ public enum MachineModel {
   private final int alignofBool;
   private final int alignofPtr;
 
+  // largest funumental alignment
+  private final int maxAlign;
+
   // according to ANSI C, sizeof(char) is always 1
   private final int mSizeofChar = 1;
   private final int mAlignofChar = 1;
@@ -258,6 +261,7 @@ public enum MachineModel {
     alignofVoid = pAlignofVoid;
     alignofBool = pAlignofBool;
     alignofPtr = pAlignofPtr;
+
     defaultCharSigned = pDefaultCharSigned;
     endianness = pEndianness;
 
@@ -272,6 +276,8 @@ public enum MachineModel {
     } else {
       throw new AssertionError("No ptr-Equivalent found");
     }
+
+    maxAlign = Math.max(alignofLongLongInt, alignofLongDouble);
   }
 
   public CSimpleType getPointerEquivalentSimpleType() {
@@ -489,6 +495,10 @@ public enum MachineModel {
     return alignofPtr;
   }
 
+  public int getMaxAlign() {
+    return Math.max(maxAlign, getAlignofFloat128());
+  }
+
   /** returns INT, if the type is smaller than INT, else the type itself. */
   public CType applyIntegerPromotion(CType pType) {
     checkArgument(CTypes.isIntegerType(pType), "Integer promotion cannot be applied to %s", pType);
@@ -608,12 +618,16 @@ public enum MachineModel {
     private BigInteger handleSizeOfUnion(CCompositeType pCompositeType) {
       BigInteger size = BigInteger.ZERO;
       BigInteger sizeOfType = BigInteger.ZERO;
-      // TODO: Take possible padding into account
       for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
         sizeOfType = decl.getType().accept(this);
         size = size.max(sizeOfType);
       }
-      return size;
+
+      // size is padded to the alignment
+      BigInteger align = BigInteger.valueOf(model.getAlignof(pCompositeType));
+      // .negate().mod returns how many bytes needed to get multiple of align
+      BigInteger padding = size.negate().mod(align);
+      return size.add(padding);
     }
 
     @Override
@@ -633,9 +647,8 @@ public enum MachineModel {
 
     @Override
     public BigInteger visit(CEnumType pEnumType) throws IllegalArgumentException {
-      // We assume that all enumerator types are identical, and that there is at least one enum.
-      Preconditions.checkState(!pEnumType.getEnumerators().isEmpty());
-      return model.getSizeof(pEnumType.getEnumerators().get(0).getType());
+      // return size of compatible integer
+      return BigInteger.valueOf(model.getSizeof(pEnumType.getIntegerType()));
     }
 
     @Override
@@ -719,23 +732,52 @@ public enum MachineModel {
       this.model = model;
     }
 
+    private int alignmentFromAttributes(Alignment pAlignment) {
+      int aligned = pAlignment.getVarAligned();
+      int alignas = pAlignment.getAlignas();
+      // Biggest applies. NO_SPECIFIER is smaller than any specified alignment.
+      if (aligned < alignas) {
+        aligned = alignas;
+      }
+      if (aligned == Alignment.NO_SPECIFIER) {
+        // If 'variable' has no alignment, 'type' can still have some.
+        aligned = pAlignment.getTypeAligned();
+      }
+      if (aligned != Alignment.NO_SPECIFIER) {
+        return aligned;
+      }
+      // If no alignment, but in a packed structure, return 1
+      return pAlignment.isInsidePacked() ? 1 : Alignment.NO_SPECIFIER;
+    }
+
     @Override
     public Integer visit(CArrayType pArrayType) throws IllegalArgumentException {
       // the alignment of an array is the same as the alignment of an member of the array
+      int result = alignmentFromAttributes(pArrayType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       return pArrayType.getType().accept(this);
     }
 
     @Override
     public Integer visit(CCompositeType pCompositeType) throws IllegalArgumentException {
-
       switch (pCompositeType.getKind()) {
         case STRUCT:
         case UNION:
-          int alignof = 1;
+          int alignof = Math.max(1, alignmentFromAttributes(pCompositeType.getAlignment()));
           int alignOfType = 0;
           // TODO: Take possible padding into account
           for (CCompositeTypeMemberDeclaration decl : pCompositeType.getMembers()) {
-            alignOfType = decl.getType().accept(this);
+            CType memberType = decl.getType();
+            if (memberType instanceof CBitFieldType
+                && ((CBitFieldType) memberType).getBitFieldSize() == 0) {
+              // zero bit-fields are ignored
+              continue;
+            } else {
+              alignOfType = memberType.accept(this);
+            }
             alignof = Math.max(alignof, alignOfType);
           }
           return alignof;
@@ -748,6 +790,11 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CElaboratedType pElaboratedType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pElaboratedType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       CType def = pElaboratedType.getRealType();
       if (def != null) {
         return def.accept(this);
@@ -763,18 +810,33 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CEnumType pEnumType) throws IllegalArgumentException {
-      // enums are always ints
-      return model.getAlignofInt();
+      // enums themselves cant have alignment attribute, but variables (elaborated types) can
+      int result = alignmentFromAttributes(pEnumType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
+      // return alignment of compatible integer type
+      return pEnumType.getIntegerType().accept(this);
     }
 
     @Override
     public Integer visit(CFunctionType pFunctionType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pFunctionType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
       // function types have per definition the value 1 if compiled with gcc
       return 1;
     }
 
     @Override
     public Integer visit(CPointerType pPointerType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pPointerType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       return model.getAlignofPtr();
     }
 
@@ -785,6 +847,11 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CSimpleType pSimpleType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pSimpleType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
+
       switch (pSimpleType.getType()) {
         case BOOL:
           return model.getAlignofBool();
@@ -820,6 +887,10 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CTypedefType pTypedefType) throws IllegalArgumentException {
+      int result = alignmentFromAttributes(pTypedefType.getAlignment());
+      if (result != Alignment.NO_SPECIFIER) {
+        return result;
+      }
       return pTypedefType.getRealType().accept(this);
     }
 
@@ -830,7 +901,16 @@ public enum MachineModel {
 
     @Override
     public Integer visit(CBitFieldType pCBitFieldType) throws IllegalArgumentException {
-      return pCBitFieldType.getType().accept(this);
+      // this method is called only when computing alignment of containing struct/union
+
+      // alignment attribute applies to the type of bitfield if structure is packed
+      int attrs = alignmentFromAttributes(pCBitFieldType.getAlignment());
+      if (pCBitFieldType.getAlignment().isInsidePacked()) {
+        return attrs;
+      }
+      // or if it is greater than default for declared type
+      int def = pCBitFieldType.getType().accept(this);
+      return attrs > def ? attrs : def;
     }
   }
 
@@ -894,8 +974,6 @@ public enum MachineModel {
     List<CCompositeTypeMemberDeclaration> typeMembers = pOwnerType.getMembers();
 
     BigInteger bitOffset = BigInteger.ZERO;
-    BigInteger sizeOfConsecutiveBitFields = BigInteger.ZERO;
-
     long sizeOfByte = getSizeofCharInBits();
 
     if (ownerTypeKind == ComplexTypeKind.UNION) {
@@ -905,7 +983,7 @@ public enum MachineModel {
         // Otherwise, to indicate a problem, the return
         // will be null.
         if (typeMembers.stream().anyMatch(m -> m.getName().equals(pFieldName))) {
-          return bitOffset;
+          return BigInteger.ZERO;
         }
       } else {
         for (CCompositeTypeMemberDeclaration typeMember : typeMembers) {
@@ -946,77 +1024,75 @@ public enum MachineModel {
           fieldSizeInBits = getSizeofInBits(type);
         }
 
-        if (type instanceof CBitFieldType) {
-          if (typeMember.getName().equals(pFieldName)) {
-            // just escape the loop and return the current offset
-            bitOffset = bitOffset.add(sizeOfConsecutiveBitFields);
-            return bitOffset;
-          }
+        boolean isBitfield = type instanceof CBitFieldType;
+        boolean isZeroLength = fieldSizeInBits.compareTo(BigInteger.ZERO) == 0;
+        Alignment effectiveAlignment = type.getAlignment().withInsidePacked(false);
+        boolean hasAlignedAttr = !effectiveAlignment.equals(Alignment.NO_SPECIFIERS);
+        CType effectiveType = type;
 
-          CType innerType = ((CBitFieldType) type).getType();
-
-          if (fieldSizeInBits.compareTo(BigInteger.ZERO) == 0) {
-            // Bitfields with length 0 guarantee that
-            // the next bitfield starts at the beginning of the
-            // next address an object of the declaring
-            // type could be addressed by.
-            //
-            // E.g., if you have a struct like this:
-            //   struct s { int a : 8; char : 0; char b; };
-            //
-            // then the struct will be aligned to the size of int
-            // (4 Bytes) and will occupy 4 Bytes of memory.
-            //
-            // A struct like this:
-            //   struct t { int a : 8; int : 0; char b; };
-            //
-            // will also be aligned to the size of int, but
-            // since the 'int : 0;' member adjusts the next object
-            // to the next int-like addressable unit, t will
-            // occupy 8 Bytes instead of 4 (the char b is placed
-            // at the next 4-Byte addressable unit).
-            //
-            // At last, a struct like this:
-            //   struct u { char a : 4; char : 0; char b : 4; };
-            //
-            // will be aligned to size of char and occupy 2 Bytes
-            // in memory, while the same struct without the
-            // 'char : 0;' member would just occupy 1 Byte.
-            bitOffset =
-                calculatePaddedBitsize(
-                    bitOffset, sizeOfConsecutiveBitFields, innerType, sizeOfByte);
-            sizeOfConsecutiveBitFields = BigInteger.ZERO;
-          } else {
-            sizeOfConsecutiveBitFields =
-                calculateNecessaryBitfieldOffset(
-                        sizeOfConsecutiveBitFields.add(bitOffset),
-                        innerType,
-                        sizeOfByte,
-                        fieldSizeInBits)
-                    .subtract(bitOffset);
-            sizeOfConsecutiveBitFields = sizeOfConsecutiveBitFields.add(fieldSizeInBits);
+        if (isBitfield) {
+          effectiveType = ((CBitFieldType) type).getType();
+          int alignFromAttr =
+              ((BaseAlignofVisitor) alignofVisitor).alignmentFromAttributes(effectiveAlignment);
+          boolean fieldFits =
+              fieldSizeInBits.compareTo(BigInteger.valueOf(sizeOfByte * alignFromAttr)) <= 0;
+          boolean greaterAlign = getAlignof(effectiveType) < alignFromAttr;
+          // lesser align applies if bit-field fits inside alignment or struct is packed
+          // but zero-length bit-fields can only be overaligned
+          boolean lesserAlignApplies = !isZeroLength && (pOwnerType.isPacked() || fieldFits);
+          if (greaterAlign || lesserAlignApplies) {
+            effectiveType = CTypes.overrideAlignment(effectiveType, effectiveAlignment);
           }
-
-          // Put start offset of bitField to outParameterMap
-          if (outParameterMap != null) {
-            outParameterMap.put(
-                typeMember, bitOffset.add(sizeOfConsecutiveBitFields).subtract(fieldSizeInBits));
-          }
-        } else {
-          bitOffset =
-              calculatePaddedBitsize(bitOffset, sizeOfConsecutiveBitFields, type, sizeOfByte);
-          sizeOfConsecutiveBitFields = BigInteger.ZERO;
-
-          if (typeMember.getName().equals(pFieldName)) {
-            // just escape the loop and return the current offset
-            return bitOffset;
-          }
-
-          if (outParameterMap != null) {
-            outParameterMap.put(typeMember, bitOffset);
-          }
-          bitOffset = bitOffset.add(fieldSizeInBits);
         }
+
+        // add padding bits if needed
+        if (!isBitfield || isZeroLength || hasAlignedAttr) {
+          // Usual fields, bit-fields with length 0, and bit-fields
+          // with alignment attributes guarantee that
+          // the next bitfield starts at the beginning of the
+          // next address an object of the declaring
+          // type could be addressed by.
+          //
+          // E.g., if you have a struct like this:
+          //   struct s { int a : 8; char : 0; char b; };
+          //
+          // then the struct will be aligned to the size of int
+          // (4 Bytes) and will occupy 4 Bytes of memory.
+          //
+          // A struct like this:
+          //   struct t { int a : 8; int : 0; char b; };
+          //
+          // will also be aligned to the size of int, but
+          // since the 'int : 0;' member adjusts the next object
+          // to the next int-like addressable unit, t will
+          // occupy 8 Bytes instead of 4 (the char b is placed
+          // at the next 4-Byte addressable unit).
+          //
+          // At last, a struct like this:
+          //   struct u { char a : 4; char : 0; char b : 4; };
+          //
+          // will be aligned to size of char and occupy 2 Bytes
+          // in memory, while the same struct without the
+          // 'char : 0;' member would just occupy 1 Byte.
+          bitOffset = calculatePaddedBitsize(bitOffset, effectiveType, sizeOfByte);
+
+        } else if (!pOwnerType.isPacked()) {
+          // all bitfields are consequent in packed struct
+
+          bitOffset =
+              calculateNecessaryBitfieldOffset(
+                  bitOffset, effectiveType, sizeOfByte, fieldSizeInBits);
+        }
+
+        if (typeMember.getName().equals(pFieldName)) {
+          // just escape the loop and return the current offset
+          return bitOffset;
+        }
+
+        if (outParameterMap != null) {
+          outParameterMap.put(typeMember, bitOffset);
+        }
+        bitOffset = bitOffset.add(fieldSizeInBits);
       }
     }
 
@@ -1026,7 +1102,7 @@ public enum MachineModel {
     }
 
     // call with byte size of 1 to return size in bytes instead of bits
-    return calculatePaddedBitsize(bitOffset, sizeOfConsecutiveBitFields, pOwnerType, 1L);
+    return calculatePaddedBitsize(bitOffset, pOwnerType, 1L);
   }
 
   @Deprecated
@@ -1051,12 +1127,7 @@ public enum MachineModel {
   }
 
   @Deprecated
-  public BigInteger calculatePaddedBitsize(
-      BigInteger pBitOffset,
-      BigInteger pSizeOfConsecutiveBitFields,
-      CType pType,
-      long pSizeOfByte) {
-    pBitOffset = pBitOffset.add(pSizeOfConsecutiveBitFields);
+  public BigInteger calculatePaddedBitsize(BigInteger pBitOffset, CType pType, long pSizeOfByte) {
     // once pad the bits to full bytes, then pad bytes to the
     // alignment of the current type
     pBitOffset = sizeofVisitor.calculateByteSize(pBitOffset);
@@ -1071,10 +1142,7 @@ public enum MachineModel {
 
   private BigInteger getPaddingInBits(BigInteger pOffset, CType pType, long pSizeOfByte) {
     BigInteger alignof = BigInteger.valueOf(getAlignof(pType) * pSizeOfByte);
-    BigInteger padding = alignof.subtract(pOffset.mod(alignof));
-    if (padding.compareTo(alignof) < 0) {
-      return padding;
-    }
-    return BigInteger.ZERO;
+    // .negate().mod returns how many bytes needed to get multiple of alignof
+    return pOffset.negate().mod(alignof);
   }
 }

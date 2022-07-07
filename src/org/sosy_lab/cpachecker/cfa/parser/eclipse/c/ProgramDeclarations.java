@@ -473,7 +473,7 @@ public class ProgramDeclarations {
           areEqual
               && ((member1.hasValue()
                       && member2.hasValue()
-                      && member1.getValue() == member2.getValue())
+                      && member1.getValue().equals(member2.getValue()))
                   || (!member1.hasValue() && !member2.hasValue()));
     }
 

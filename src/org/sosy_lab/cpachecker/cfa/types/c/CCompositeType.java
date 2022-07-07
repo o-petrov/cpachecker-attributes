@@ -11,10 +11,13 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.transform;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -29,33 +32,61 @@ public final class CCompositeType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
+  private final boolean isPacked;
 
   public CCompositeType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final CComplexType.ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName) {
+      boolean pConst,
+      boolean pVolatile,
+      CComplexType.ComplexTypeKind pKind,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, false, pKind, pName, pOrigName);
+  }
 
+  public CCompositeType(
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      boolean pPacked,
+      CComplexType.ComplexTypeKind pKind,
+      List<CCompositeTypeMemberDeclaration> pMembers,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, pAlignment, pPacked, pKind, pName, pOrigName);
+    checkMembers(pMembers);
+    members = ImmutableList.copyOf(pMembers);
+  }
+
+  public CCompositeType(
+      boolean pConst,
+      boolean pVolatile,
+      CComplexType.ComplexTypeKind pKind,
+      List<CCompositeTypeMemberDeclaration> pMembers,
+      String pName,
+      String pOrigName) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, false, pKind, pName, pOrigName);
+    checkMembers(pMembers);
+    members = ImmutableList.copyOf(pMembers);
+  }
+
+  public CCompositeType(
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      boolean pPacked,
+      ComplexTypeKind pKind,
+      String pName,
+      String pOrigName) {
     checkNotNull(pKind);
     checkArgument(pKind == ComplexTypeKind.STRUCT || pKind == ComplexTypeKind.UNION);
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
+    isPacked = pPacked;
     kind = pKind;
     name = pName.intern();
     origName = pOrigName.intern();
-  }
-
-  public CCompositeType(
-      final boolean pConst,
-      final boolean pVolatile,
-      final CComplexType.ComplexTypeKind pKind,
-      final List<CCompositeTypeMemberDeclaration> pMembers,
-      final String pName,
-      final String pOrigName) {
-    this(pConst, pVolatile, pKind, pName, pOrigName);
-    checkMembers(pMembers);
-    members = ImmutableList.copyOf(pMembers);
   }
 
   private void checkMembers(List<CCompositeTypeMemberDeclaration> pMembers) {
@@ -112,52 +143,47 @@ public final class CCompositeType implements CComplexType {
 
   @Override
   public String toString() {
-    StringBuilder result = new StringBuilder();
-
-    if (isConst()) {
-      result.append("const ");
-    }
-    if (isVolatile()) {
-      result.append("volatile ");
-    }
-
-    result.append(kind.toASTString());
-    result.append(' ');
-    result.append(name);
-
-    return result.toString();
+    return toASTString("", false);
   }
 
   @Override
   public String toASTString(String pDeclarator) {
-    checkNotNull(pDeclarator);
-    StringBuilder lASTString = new StringBuilder();
+    return toASTString(pDeclarator, true);
+  }
 
+  public String toASTString(String pDeclarator, boolean withMembers) {
+    checkNotNull(pDeclarator);
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
     if (isConst()) {
-      lASTString.append("const ");
+      parts.add("const");
     }
     if (isVolatile()) {
-      lASTString.append("volatile ");
+      parts.add("volatile");
     }
+    parts.add(kind.toASTString());
+    parts.add(name);
 
-    lASTString.append(kind.toASTString());
-    lASTString.append(' ');
-    lASTString.append(name);
-
-    if (members == null) {
-      lASTString.append("/* missing member initialization */ ");
-    } else {
-      lASTString.append(" {\n");
-      for (CCompositeTypeMemberDeclaration lMember : members) {
-        lASTString.append("  ");
-        lASTString.append(lMember.toASTString());
-        lASTString.append("\n");
+    if (withMembers) {
+      if (members == null) {
+        parts.add("/* missing member initialization */");
+      } else {
+        parts.add(
+            "{\n  "
+                + Joiner.on("\n  ")
+                    .join(transform(members, CCompositeTypeMemberDeclaration::toASTString))
+                + "\n}");
       }
-      lASTString.append("} ");
     }
-    lASTString.append(pDeclarator);
 
-    return lASTString.toString();
+    if (isPacked) {
+      parts.add("__attribute__((__packed__))");
+    }
+
+    parts.add(Strings.emptyToNull(alignment.stringTypeAligned()));
+    parts.add(pDeclarator);
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   /**
@@ -230,13 +256,23 @@ public final class CCompositeType implements CComplexType {
   }
 
   @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public boolean isPacked() {
+    return isPacked;
+  }
+
+  @Override
   public <R, X extends Exception> R accept(CTypeVisitor<R, X> pVisitor) throws X {
     return pVisitor.visit(this);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(isConst, isVolatile, kind, name);
+    return Objects.hash(isConst, isVolatile, alignment, isPacked, kind, name);
   }
 
   /**
@@ -258,6 +294,8 @@ public final class CCompositeType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
+        && isPacked == other.isPacked
         && kind == other.kind
         && Objects.equals(name, other.name);
   }
@@ -276,6 +314,8 @@ public final class CCompositeType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
+        && isPacked == other.isPacked
         && kind == other.kind
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()));
   }
@@ -292,9 +332,35 @@ public final class CCompositeType implements CComplexType {
     }
     CCompositeType result =
         new CCompositeType(
-            isConst || pForceConst, isVolatile || pForceVolatile, kind, name, origName);
+            isConst || pForceConst,
+            isVolatile || pForceVolatile,
+            alignment,
+            isPacked,
+            kind,
+            name,
+            origName);
     if (members != null) {
       result.setMembers(members);
+    }
+    return result;
+  }
+
+  @Override
+  public CType copyWithPacked(boolean pPacked) {
+    if (isPacked == pPacked) {
+      return this;
+    }
+    CCompositeType result =
+        new CCompositeType(isConst, isVolatile, alignment, pPacked, kind, name, origName);
+    if (members != null) {
+      List<CCompositeTypeMemberDeclaration> newMembers = new ArrayList<>();
+      for (CCompositeTypeMemberDeclaration m : members) {
+        CType mType = m.getType();
+        Alignment mAlign = mType.getAlignment();
+        mType = CTypes.overrideAlignment(mType, mAlign.withInsidePacked(pPacked));
+        newMembers.add(new CCompositeTypeMemberDeclaration(mType, m.getName()));
+      }
+      result.setMembers(newMembers);
     }
     return result;
   }

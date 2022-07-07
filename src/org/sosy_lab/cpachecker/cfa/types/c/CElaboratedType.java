@@ -12,6 +12,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import java.util.ArrayList;
 import java.util.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -23,6 +26,7 @@ public final class CElaboratedType implements CComplexType {
   private final String origName;
   private final boolean isConst;
   private final boolean isVolatile;
+  private Alignment alignment;
 
   private int hashCache = 0;
 
@@ -30,17 +34,29 @@ public final class CElaboratedType implements CComplexType {
 
   public CElaboratedType(
       boolean pConst,
-      final boolean pVolatile,
-      final ComplexTypeKind pKind,
-      final String pName,
-      final String pOrigName,
-      final @Nullable CComplexType pRealType) {
+      boolean pVolatile,
+      Alignment pAlignment,
+      ComplexTypeKind pKind,
+      String pName,
+      String pOrigName,
+      @Nullable CComplexType pRealType) {
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     kind = checkNotNull(pKind);
     name = pName.intern();
     origName = pOrigName.intern();
     realType = pRealType;
+  }
+
+  public CElaboratedType(
+      boolean pConst,
+      boolean pVolatile,
+      ComplexTypeKind pKind,
+      String pName,
+      String pOrigName,
+      @Nullable CComplexType pRealType) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pKind, pName, pOrigName, pRealType);
   }
 
   @Override
@@ -99,27 +115,28 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public String toASTString(String pDeclarator) {
     checkNotNull(pDeclarator);
-    StringBuilder lASTString = new StringBuilder();
-
+    ArrayList<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
     if (isConst()) {
-      lASTString.append("const ");
+      parts.add("const");
     }
     if (isVolatile()) {
-      lASTString.append("volatile ");
+      parts.add("volatile");
     }
-
-    lASTString.append(kind.toASTString());
-    lASTString.append(" ");
-    lASTString.append(name);
-    lASTString.append(" ");
-    lASTString.append(pDeclarator);
-
-    return lASTString.toString();
+    parts.add(kind.toASTString());
+    parts.add(name);
+    parts.add(Strings.emptyToNull(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
   public String toString() {
-    return getKind().toASTString() + " " + getName();
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
+    }
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override
@@ -130,6 +147,16 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public boolean isVolatile() {
     return isVolatile;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
+  @Override
+  public boolean isPacked() {
+    return realType.isPacked();
   }
 
   @Override
@@ -149,7 +176,7 @@ public final class CElaboratedType implements CComplexType {
   @Override
   public int hashCode() {
     if (hashCache == 0) {
-      hashCache = Objects.hash(isConst, isVolatile, kind, name, realType);
+      hashCache = Objects.hash(isConst, isVolatile, alignment, kind, name, realType);
     }
     return hashCache;
   }
@@ -173,6 +200,7 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && kind == other.kind
         && Objects.equals(name, other.name)
         && Objects.equals(realType, other.realType);
@@ -192,6 +220,7 @@ public final class CElaboratedType implements CComplexType {
 
     return isConst == other.isConst
         && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment)
         && kind == other.kind
         && (Objects.equals(name, other.name) || (origName.isEmpty() && other.origName.isEmpty()))
         && Objects.equals(realType, other.realType);
@@ -209,9 +238,22 @@ public final class CElaboratedType implements CComplexType {
         return this;
       }
       return new CElaboratedType(
-          isConst || pForceConst, isVolatile || pForceVolatile, kind, name, origName, null);
+          isConst || pForceConst,
+          isVolatile || pForceVolatile,
+          alignment,
+          kind,
+          name,
+          origName,
+          null);
     } else {
-      return realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+      CType result =
+          realType.getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile);
+      return CTypes.updateAlignment(result, alignment);
     }
+  }
+
+  @Override
+  public CType copyWithPacked(boolean pPacked) {
+    throw new UnsupportedOperationException("Can not pack elaborated type " + this);
   }
 }

@@ -17,6 +17,7 @@ import java.util.logging.Level;
 import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -87,7 +88,17 @@ public final class SMGUtils {
     private final MachineModel model;
     private static final CType UNKNOWN =
         new CSimpleType(
-            false, false, CBasicType.UNSPECIFIED, false, false, false, false, false, false, false);
+            false,
+            false,
+            Alignment.NO_SPECIFIERS,
+            CBasicType.UNSPECIFIED,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false);
 
     public CFieldTypeVisitor(long pFieldOffset, MachineModel pModel) {
       fieldOffset = pFieldOffset;

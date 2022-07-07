@@ -12,8 +12,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import java.util.ArrayList;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.cpachecker.cfa.types.AFunctionType;
@@ -31,8 +33,16 @@ public class CFunctionType extends AFunctionType implements CType {
 
   private @Nullable String name = null;
 
+  private Alignment alignment;
+
   public CFunctionType(CType pReturnType, List<CType> pParameters, boolean pTakesVarArgs) {
+    this(pReturnType, pParameters, pTakesVarArgs, Alignment.NO_SPECIFIERS);
+  }
+
+  public CFunctionType(
+      CType pReturnType, List<CType> pParameters, boolean pTakesVarArgs, Alignment pAlignment) {
     super(pReturnType, pParameters, pTakesVarArgs);
+    alignment = checkNotNull(pAlignment);
   }
 
   @Override
@@ -53,6 +63,15 @@ public class CFunctionType extends AFunctionType implements CType {
   @Override
   public List<CType> getParameters() {
     return (List<CType>) super.getParameters();
+  }
+
+  @Override
+  public String toString() {
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
+    }
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override
@@ -86,7 +105,12 @@ public class CFunctionType extends AFunctionType implements CType {
 
     // The return type can span the rest of the type, so we cannot prefix but need this trick.
     String nameAndParams = lASTString.toString();
-    return getReturnType().toASTString(nameAndParams);
+
+    List<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+    parts.add(getReturnType().toASTString(nameAndParams));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   @Override
@@ -97,6 +121,11 @@ public class CFunctionType extends AFunctionType implements CType {
   @Override
   public boolean isVolatile() {
     return false;
+  }
+
+  @Override
+  public Alignment getAlignment() {
+    return alignment;
   }
 
   @Override
@@ -125,7 +154,9 @@ public class CFunctionType extends AFunctionType implements CType {
       return true;
     }
 
-    return obj instanceof CFunctionType && super.equals(obj);
+    return obj instanceof CFunctionType
+        && super.equals(obj)
+        && alignment.equals(((CFunctionType) obj).getAlignment());
   }
 
   @Override
@@ -145,6 +176,6 @@ public class CFunctionType extends AFunctionType implements CType {
       newParameterTypes.add(parameter.getCanonicalType());
     }
     return new CFunctionType(
-        getReturnType().getCanonicalType(), newParameterTypes.build(), takesVarArgs());
+        getReturnType().getCanonicalType(), newParameterTypes.build(), takesVarArgs(), alignment);
   }
 }

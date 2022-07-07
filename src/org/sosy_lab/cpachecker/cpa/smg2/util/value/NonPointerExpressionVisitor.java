@@ -181,10 +181,9 @@ public class NonPointerExpressionVisitor
     CSimpleDeclaration decl = idExpression.getDeclaration();
 
     if (decl instanceof CEnumerator) {
-      long enumValue = ((CEnumerator) decl).getValue();
       // TODO check whether handling enumerator as int is sound. The old implementation only handles
       // zero and returns unknown else.
-      return valueAndStatesForIntValue(BigInteger.valueOf(enumValue));
+      return valueAndStatesForIntValue(((CEnumerator) decl).getValue());
 
     } else if (decl instanceof CVariableDeclaration || decl instanceof CParameterDeclaration) {
       SMGState smgState = initialSmgState;

@@ -28,10 +28,10 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.LongSummaryStatistics;
 import java.util.Optional;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.eclipse.cdt.core.dom.ast.IASTAlignmentSpecifier;
 import org.eclipse.cdt.core.dom.ast.IASTArrayDeclarator;
 import org.eclipse.cdt.core.dom.ast.IASTArrayModifier;
 import org.eclipse.cdt.core.dom.ast.IASTArraySubscriptExpression;
@@ -82,6 +82,7 @@ import org.eclipse.cdt.core.dom.ast.IPointerType;
 import org.eclipse.cdt.core.dom.ast.IProblemType;
 import org.eclipse.cdt.core.dom.ast.c.ICASTArrayDesignator;
 import org.eclipse.cdt.core.dom.ast.c.ICASTArrayModifier;
+import org.eclipse.cdt.core.dom.ast.c.ICASTDeclSpecifier;
 import org.eclipse.cdt.core.dom.ast.c.ICASTDesignatedInitializer;
 import org.eclipse.cdt.core.dom.ast.c.ICASTDesignator;
 import org.eclipse.cdt.core.dom.ast.c.ICASTFieldDesignator;
@@ -89,7 +90,6 @@ import org.eclipse.cdt.core.dom.ast.gnu.IGNUASTCompoundStatementExpression;
 import org.eclipse.cdt.core.dom.ast.gnu.c.IGCCASTArrayRangeDesignator;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTArrayDesignator;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTArrayRangeDesignator;
-import org.eclipse.cdt.internal.core.dom.parser.c.CASTCompositeTypeSpecifier;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTDeclarator;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTFunctionCallExpression;
 import org.eclipse.cdt.internal.core.dom.parser.c.CASTLiteralExpression;
@@ -147,6 +147,7 @@ import org.sosy_lab.cpachecker.cfa.parser.Scope;
 import org.sosy_lab.cpachecker.cfa.simplification.ExpressionSimplificationVisitor;
 import org.sosy_lab.cpachecker.cfa.simplification.NonRecursiveExpressionSimplificationVisitor;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -320,6 +321,7 @@ class ASTConverter {
 
   private final Sideassignments sideAssignmentStack;
   private final String staticVariablePrefix;
+  private final List<IASTDeclSpecifier> specifiersForCompositeTypes = new ArrayList<>();
 
   private static final ContainsProblemTypeVisitor containsProblemTypeVisitor =
       new ContainsProblemTypeVisitor();
@@ -669,11 +671,25 @@ class ASTConverter {
     CExpression arrayExpr = convertExpressionWithoutSideEffects(e.getArrayExpression());
     CExpression subscriptExpr = convertExpressionWithoutSideEffects(toExpression(e.getArgument()));
 
+    // alignment of 'variable' remains for 'pointer operator'
+    // but array subscript leaves only 'type' alignment
+    boolean asPointerExpression =
+        subscriptExpr instanceof CIntegerLiteralExpression
+            && ((CIntegerLiteralExpression) subscriptExpr).asLong() == 0;
+
+    if (asPointerExpression
+        && arrayExpr instanceof CUnaryExpression
+        && ((CUnaryExpression) arrayExpr).getOperator() == UnaryOperator.AMPER) {
+      CType type = ((CUnaryExpression) arrayExpr).getOperand().getExpressionType();
+      return new CArraySubscriptExpression(getLocation(e), type, arrayExpr, subscriptExpr);
+    }
+
     // Eclipse CDT has a bug in determining the result type if the array type is a typedef.
     CType resultType = arrayExpr.getExpressionType();
     while (resultType instanceof CTypedefType) {
       resultType = ((CTypedefType) resultType).getRealType();
     }
+
     if (resultType instanceof CArrayType) {
       resultType = ((CArrayType) resultType).getType();
     } else if (resultType instanceof CPointerType) {
@@ -684,6 +700,7 @@ class ASTConverter {
       resultType = typeConverter.convert(e.getExpressionType());
     }
 
+    resultType = CTypes.leaveOnlyTypeAlignment(resultType);
     return new CArraySubscriptExpression(getLocation(e), resultType, arrayExpr, subscriptExpr);
   }
 
@@ -1488,16 +1505,34 @@ class ASTConverter {
 
       case IASTUnaryExpression.op_star:
         {
+          if (operand instanceof CUnaryExpression
+              && ((CUnaryExpression) operand).getOperator() == UnaryOperator.AMPER) {
+            CType type = ((CUnaryExpression) operand).getOperand().getExpressionType();
+            return simplifyUnaryPointerExpression(operand, fileLoc, type);
+          }
 
           // In case of pointers inside field references that refer to inner fields
           // the CDT type is not as we want it, thus we resolve the type on our own.
-          CType type;
-          if (operandType instanceof CPointerType) {
-            type = ((CPointerType) operandType).getType();
-          } else if (operandType instanceof CArrayType) {
-            type = ((CArrayType) operandType).getType();
+          CType type = operandType;
+          int typeAligned = type.getAlignment().getTypeAligned();
+          while (type instanceof CTypedefType) {
+            type = ((CTypedefType) type).getRealType();
+            if (typeAligned == Alignment.NO_SPECIFIER) {
+              typeAligned = type.getAlignment().getTypeAligned();
+            }
+          }
+
+          if (type instanceof CPointerType) {
+            type = ((CPointerType) type).getType();
+          } else if (type instanceof CArrayType) {
+            type = ((CArrayType) type).getType();
+            if (typeAligned > machinemodel.getAlignof(type)) {
+              type = CTypes.overrideAlignment(type, Alignment.ofType(typeAligned));
+            } else {
+              type = CTypes.leaveOnlyTypeAlignment(type);
+            }
           } else {
-            if (!(operandType instanceof CProblemType)) {
+            if (!(type instanceof CProblemType)) {
               logger.logf(
                   Level.WARNING,
                   "%s: Dereferencing of non-pointer type %s in expression %s",
@@ -1507,21 +1542,69 @@ class ASTConverter {
             }
             type = typeConverter.convert(e.getExpressionType());
           }
+
           return simplifyUnaryPointerExpression(operand, fileLoc, type);
         }
       case IASTUnaryExpression.op_amper:
         {
+          int typeAligned = Alignment.NO_SPECIFIER;
+          if (operand instanceof CPointerExpression) {
+            // FOLLOWING IF CLAUSE WILL ONLY BE EVALUATED WHEN THE OPTION
+            // cfa.simplifyPointerExpressions IS SET TO TRUE
+            // in case of &* both can be left out
+            if (options.simplifyPointerExpressions()) {
+              return ((CPointerExpression) operand).getOperand();
+            }
 
-          // FOLLOWING IF CLAUSE WILL ONLY BE EVALUATED WHEN THE OPTION
-          // cfa.simplifyPointerExpressions IS SET TO TRUE
-          // in case of *& both can be left out
-          if (options.simplifyPointerExpressions() && operand instanceof CPointerExpression) {
-            return ((CPointerExpression) operand).getOperand();
+            CType pointerOperandType =
+                ((CPointerExpression) operand).getOperand().getExpressionType();
+            typeAligned = pointerOperandType.getAlignment().getTypeAligned();
+            while (pointerOperandType instanceof CTypedefType) {
+              pointerOperandType = ((CTypedefType) pointerOperandType).getRealType();
+              if (typeAligned == Alignment.NO_SPECIFIER) {
+                typeAligned = pointerOperandType.getAlignment().getTypeAligned();
+              }
+            }
+            if (pointerOperandType instanceof CPointerType) {
+              // pass
+            } else if (pointerOperandType instanceof CArrayType) {
+              typeAligned =
+                  ((CArrayType) pointerOperandType).getType().getAlignment().getTypeAligned();
+            } else {
+              // user was already warned
+              // XXX clear typeAligned?
+            }
+
+          } else if (operand instanceof CArraySubscriptExpression) {
+            CType arrayExprType =
+                ((CArraySubscriptExpression) operand).getArrayExpression().getExpressionType();
+            typeAligned = arrayExprType.getAlignment().getTypeAligned();
+            while (arrayExprType instanceof CTypedefType) {
+              arrayExprType = ((CTypedefType) arrayExprType).getRealType();
+              if (typeAligned == Alignment.NO_SPECIFIER) {
+                typeAligned = arrayExprType.getAlignment().getTypeAligned();
+              }
+            }
+            if (arrayExprType instanceof CPointerType) {
+              // pass
+            } else if (arrayExprType instanceof CArrayType) {
+              typeAligned = ((CArrayType) arrayExprType).getType().getAlignment().getTypeAligned();
+            } else {
+              // user was already warned
+              // XXX clear typeAligned?
+            }
           }
 
           CType type = typeConverter.convert(e.getExpressionType());
           if (containsProblemType(type)) {
             type = new CPointerType(true, false, operandType);
+          } else if (typeAligned != Alignment.NO_SPECIFIER) {
+            type =
+                new CPointerType(
+                    type.isConst(),
+                    type.isVolatile(),
+                    Alignment.ofType(typeAligned),
+                    ((CPointerType) type).getType());
           }
 
           // if none of the special cases before fits the default unaryExpression is created
@@ -1898,7 +1981,8 @@ class ASTConverter {
                   fileLoc.getEndingLineInOrigin(),
                   fileLoc.isOffsetRelatedToOrigin());
         }
-        result.add(createDeclaration(declaratorLocation, cStorageClass, type, c));
+        result.add(
+            createDeclaration(declaratorLocation, cStorageClass, type, c, d.getDeclSpecifier()));
       }
     }
 
@@ -1906,7 +1990,11 @@ class ASTConverter {
   }
 
   private CDeclaration createDeclaration(
-      FileLocation fileLoc, CStorageClass cStorageClass, CType type, IASTDeclarator d) {
+      FileLocation fileLoc,
+      CStorageClass cStorageClass,
+      CType type,
+      IASTDeclarator d,
+      IASTDeclSpecifier dSpec) {
     boolean isGlobal = scope.isGlobalScope();
 
     if (d != null) {
@@ -1917,6 +2005,8 @@ class ASTConverter {
       IASTInitializer initializer = declarator.getSecond();
 
       String name = declarator.getThird();
+
+      type = handleAlignment(type, d, dSpec);
 
       if (name == null) {
         throw parseContext.parseError("Declaration without name", d);
@@ -2029,11 +2119,183 @@ class ASTConverter {
     }
   }
 
-  private List<CCompositeTypeMemberDeclaration> convertDeclarationInCompositeType(
-      final IASTDeclaration d, int nofMember) {
-    if (d.getParent() instanceof CASTCompositeTypeSpecifier) {
-      // FIXME: remove conditional after debugging
+  /**
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
+   * _Alignas(<i>alignment</i>)</code> attached to a declaration. Alignment specifier <code>
+   * _Alignas</code> can not reduce alignment while alignment attribute can.
+   *
+   * <p>Documentation:
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html#index-aligned-type-attribute
+   * https://en.cppreference.com/w/c/language/_Alignas
+   */
+  public CType handleAlignment(
+      CType type, @Nullable IASTDeclarator declarator, IASTDeclSpecifier specifier) {
+    return handleAlignment(type, declarator, specifier, true);
+  }
+
+  /**
+   * Handle <code>__attribute__((__aligned__(<i>alignment</i>)))</code> and <code>
+   * _Alignas(<i>alignment</i>)</code> attached to a member declaration. A member of not packed
+   * struct/union can not be less aligned then default. Alignment specifier (<code>_Alignas</code>)
+   * can not reduce alignment and can not be applied to bit-fields.
+   *
+   * <p>Documentation:
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Variable-Attributes.html#index-aligned-variable-attribute
+   * https://gcc.gnu.org/onlinedocs/gcc/Common-Type-Attributes.html#index-aligned-type-attribute
+   * https://en.cppreference.com/w/c/language/_Alignas
+   */
+  private CType handleAlignmentOfMember(
+      CType type,
+      @Nullable IASTDeclarator declarator,
+      IASTDeclSpecifier specifier,
+      boolean pPacked) {
+    return handleAlignment(type, declarator, specifier, pPacked);
+  }
+
+  private CType handleAlignment(
+      CType type,
+      @Nullable IASTDeclarator declarator,
+      IASTDeclSpecifier specifier,
+      boolean canBeLessAligned) {
+    // get attributes from declSpecifier (it is an attribute after type, and applies to all
+    // variables in declaration) and declarator (it is an attribute after variable)
+    int aligned;
+    if (declarator == null) {
+      // Attribute after composite type declaration applies to the type,
+      // not to all declared names in the declaration.
+      // Use it first time (with the type), ignore it after (with declarators).
+      if (type instanceof CComplexType) {
+        specifiersForCompositeTypes.add(specifier);
+      }
+      aligned = getAlignmentFromAttributes(specifier.getAttributes());
+    } else if (specifiersForCompositeTypes.contains(specifier)) {
+      aligned = getAlignmentFromAttributes(declarator.getAttributes());
+    } else {
+      aligned = getAlignmentFromAttributes(specifier.getAttributes());
+      aligned = getBiggerAlignmentFromAttributes(declarator.getAttributes(), aligned);
     }
+
+    // members of not packed structs or unions can not be
+    // less aligned than their default alignment
+    // (do not check alignment if it is not neccessary)
+    // but bitfields never ignore alignment
+    if (type instanceof CBitFieldType && aligned != Alignment.NO_SPECIFIER) {
+      canBeLessAligned = true;
+      boolean fieldFits =
+          aligned * machinemodel.getSizeofCharInBits() >= ((CBitFieldType) type).getBitFieldSize();
+      if (machinemodel.getAlignof(type) > aligned && !fieldFits) {
+        // Warn about difference in behavior between GCC and Clang
+        // struct { char before; int __align(2) bits : 17; };
+        // XXX is this exact example correct?
+        // GCC offsets bits at 4 (as int), Clang offsets bits at 2 (as in attribute)
+        // but bits:31 shows no difference :)
+        logger.log(
+            Level.WARNING,
+            getLocation(declarator) + ":",
+            "bit-field",
+            type,
+            "is aligned less than its type,",
+            "but its length exceeds alignment bytes,",
+            "so offsets of containing struct may be wrong");
+      }
+    }
+
+    BigInteger defaultAlignment =
+        BigInteger.valueOf(canBeLessAligned ? -1 : machinemodel.getAlignof(type));
+
+    if (!canBeLessAligned && BigInteger.valueOf(aligned).compareTo(defaultAlignment) <= 0) {
+      aligned = Alignment.NO_SPECIFIER;
+    }
+    Alignment alignment = Alignment.ofVar(aligned);
+
+    // get specifier from declSpecifier
+    // (it applies to all variables like attribute in declSpecifier)
+    int alignas = Alignment.NO_SPECIFIER;
+    for (IASTAlignmentSpecifier alignSpec :
+        ((ICASTDeclSpecifier) specifier).getAlignmentSpecifiers()) {
+      int last = Alignment.NO_SPECIFIER;
+      if (alignSpec.getTypeId() != null) {
+        // _Alignas(otherType)
+        CType t = convert(alignSpec.getTypeId());
+        last = machinemodel.getAlignof(t);
+      } else {
+        // _Alignas(integer constant expression)
+        CExpression e = (CExpression) convertExpressionWithSideEffects(alignSpec.getExpression());
+        if (e instanceof CIntegerLiteralExpression) {
+          last = ((CIntegerLiteralExpression) e).getValue().intValueExact();
+        } else {
+          throw parseContext.parseError(
+              "Unsupported expression inside _Alignas specifier", specifier);
+        }
+      }
+      if (alignas < last) {
+        alignas = last;
+      }
+    }
+
+    if (alignas != Alignment.NO_SPECIFIER && type instanceof CBitFieldType) {
+      // bit-fields can not have alignment specifiers by C standard
+      logger.log(Level.WARNING, "_ALignas is ignored, as it is specified for a bit-field %s", type);
+      alignas = Alignment.NO_SPECIFIER;
+    }
+    if (alignas != Alignment.NO_SPECIFIER
+        && BigInteger.valueOf(alignas).compareTo(defaultAlignment) <= 0) {
+      // alignment specifiers can not reduce alignment by C standard
+      logger.log(
+          Level.WARNING,
+          getLocation(specifier) + ":",
+          "_Alignas is ignored, as it specifies alignment",
+          alignas + ",",
+          "which is less than default",
+          defaultAlignment,
+          "for type",
+          type);
+      alignas = Alignment.NO_SPECIFIER;
+    }
+    alignment = alignment.withAlignas(alignas);
+
+    type = CTypes.updateAlignment(type, alignment);
+    return type;
+  }
+
+  int getAlignmentFromAttributes(IASTAttribute[] attributeArray) {
+    return getBiggerAlignmentFromAttributes(attributeArray, Alignment.NO_SPECIFIER);
+  }
+
+  int getBiggerAlignmentFromAttributes(IASTAttribute[] attributeArray, int aligned) {
+    for (IASTAttribute attribute : attributeArray) {
+      String name = getAttributeString(attribute.getName());
+      if (name.equals("aligned")) {
+        int cur;
+        try {
+          String arg = getAttributeString(attribute.getArgumentClause().getTokenCharImage());
+          cur = Integer.valueOf(arg);
+        } catch (NullPointerException | NumberFormatException e) {
+          // default (biggest) alignment as clause was not specified
+          // XXX is empty clause always the same as BIGGEST_ALIGNMENT?
+          cur = machinemodel.getMaxAlign();
+        }
+        if (aligned < cur) {
+          aligned = cur;
+        }
+      }
+    }
+    return aligned;
+  }
+
+  boolean hasPackedAttribute(IASTAttribute[] attributeArray) {
+    for (IASTAttribute attribute : attributeArray) {
+      String name = getAttributeString(attribute.getName());
+      if (name.equals("packed")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private List<CCompositeTypeMemberDeclaration> convertDeclarationInCompositeType(
+      final IASTDeclaration d, int nofMember, boolean pPacked) {
     if (d instanceof IASTProblemDeclaration) {
       throw parseContext.parseError((IASTProblemDeclaration) d);
     }
@@ -2069,19 +2331,21 @@ class ASTConverter {
     if (declarators == null || declarators.length == 0) {
       // declaration without declarator, anonymous struct field?
       CCompositeTypeMemberDeclaration newD =
-          createDeclarationForCompositeType(type, null, nofMember);
+          createDeclarationForCompositeType(type, null, sd.getDeclSpecifier(), pPacked, nofMember);
       result = Collections.singletonList(newD);
 
     } else if (declarators.length == 1) {
       CCompositeTypeMemberDeclaration newD =
-          createDeclarationForCompositeType(type, declarators[0], nofMember);
+          createDeclarationForCompositeType(
+              type, declarators[0], sd.getDeclSpecifier(), pPacked, nofMember);
       result = Collections.singletonList(newD);
 
     } else {
       result = new ArrayList<>(declarators.length);
       for (IASTDeclarator c : declarators) {
 
-        result.add(createDeclarationForCompositeType(type, c, nofMember));
+        result.add(
+            createDeclarationForCompositeType(type, c, sd.getDeclSpecifier(), pPacked, nofMember));
       }
     }
 
@@ -2089,7 +2353,7 @@ class ASTConverter {
   }
 
   private CCompositeTypeMemberDeclaration createDeclarationForCompositeType(
-      CType type, IASTDeclarator d, int nofMember) {
+      CType type, IASTDeclarator d, IASTDeclSpecifier dspec, boolean pPacked, int nofMember) {
     String name = null;
 
     if (d != null) {
@@ -2101,6 +2365,7 @@ class ASTConverter {
 
       type = declarator.getFirst();
       name = declarator.getThird();
+      type = handleAlignmentOfMember(type, d, dspec, pPacked);
     }
 
     if (isNullOrEmpty(name)) {
@@ -2441,10 +2706,12 @@ class ASTConverter {
         throw parseContext.parseError("Unsupported mode " + mode, context);
     }
 
-    // Copy const, volatile, and signedness from original type, rest from newType
+    // Copy const, volatile, alignment and signedness from original type,
+    // rest ('size' modifiers) from newType
     return new CSimpleType(
         type.isConst(),
         type.isVolatile(),
+        type.getAlignment(),
         newType.getType(),
         newType.isLong(),
         newType.isShort(),
@@ -2487,6 +2754,7 @@ class ASTConverter {
             new CSimpleType(
                 t.isConst(),
                 t.isVolatile(),
+                t.getAlignment(),
                 CBasicType.INT,
                 t.isLong(),
                 t.isShort(),
@@ -2561,8 +2829,10 @@ class ASTConverter {
     List<CCompositeTypeMemberDeclaration> list = new ArrayList<>(d.getMembers().length);
 
     int nofMember = 0;
+    boolean isPacked = hasPackedAttribute(d.getAttributes());
     for (IASTDeclaration c : d.getMembers()) {
-      List<CCompositeTypeMemberDeclaration> newCs = convertDeclarationInCompositeType(c, nofMember);
+      List<CCompositeTypeMemberDeclaration> newCs =
+          convertDeclarationInCompositeType(c, nofMember, isPacked);
       nofMember++;
       assert !newCs.isEmpty();
       list.addAll(newCs);
@@ -2613,8 +2883,11 @@ class ASTConverter {
         }
       }
     }
+
     CCompositeType compositeType =
         new CCompositeType(d.isConst(), d.isVolatile(), kind, list, name, origName);
+    compositeType = (CCompositeType) handleAlignment(compositeType, null, d);
+    compositeType = (CCompositeType) compositeType.copyWithPacked(isPacked);
 
     // in cases like struct s { (struct s)* f }
     // we need to fill in the binding from the inner "struct s" type to the outer
@@ -2625,8 +2898,10 @@ class ASTConverter {
 
   private CEnumType convert(IASTEnumerationSpecifier d) {
     List<CEnumerator> list = new ArrayList<>(d.getEnumerators().length);
-    Long lastValue = -1L; // initialize with -1, so the first one gets value 0
+    // initialize with -1, so the first one gets value 0
+    BigInteger lastValue = BigInteger.valueOf(-1);
     for (IASTEnumerationSpecifier.IASTEnumerator c : d.getEnumerators()) {
+      // if enumerator type is int, it is set here
       CEnumerator newC = convert(c, lastValue);
       list.add(newC);
       if (newC.hasValue()) {
@@ -2644,55 +2919,125 @@ class ASTConverter {
     if (name.isEmpty()) {
       name = "__anon_type_" + anonTypeCounter++;
     }
+    Preconditions.checkState(
+        !list.isEmpty(), "enumeration does not provide any values: enum %s", name);
 
-    CEnumType enumType = new CEnumType(d.isConst(), d.isVolatile(), list, name, origName);
-    CSimpleType integerType = getEnumerationType(enumType);
+    boolean isPacked = hasPackedAttribute(d.getAttributes());
+    CSimpleType enumIntegerType = getEnumerationType(isPacked, list);
+    CEnumType enumType =
+        new CEnumType(
+            d.isConst(),
+            d.isVolatile(),
+            Alignment.NO_SPECIFIERS,
+            isPacked,
+            enumIntegerType,
+            list,
+            name,
+            origName);
+
+    if (PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES.contains(enumIntegerType)) {
+      // enumerators of packed enum are still at least int
+      enumIntegerType = CNumericTypes.SIGNED_INT;
+    }
+
     for (CEnumerator enumValue : enumType.getEnumerators()) {
       enumValue.setEnum(enumType);
-      enumValue.setType(integerType);
+      // enumerator type was not set above, because it is enum underlying type
+      if (enumValue.getType().equals(CNumericTypes.BOOL)) {
+        enumValue.setType(enumIntegerType);
+      }
     }
     return enumType;
   }
 
+  private static final ImmutableList<CSimpleType> PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES =
+      ImmutableList.of( // list of types with incrementing size, less than int
+          CNumericTypes.UNSIGNED_CHAR,
+          CNumericTypes.SIGNED_CHAR,
+          CNumericTypes.UNSIGNED_SHORT_INT,
+          CNumericTypes.SIGNED_SHORT_INT);
+
   private static final ImmutableList<CSimpleType> ENUM_REPRESENTATION_CANDIDATE_TYPES =
       ImmutableList.of( // list of types with incrementing size
-          CNumericTypes.SIGNED_INT, CNumericTypes.UNSIGNED_INT, CNumericTypes.SIGNED_LONG_LONG_INT);
+          CNumericTypes.UNSIGNED_INT,
+          CNumericTypes.SIGNED_INT,
+          CNumericTypes.UNSIGNED_LONG_INT,
+          CNumericTypes.SIGNED_LONG_INT,
+          CNumericTypes.UNSIGNED_LONG_LONG_INT,
+          CNumericTypes.SIGNED_LONG_LONG_INT);
 
   /**
-   * Compute a matching integer type for an enumeration. We use SIGNED_INT and switch to larger type
-   * if needed.
+   * Compute an underlying integer type for enumerated type.
    *
    * <p>§6.7.2.2 (4) Each enumerated type shall be compatible with char, a signed integer type, or
    * an unsigned integer type. The choice of type is implementation-defined, but shall be capable of
    * representing the values of all the members of the enumeration.
+   *
+   * <p>GCC selects type that can represent all enumerator values. If enumerated type has no
+   * negative enumerators, GCC selects unsigned type. For a packed enum GCC selects smallest
+   * possible type from char, short, int, long, long long. For a not packed enum GCC selects type
+   * from int, long, long long.
+   *
+   * <p>Enumerator of any enumerated type has type <code>int</code> if its value is inside <code>int
+   * </code> bounds. GCC allows enumerators with values out of <code>int</code> bounds (breaks
+   * §6.7.2.2 (2)). The type for such enumerator is the compatible integer type of the enum.
+   *
+   * <p>Note that types of enumerators may be either int or the underlying type of the enum and so
+   * may differ from each other and the enum compatible type.
+   *
+   * @return integer type compatible with this enum
    */
-  private CSimpleType getEnumerationType(final CEnumType enumType) {
-    LongSummaryStatistics enumStatistics =
-        enumType.getEnumerators().stream()
-            .filter(CEnumerator::hasValue) // some values might not have been simplified
-            .mapToLong(CEnumerator::getValue)
-            .summaryStatistics();
+  private CSimpleType getEnumerationType(boolean pPacked, List<CEnumerator> pEnumerators) {
 
-    Preconditions.checkState(
-        enumStatistics.getCount() > 0, "enumeration does not provide any values: %s", enumType);
-    final BigInteger minValue = BigInteger.valueOf(enumStatistics.getMin());
-    final BigInteger maxValue = BigInteger.valueOf(enumStatistics.getMax());
+    final Optional<BigInteger> maxValue =
+        pEnumerators.stream()
+            .filter(CEnumerator::hasValue)
+            .map(CEnumerator::getValue)
+            .max((o1, o2) -> o1.compareTo(o2));
+
+    final Optional<BigInteger> minValue =
+        pEnumerators.stream()
+            .filter(CEnumerator::hasValue)
+            .map(CEnumerator::getValue)
+            .min((o1, o2) -> o1.compareTo(o2));
+
+    if (maxValue.isEmpty()) {
+      logger.log(
+          Level.WARNING, "enum has no simplified values to decide its compatible integer type");
+      return ENUM_REPRESENTATION_CANDIDATE_TYPES.get(0);
+    }
+
+    if (pPacked) {
+      for (CSimpleType integerType : PACKED_ENUM_REPRESENTATION_CANDIDATE_TYPES) {
+        if (minValue.orElseThrow().compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
+            && maxValue.orElseThrow().compareTo(machinemodel.getMaximalIntegerValue(integerType))
+                <= 0) {
+          // if all enumeration values are matching into the range, we use it
+          return integerType;
+        }
+      }
+    }
+
     for (CSimpleType integerType : ENUM_REPRESENTATION_CANDIDATE_TYPES) {
-      if (minValue.compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
-          && maxValue.compareTo(machinemodel.getMaximalIntegerValue(integerType)) <= 0) {
+      if (minValue.orElseThrow().compareTo(machinemodel.getMinimalIntegerValue(integerType)) >= 0
+          && maxValue.orElseThrow().compareTo(machinemodel.getMaximalIntegerValue(integerType))
+              <= 0) {
         // if all enumeration values are matching into the range, we use it
         return integerType;
       }
     }
-    // if nothing works, use the largest type we have: ULL
-    return CNumericTypes.UNSIGNED_LONG_LONG_INT;
+
+    throw new AssertionError("Values of enum are out of bound for all integer types");
   }
 
-  private CEnumerator convert(IASTEnumerationSpecifier.IASTEnumerator e, Long lastValue) {
-    Long value = null;
+  private CEnumerator convert(IASTEnumerationSpecifier.IASTEnumerator e, BigInteger lastValue) {
+    BigInteger enumeratorValue = null;
+    CSimpleType enumeratorType = null;
 
     if (e.getValue() == null && lastValue != null) {
-      value = lastValue + 1;
+      enumeratorValue = lastValue.add(BigInteger.ONE);
+      // if lastValue was INT_MAX, current value is out of int, so GCC considers this an error
+      // but we do not have to check it i guess
     } else {
       CExpression v = convertExpressionWithoutSideEffects(e.getValue());
 
@@ -2701,54 +3046,34 @@ class ASTConverter {
       // Lets assume that there is never a signed integer overflow or another property violation.
       v = simplifyExpressionRecursively(v);
 
-      boolean negate = false;
-      boolean complement = false;
-
-      if (v instanceof CUnaryExpression
-          && ((CUnaryExpression) v).getOperator() == UnaryOperator.MINUS) {
-        CUnaryExpression u = (CUnaryExpression) v;
-        negate = true;
-        v = u.getOperand();
-      } else if (v instanceof CUnaryExpression
-          && ((CUnaryExpression) v).getOperator() == UnaryOperator.TILDE) {
-        CUnaryExpression u = (CUnaryExpression) v;
-        complement = true;
-        v = u.getOperand();
-      }
-      assert !(v instanceof CUnaryExpression) : v;
-
       if (v instanceof CIntegerLiteralExpression) {
-        value = ((CIntegerLiteralExpression) v).asLong();
+        enumeratorValue = ((CIntegerLiteralExpression) v).getValue();
       } else if (v instanceof CCharLiteralExpression) {
-        value = (long) ((CCharLiteralExpression) v).getCharacter();
+        enumeratorValue = BigInteger.valueOf(((CCharLiteralExpression) v).getCharacter());
       } else {
-        // ignore unsupported enum value and set it to NULL.
-        // TODO bug? constant enums are ignored, if 'cfa.simplifyConstExpressions' is disabled.
-        logger.logf(
-            Level.WARNING,
-            "enum constant '%s = %s' was not simplified and will be ignored in the following.",
-            e.getName(),
-            v.toQualifiedASTString());
+        throw new AssertionError(
+            "enum constant '"
+                + e.getName()
+                + " = "
+                + v.toQualifiedASTString()
+                + "' was not simplified");
       }
+    }
 
-      if (value != null) {
-        if (negate) {
-          value = -value;
-        } else if (complement) {
-          value = ~value;
-        }
-      }
+    BigInteger intMin = machinemodel.getMinimalIntegerValue(CNumericTypes.SIGNED_INT);
+    BigInteger intMax = machinemodel.getMaximalIntegerValue(CNumericTypes.SIGNED_INT);
+    if (enumeratorValue.compareTo(intMax) <= 0 && enumeratorValue.compareTo(intMin) >= 0) {
+      enumeratorType = CNumericTypes.SIGNED_INT;
+    } else {
+      // may be uint or greater than int
+      // replace with enum compatible type later
+      enumeratorType = CNumericTypes.BOOL;
     }
 
     String name = convert(e.getName());
     CEnumerator result =
         new CEnumerator(
-            getLocation(e),
-            name,
-            scope.createScopedNameOf(name),
-            /* dummy integer type, the correct one will be set directly afterwards */
-            CNumericTypes.SIGNED_INT,
-            value);
+            getLocation(e), name, scope.createScopedNameOf(name), enumeratorType, enumeratorValue);
     scope.registerDeclaration(result);
     return result;
   }

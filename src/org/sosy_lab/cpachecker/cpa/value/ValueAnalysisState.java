@@ -844,8 +844,7 @@ public final class ValueAnalysisState
             if (cType instanceof CSimpleType) {
               CSimpleType simpleType = (CSimpleType) type;
               if (simpleType.getType().isIntegerType()) {
-                long value = num.getNumber().longValue();
-                val = new CIntegerLiteralExpression(loc, simpleType, BigInteger.valueOf(value));
+                val = new CIntegerLiteralExpression(loc, simpleType, num.bigInteger());
               } else if (simpleType.getType().isFloatingPointType()) {
                 double value = num.getNumber().doubleValue();
                 if (((Double) value).isNaN() || ((Double) value).isInfinite()) {
@@ -858,15 +857,14 @@ public final class ValueAnalysisState
               }
             } else if (cType instanceof CEnumType) {
               CEnumType enumType = (CEnumType) cType;
-              Long value = num.getNumber().longValue();
               for (CEnumerator enumerator : enumType.getEnumerators()) {
-                if (enumerator.getValue() == value) {
+                if (enumerator.getValue().equals(num.bigInteger())) {
                   val = new CIdExpression(loc, enumerator);
                   break;
                 }
               }
               if (val == null) {
-                val = new CIntegerLiteralExpression(loc, enumType, BigInteger.valueOf(value));
+                val = new CIntegerLiteralExpression(loc, enumType, num.bigInteger());
               }
             } else {
               // disabled since this blocks too many programs for which plenty other information

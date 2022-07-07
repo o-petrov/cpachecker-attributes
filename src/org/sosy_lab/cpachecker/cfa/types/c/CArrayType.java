@@ -10,6 +10,10 @@ package org.sosy_lab.cpachecker.cfa.types.c;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -24,11 +28,22 @@ public final class CArrayType extends AArrayType implements CType {
   private final @Nullable CExpression length;
   private final boolean isConst;
   private final boolean isVolatile;
+  private final Alignment alignment;
 
   public CArrayType(boolean pConst, boolean pVolatile, CType pType, @Nullable CExpression pLength) {
+    this(pConst, pVolatile, Alignment.NO_SPECIFIERS, pType, pLength);
+  }
+
+  public CArrayType(
+      boolean pConst,
+      boolean pVolatile,
+      Alignment pAlignment,
+      CType pType,
+      @Nullable CExpression pLength) {
     super(pType);
     isConst = pConst;
     isVolatile = pVolatile;
+    alignment = checkNotNull(pAlignment);
     length = pLength;
   }
 
@@ -64,11 +79,22 @@ public final class CArrayType extends AArrayType implements CType {
 
   private String toASTString(String pDeclarator, boolean pQualified) {
     checkNotNull(pDeclarator);
-    return (isConst() ? "const " : "")
-        + (isVolatile() ? "volatile " : "")
-        + getType()
-            .toASTString(
-                pDeclarator + ("[" + (length != null ? length.toASTString(pQualified) : "") + "]"));
+    List<String> parts = new ArrayList<>();
+    parts.add(Strings.emptyToNull(alignment.stringAlignas()));
+
+    if (isConst()) {
+      parts.add("const");
+    }
+    if (isVolatile()) {
+      parts.add("volatile");
+    }
+    if (pDeclarator.startsWith("*")) {
+      pDeclarator = '(' + pDeclarator + ')';
+    }
+    pDeclarator += "[" + (length != null ? length.toASTString(pQualified) : "") + "]";
+    parts.add(getType().toASTString(pDeclarator));
+    parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
+    return Joiner.on(' ').skipNulls().join(parts);
   }
 
   public String toQualifiedASTString(String pDeclarator) {
@@ -86,17 +112,22 @@ public final class CArrayType extends AArrayType implements CType {
   }
 
   @Override
+  public Alignment getAlignment() {
+    return alignment;
+  }
+
+  @Override
   public boolean isIncomplete() {
     return length == null; // C standard § 6.2.5 (22)
   }
 
   @Override
   public String toString() {
-    return (isConst() ? "const " : "")
-        + (isVolatile() ? "volatile " : "")
-        + "("
-        + getType()
-        + (")[" + (length != null ? length.toASTString() : "") + "]");
+    String result = toASTString("");
+    if (alignment.getTypeAligned() == Alignment.NO_SPECIFIER) {
+      return result;
+    }
+    return result + ' ' + alignment.stringTypeAlignedAsComment();
   }
 
   @Override
@@ -139,7 +170,9 @@ public final class CArrayType extends AArrayType implements CType {
       }
     }
 
-    return isConst == other.isConst && isVolatile == other.isVolatile;
+    return isConst == other.isConst
+        && isVolatile == other.isVolatile
+        && alignment.equals(other.alignment);
   }
 
   @Override
@@ -155,6 +188,7 @@ public final class CArrayType extends AArrayType implements CType {
     return new CArrayType(
         false,
         false,
+        alignment,
         getType().getCanonicalType(isConst || pForceConst, isVolatile || pForceVolatile),
         length);
   }

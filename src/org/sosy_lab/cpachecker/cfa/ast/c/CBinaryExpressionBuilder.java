@@ -20,6 +20,7 @@ import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression.BinaryOperator;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
+import org.sosy_lab.cpachecker.cfa.types.c.Alignment;
 import org.sosy_lab.cpachecker.cfa.types.c.CArrayType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
 import org.sosy_lab.cpachecker.cfa.types.c.CBitFieldType;
@@ -211,11 +212,14 @@ public class CBinaryExpressionBuilder {
     /* 6.7.2.2 Enumeration specifiers
      * The expression, that defines the value of an enumeration constant,
      * shall be an integer constant expression, that has a value representable as an int.
+     *
+     * But GCC allows long constants and packed enums, so return enum's integer type.
      */
-    if (pType instanceof CEnumType
-        || (pType instanceof CElaboratedType
-            && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM)) {
-      return CNumericTypes.SIGNED_INT;
+    if (pType instanceof CEnumType) {
+      return ((CEnumType) pType).getIntegerType();
+    } else if (pType instanceof CElaboratedType
+        && ((CElaboratedType) pType).getKind() == ComplexTypeKind.ENUM) {
+      return ((CEnumType) ((CElaboratedType) pType).getRealType()).getIntegerType();
     } else if (pType instanceof CBitFieldType) {
       CBitFieldType bitFieldType = (CBitFieldType) pType;
       CType handledInnerType = handleEnum(bitFieldType.getType());
@@ -443,7 +447,7 @@ public class CBinaryExpressionBuilder {
             "Operator " + pBinOperator + " cannot be used with pointer operand",
             getDummyBinExprForLogging(pBinOperator, op1, op2));
       }
-      return pType;
+      return CTypes.leaveOnlyTypeAlignment(pType);
     }
 
     // if one type is an array, return the pointer-equivalent to the array-type.
@@ -609,12 +613,32 @@ public class CBinaryExpressionBuilder {
 
     if (t1.isSigned()) {
       return new CSimpleType(
-          false, false, INT, t1.isLong(), false, false, true, false, false, t1.isLongLong());
+          false,
+          false,
+          Alignment.NO_SPECIFIERS,
+          INT,
+          t1.isLong(),
+          false,
+          false,
+          true,
+          false,
+          false,
+          t1.isLongLong());
     }
 
     if (t2.isSigned()) {
       return new CSimpleType(
-          false, false, INT, t2.isLong(), false, false, true, false, false, t2.isLongLong());
+          false,
+          false,
+          Alignment.NO_SPECIFIERS,
+          INT,
+          t2.isLong(),
+          false,
+          false,
+          true,
+          false,
+          false,
+          t2.isLongLong());
     }
 
     throw new AssertionError("unhandled type: " + t1 + " or " + t2);
