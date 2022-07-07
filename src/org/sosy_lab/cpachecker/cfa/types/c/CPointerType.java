@@ -80,16 +80,20 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public String toString() {
-    return toASTString("");
+    return toASTString("", false);
   }
 
   @Override
   public String toASTString(String pDeclarator) {
+    return toASTString(pDeclarator, true);
+  }
+
+  public String toASTString(String pDeclarator, boolean compositeWithMembers) {
     checkNotNull(pDeclarator);
     ArrayList<String> parts = new ArrayList<>();
+
     // ugly hack but it works:
     // We need to insert the "*" and qualifiers between the type and the name (e.g. "int *var").
-
     if (isConst()) {
       parts.add("const");
     }
@@ -99,20 +103,20 @@ public final class CPointerType implements CType, Serializable {
     if (alignment.getTypeAligned() != Alignment.NO_SPECIFIER) {
       parts.add(alignment.stringTypeAligned());
     }
-    // if qualifiers, add a space after asterisk
+    // if any qualifiers, add a space after asterisk
     String asterisk = parts.size() == 0 ? "*" : "* ";
 
     parts.add(Strings.emptyToNull(pDeclarator));
     String declarator = asterisk + Joiner.on(' ').skipNulls().join(parts);
-
-    if (type instanceof CArrayType) {
-      declarator = '(' + declarator + ')';
-    }
-    declarator = type.toASTString(declarator);
-
     parts.clear();
     parts.add(Strings.emptyToNull(alignment.stringAlignas()));
-    parts.add(declarator);
+    // do not want to have different methods doing similar thing,
+    // so explicitly treat composite type as elaborated type in toString
+    if (type instanceof CCompositeType) {
+      parts.add(((CCompositeType) type).toASTString(declarator, compositeWithMembers));
+    } else {
+      parts.add(type.toASTString(declarator));
+    }
     parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
 
     return Joiner.on(' ').skipNulls().join(parts);

@@ -143,11 +143,15 @@ public final class CCompositeType implements CComplexType {
 
   @Override
   public String toString() {
-    return toASTString("");
+    return toASTString("", false);
   }
 
   @Override
   public String toASTString(String pDeclarator) {
+    return toASTString(pDeclarator, true);
+  }
+
+  public String toASTString(String pDeclarator, boolean withMembers) {
     checkNotNull(pDeclarator);
     ArrayList<String> parts = new ArrayList<>();
     parts.add(Strings.emptyToNull(alignment.stringAlignas()));
@@ -160,7 +164,7 @@ public final class CCompositeType implements CComplexType {
     parts.add(kind.toASTString());
     parts.add(name);
 
-    if (!pDeclarator.isEmpty()) {
+    if (withMembers) {
       if (members == null) {
         parts.add("/* missing member initialization */");
       } else {

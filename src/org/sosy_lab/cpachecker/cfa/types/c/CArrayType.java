@@ -88,7 +88,9 @@ public final class CArrayType extends AArrayType implements CType {
     if (isVolatile()) {
       parts.add("volatile");
     }
-
+    if (pDeclarator.startsWith("*")) {
+      pDeclarator = '(' + pDeclarator + ')';
+    }
     pDeclarator += "[" + (length != null ? length.toASTString(pQualified) : "") + "]";
     parts.add(getType().toASTString(pDeclarator));
     parts.add(Strings.emptyToNull(alignment.stringVarAligned()));
