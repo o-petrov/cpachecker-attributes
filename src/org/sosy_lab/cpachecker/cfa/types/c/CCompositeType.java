@@ -170,7 +170,7 @@ public final class CCompositeType implements CComplexType {
       } else {
         parts.add(
             "{\n  "
-                + Joiner.on(",\n  ")
+                + Joiner.on("\n  ")
                     .join(transform(members, CCompositeTypeMemberDeclaration::toASTString))
                 + "\n}");
       }
