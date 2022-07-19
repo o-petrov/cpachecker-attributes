@@ -302,10 +302,10 @@ public class CPAchecker {
   }
 
   public CPAcheckerResult run(List<String> programDenotation) {
-    checkArgument(!programDenotation.isEmpty());
+    return new Runner(programDenotation).run();
+  }
 
-    logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
-
+  private class Runner {
     MainCPAStatistics stats = null;
     Algorithm algorithm = null;
     ReachedSet reached = null;
@@ -313,11 +313,22 @@ public class CPAchecker {
     Result result = Result.NOT_YET_STARTED;
     String targetDescription = "";
     Specification specification = null;
+    final ShutdownRequestListener interruptThreadOnShutdown;
+    ImmutableList<String> programDenotation;
 
-    final ShutdownRequestListener interruptThreadOnShutdown = interruptCurrentThreadOnShutdown();
-    shutdownNotifier.register(interruptThreadOnShutdown);
+    private Runner(List<String> pProgramDenotation) {
+      checkArgument(!pProgramDenotation.isEmpty());
+      logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
 
-    try {
+      programDenotation = ImmutableList.copyOf(pProgramDenotation);
+
+      interruptThreadOnShutdown = interruptCurrentThreadOnShutdown();
+      shutdownNotifier.register(interruptThreadOnShutdown);
+    }
+
+    private void setupAndRunAnalysis()
+        throws InvalidConfigurationException, InterruptedException, CPAException {
+
       stats = new MainCPAStatistics(config, logger, shutdownNotifier);
 
       // create reached set, cpa, algorithm
@@ -325,7 +336,7 @@ public class CPAchecker {
 
       cfa = parse(programDenotation);
       if (cfa == null) {
-        return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+        return;
       }
       stats.setCFACreatorStatistics(cfaCreatorStats);
       stats.setCFA(cfa);
@@ -404,24 +415,31 @@ public class CPAchecker {
       } else {
         result = Result.DONE;
       }
-
-    } catch (InvalidConfigurationException e) {
-      logger.logUserException(Level.SEVERE, e, "Invalid configuration");
-
-    } catch (InterruptedException e) {
-      // CPAchecker must exit because it was asked to
-      // we return normally instead of propagating the exception
-      // so we can return the partial result we have so far
-      logger.logUserException(Level.WARNING, e, "Analysis interrupted");
-
-    } catch (CPAException e) {
-      logger.logUserException(Level.SEVERE, e, null);
-
-    } finally {
-      CPAs.closeIfPossible(algorithm, logger);
-      shutdownNotifier.unregister(interruptThreadOnShutdown);
     }
-    return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+
+    private CPAcheckerResult run() {
+      try {
+        setupAndRunAnalysis();
+
+      } catch (InvalidConfigurationException e) {
+        logger.logUserException(Level.SEVERE, e, "Invalid configuration");
+
+      } catch (InterruptedException e) {
+        // CPAchecker must exit because it was asked to
+        // we return normally instead of propagating the exception
+        // so we can return the partial result we have so far
+        logger.logUserException(Level.WARNING, e, "Analysis interrupted");
+
+      } catch (CPAException e) {
+        logger.logUserException(Level.SEVERE, e, null);
+
+      } finally {
+        CPAs.closeIfPossible(algorithm, logger);
+        shutdownNotifier.unregister(interruptThreadOnShutdown);
+      }
+
+      return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+    }
   }
 
   private CFA parse(List<String> fileNames) {
