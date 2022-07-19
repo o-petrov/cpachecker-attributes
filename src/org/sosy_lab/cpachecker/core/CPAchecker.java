@@ -61,6 +61,7 @@ import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Precision;
 import org.sosy_lab.cpachecker.core.interfaces.StateSpacePartition;
+import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.core.reachedset.AggregatedReachedSets;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
@@ -198,6 +199,8 @@ public class CPAchecker {
   private final ShutdownNotifier shutdownNotifier;
   private final CoreComponentsFactory factory;
 
+  private Statistics cfaCreatorStats;
+
   // The content of this String is read from a file that is created by the
   // ant task "init".
   // To change the version, update the property in build.xml.
@@ -320,10 +323,12 @@ public class CPAchecker {
       // create reached set, cpa, algorithm
       stats.creationTime.start();
 
-      cfa = parse(programDenotation, stats);
+      cfa = parse(programDenotation);
       if (cfa == null) {
         return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
       }
+      stats.setCFACreatorStatistics(cfaCreatorStats);
+      stats.setCFA(cfa);
       GlobalInfo.getInstance().storeCFA(cfa);
       shutdownNotifier.shutdownIfNecessary();
 
@@ -419,7 +424,7 @@ public class CPAchecker {
     return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
   }
 
-  private CFA parse(List<String> fileNames, MainCPAStatistics stats) {
+  private CFA parse(List<String> fileNames) {
     try {
 
       final CFA cfa;
@@ -428,8 +433,8 @@ public class CPAchecker {
         // parse file and create CFA
         logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
         CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
-        stats.setCFACreator(cfaCreator);
         cfa = cfaCreator.parseFileAndCreateCFA(fileNames);
+        cfaCreatorStats = cfaCreator.getStatistics();
 
       } else {
         // load CFA from serialization file
@@ -443,7 +448,6 @@ public class CPAchecker {
         assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
       }
 
-      stats.setCFA(cfa);
       return cfa;
 
     } catch (InvalidConfigurationException e) {
