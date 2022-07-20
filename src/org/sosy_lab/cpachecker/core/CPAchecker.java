@@ -321,6 +321,9 @@ public class CPAchecker {
       stats.creationTime.start();
 
       cfa = parse(programDenotation, stats);
+      if (cfa == null) {
+        return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+      }
       GlobalInfo.getInstance().storeCFA(cfa);
       shutdownNotifier.shutdownIfNecessary();
 
@@ -397,6 +400,55 @@ public class CPAchecker {
         result = Result.DONE;
       }
 
+    } catch (InvalidConfigurationException e) {
+      logger.logUserException(Level.SEVERE, e, "Invalid configuration");
+
+    } catch (InterruptedException e) {
+      // CPAchecker must exit because it was asked to
+      // we return normally instead of propagating the exception
+      // so we can return the partial result we have so far
+      logger.logUserException(Level.WARNING, e, "Analysis interrupted");
+
+    } catch (CPAException e) {
+      logger.logUserException(Level.SEVERE, e, null);
+
+    } finally {
+      CPAs.closeIfPossible(algorithm, logger);
+      shutdownNotifier.unregister(interruptThreadOnShutdown);
+    }
+    return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+  }
+
+  private CFA parse(List<String> fileNames, MainCPAStatistics stats) {
+    try {
+
+      final CFA cfa;
+
+      if (serializedCfaFile == null) {
+        // parse file and create CFA
+        logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
+        CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
+        stats.setCFACreator(cfaCreator);
+        cfa = cfaCreator.parseFileAndCreateCFA(fileNames);
+
+      } else {
+        // load CFA from serialization file
+        logger.logf(Level.INFO, "Reading CFA from file \"%s\"", serializedCfaFile);
+        try (InputStream inputStream = Files.newInputStream(serializedCfaFile);
+            InputStream gzipInputStream = new GZIPInputStream(inputStream);
+            ObjectInputStream ois = new ObjectInputStream(gzipInputStream)) {
+          cfa = (CFA) ois.readObject();
+        }
+
+        assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
+      }
+
+      stats.setCFA(cfa);
+      return cfa;
+
+    } catch (InvalidConfigurationException e) {
+      logger.logUserException(Level.SEVERE, e, "Invalid configuration");
+
     } catch (IOException e) {
       logger.logUserException(Level.SEVERE, e, "Could not read file");
 
@@ -424,54 +476,17 @@ public class CPAchecker {
               + "together with the input file to cpachecker-users@googlegroups.com.\n");
       logger.log(Level.INFO, msg);
 
-    } catch (ClassNotFoundException e) {
-      logger.logUserException(Level.SEVERE, e, "Could not read serialized CFA. Class is missing.");
-
-    } catch (InvalidConfigurationException e) {
-      logger.logUserException(Level.SEVERE, e, "Invalid configuration");
-
     } catch (InterruptedException e) {
       // CPAchecker must exit because it was asked to
       // we return normally instead of propagating the exception
       // so we can return the partial result we have so far
       logger.logUserException(Level.WARNING, e, "Analysis interrupted");
 
-    } catch (CPAException e) {
-      logger.logUserException(Level.SEVERE, e, null);
+    } catch (ClassNotFoundException e) {
+      logger.logUserException(Level.SEVERE, e, "Could not read serialized CFA. Class is missing.");
 
-    } finally {
-      CPAs.closeIfPossible(algorithm, logger);
-      shutdownNotifier.unregister(interruptThreadOnShutdown);
     }
-    return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
-  }
-
-  private CFA parse(List<String> fileNames, MainCPAStatistics stats)
-      throws InvalidConfigurationException, IOException, ParserException, InterruptedException,
-          ClassNotFoundException {
-
-    final CFA cfa;
-    if (serializedCfaFile == null) {
-      // parse file and create CFA
-      logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
-      CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
-      stats.setCFACreator(cfaCreator);
-      cfa = cfaCreator.parseFileAndCreateCFA(fileNames);
-
-    } else {
-      // load CFA from serialization file
-      logger.logf(Level.INFO, "Reading CFA from file \"%s\"", serializedCfaFile);
-      try (InputStream inputStream = Files.newInputStream(serializedCfaFile);
-          InputStream gzipInputStream = new GZIPInputStream(inputStream);
-          ObjectInputStream ois = new ObjectInputStream(gzipInputStream)) {
-        cfa = (CFA) ois.readObject();
-      }
-
-      assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
-    }
-
-    stats.setCFA(cfa);
-    return cfa;
+    return null;
   }
 
   private void printConfigurationWarnings() {
