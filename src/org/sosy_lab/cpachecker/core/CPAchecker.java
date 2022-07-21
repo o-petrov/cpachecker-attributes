@@ -302,10 +302,10 @@ public class CPAchecker {
   }
 
   public CPAcheckerResult run(List<String> programDenotation) {
-    return new Runner(programDenotation).run();
+    return new Analyzer(programDenotation).setupAndRunAnalysis();
   }
 
-  private class Runner {
+  private class Analyzer {
     MainCPAStatistics stats = null;
     Algorithm algorithm = null;
     ReachedSet reached = null;
@@ -316,7 +316,7 @@ public class CPAchecker {
     final ShutdownRequestListener interruptThreadOnShutdown;
     ImmutableList<String> programDenotation;
 
-    private Runner(List<String> pProgramDenotation) {
+    private Analyzer(List<String> pProgramDenotation) {
       checkArgument(!pProgramDenotation.isEmpty());
       logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
 
@@ -326,18 +326,11 @@ public class CPAchecker {
       shutdownNotifier.register(interruptThreadOnShutdown);
     }
 
-    private void setupAndRunAnalysis()
+    private void setupAnalysis()
         throws InvalidConfigurationException, InterruptedException, CPAException {
 
-      stats = new MainCPAStatistics(config, logger, shutdownNotifier);
-
       // create reached set, cpa, algorithm
-      stats.creationTime.start();
-
-      cfa = parse(programDenotation);
-      if (cfa == null) {
-        return;
-      }
+      // XXX track more creation times (for spec, algorithm, reach)?
       stats.setCFACreatorStatistics(cfaCreatorStats);
       stats.setCFA(cfa);
       GlobalInfo.getInstance().storeCFA(cfa);
@@ -383,15 +376,14 @@ public class CPAchecker {
       } else {
         initializeReachedSet(reached, cpa, cfa.getMainFunction(), cfa);
       }
+    }
 
-      printConfigurationWarnings();
+    private void runAnalysis() throws CPAException, InterruptedException {
 
-      stats.creationTime.stop();
       shutdownNotifier.shutdownIfNecessary();
-
       // now everything necessary has been instantiated: run analysis
-
-      result = Result.UNKNOWN; // set to unknown so that the result is correct in case of exception
+      // set to unknown so that the result is correct in case of exception
+      result = Result.UNKNOWN;
 
       AlgorithmStatus status = runAlgorithm(algorithm, reached, stats);
 
@@ -417,9 +409,21 @@ public class CPAchecker {
       }
     }
 
-    private CPAcheckerResult run() {
+    private CPAcheckerResult setupAndRunAnalysis() {
+
       try {
-        setupAndRunAnalysis();
+        stats = new MainCPAStatistics(config, logger, shutdownNotifier);
+        stats.creationTime.start();
+        cfa = parse(programDenotation);
+        if (cfa != null) {
+          try {
+            setupAnalysis();
+          } finally {
+            stats.creationTime.stop();
+          }
+          printConfigurationWarnings();
+          runAnalysis();
+        }
 
       } catch (InvalidConfigurationException e) {
         logger.logUserException(Level.SEVERE, e, "Invalid configuration");
