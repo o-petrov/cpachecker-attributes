@@ -14,6 +14,8 @@ import static org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutd
 
 import com.google.common.base.Joiner;
 import com.google.common.base.StandardSystemProperty;
+import com.google.common.base.Verify;
+import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -29,6 +31,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.logging.Level;
@@ -48,6 +52,8 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACheck;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
+import org.sosy_lab.cpachecker.cfa.CFAMutator;
+import org.sosy_lab.cpachecker.cfa.CFAMutatorStatistics;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
@@ -197,7 +203,8 @@ public class CPAchecker {
       secure = true,
       name = "cfaMutation",
       description =
-          "Try to make CFA of input program smaller. The goal is to make small test for a case when CPAchecker analysis crashes.")
+          "Try to make CFA of the input program smaller. The goal is to make a small test "
+              + "for a case when CPAchecker analysis crashes.")
   private boolean minimizeCfaForException = false;
 
   private final LogManager logger;
@@ -338,7 +345,7 @@ public class CPAchecker {
       shutdownNotifier.register(interruptThreadOnShutdown);
     }
 
-    private void setupAnalysis()
+    protected void setupAnalysis()
         throws InvalidConfigurationException, InterruptedException, CPAException {
       // Reset fields which are part of CPAcheckerResult, so they are correct if setup is
       // interrupted. Other fields do not need to be reset, as they are reset when needed
@@ -348,7 +355,6 @@ public class CPAchecker {
 
       // create reached set, cpa, algorithm
       // XXX track more creation times (for spec, algorithm, reach)?
-      stats.setCFACreatorStatistics(cfaCreatorStats);
       stats.setCFA(cfa);
       GlobalInfo.getInstance().storeCFA(cfa);
       shutdownNotifier.shutdownIfNecessary();
@@ -395,7 +401,7 @@ public class CPAchecker {
       }
     }
 
-    private void runAnalysis() throws CPAException, InterruptedException {
+    protected void runAnalysis() throws CPAException, InterruptedException {
 
       shutdownNotifier.shutdownIfNecessary();
       // now everything necessary has been instantiated: run analysis
@@ -434,6 +440,7 @@ public class CPAchecker {
         cfa = parse(programDenotation);
         if (cfa != null) {
           try {
+            stats.setCFACreatorStatistics(cfaCreatorStats);
             setupAnalysis();
           } finally {
             stats.creationTime.stop();
@@ -463,15 +470,164 @@ public class CPAchecker {
     }
   }
 
+  @Options(prefix = "cfaMutation")
   private class Mutator extends Analyzer {
+    @Option(
+        secure = true,
+        name = "doAnalysisAfterRollback",
+        description =
+            "If after last CFA mutation analysis result changed from expected, mutation is "
+                + "rollbacked. If this option is set, run analysis between rollback and next "
+                + "mutation to check that rollback fixes what mutation has broke.")
+    private boolean doAnalysisBetweenRollbackAndMutation = false;
+
+    private final CFAMutator cfaMutator;
 
     protected Mutator(List<String> pProgramDenotation) {
       super(pProgramDenotation);
+      cfaMutator = new CFAMutator(config);
     }
 
     public CPAcheckerResult minimizeForException() {
-      // stub
-      return new CPAcheckerResult(Result.DONE, "", null, null, null);
+      CFAMutatorStatistics totalStats = new CFAMutatorStatistics(logger);
+
+      cfa = parse(programDenotation);
+      if (cfa == null) {
+        // invalid input files
+        return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
+      }
+      totalStats.getSubStatistics().add(cfaCreatorStats);
+
+      try {
+        AnalysisResult originalResult = analysisRound();
+        if (originalResult.getThrown() == null) {
+          logger.log(
+              Level.WARNING,
+              "Analysis finished correctly. Mutated CFA may be meaningless "
+                  + "for given TRUE or FALSE verdict.");
+        }
+
+        // TODO -setprop console log level=NONE for following analysis
+        while (cfaMutator.canMinimize(cfa)) {
+          shutdownNotifier.shutdownIfNecessary();
+
+          cfa = cfaMutator.mutate(cfa);
+
+          AnalysisResult newResult = analysisRound();
+          // TODO export intermediate results
+          // XXX it is incorrect to save intermediate stats, as reached is updated?
+
+          if (!newResult.equals(originalResult)) {
+            cfa = cfaMutator.rollback(cfa);
+            if (doAnalysisBetweenRollbackAndMutation) {
+              Verify.verify(
+                  analysisRound().equals(originalResult),
+                  "Result of analysis differs from original after rollback");
+            }
+          }
+        }
+
+        totalStats.getSubStatistics().add(stats);
+        logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
+
+      } catch (InvalidConfigurationException e) {
+        logger.logUserException(Level.SEVERE, e, "Invalid configuration");
+        // XXX move to #analysisRound?
+        // but for first round should catch here?
+
+      } catch (InterruptedException e) {
+        // CPAchecker must exit because it was asked to
+        // we return normally instead of propagating the exception
+        // so we can return the partial result we have so far
+        logger.logUserException(Level.WARNING, e, "Analysis interrupted");
+      }
+
+      return new CPAcheckerResult(Result.DONE, "", reached, cfa, totalStats);
+    }
+
+    // run analysis, but for already stored CFA, and catch its errors
+    private AnalysisResult analysisRound()
+        throws InterruptedException, InvalidConfigurationException {
+      Throwable t = null;
+
+      try {
+        stats = new MainCPAStatistics(config, logger, shutdownNotifier);
+        stats.creationTime.start();
+        try {
+          setupAnalysis();
+        } finally {
+          stats.creationTime.stop();
+        }
+        runAnalysis();
+
+      } catch (AssertionError
+          | IllegalArgumentException
+          | IllegalStateException
+          | IndexOutOfBoundsException
+          | NullPointerException
+          | NoSuchElementException
+          | VerifyException
+          | CPAException e) {
+        // Expect exceptions as bugs of CPAchecker, and remember them to reproduce on a smaller CFA.
+        // TODO which types exactly
+        logger.logUserException(Level.SEVERE, e, null);
+        t = e;
+
+      } finally {
+        CPAs.closeIfPossible(algorithm, logger);
+      }
+
+      return new AnalysisResult(result, targetDescription, t);
+    }
+
+    // no need to check for reached, cfa, or stats change,
+    // so keep only verdict and description, plus thrown error
+    class AnalysisResult {
+      private final Result verdict;
+      private final String description;
+      private final @Nullable Throwable thrown;
+
+      public AnalysisResult(Result pResult, String pTarget, @Nullable Throwable pThrown) {
+        checkArgument(
+            pResult == Result.FALSE || pTarget.isEmpty(),
+            "Target description must be empty when result is not FALSE. %s: %s",
+            pResult,
+            pTarget);
+        checkArgument(
+            pResult == Result.NOT_YET_STARTED || pResult == Result.UNKNOWN || pThrown == null,
+            "Exception or error must be null when result is not NOT_YET_STARTED or UNKNOWN. %s: %s (%s)",
+            pResult,
+            pThrown == null ? "Null" : pThrown.getClass(),
+            pThrown == null ? "null" : pThrown.getMessage());
+        verdict = pResult;
+        description = pTarget;
+        thrown = pThrown;
+      }
+
+      public @Nullable Throwable getThrown() {
+        return thrown;
+      }
+
+      @Override
+      public boolean equals(Object pObj) {
+        if (pObj == null) {
+          return false;
+        }
+        if (!(pObj instanceof AnalysisResult)) {
+          return false;
+        }
+        AnalysisResult that = (AnalysisResult) pObj;
+        return verdict == that.verdict
+            && description.equals(that.description)
+            && Objects.equals(thrown, that.thrown); // XXX better cmp for thrown?
+      }
+
+      @Override
+      public int hashCode() {
+        return verdict.hashCode() * 31
+            + description.hashCode() * 37
+            + (thrown == null ? 0 : thrown.hashCode());
+      }
     }
   }
 
