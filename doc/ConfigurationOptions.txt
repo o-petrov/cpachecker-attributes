@@ -882,6 +882,10 @@ cfa.variableClassification.printStatsOnStartup = false
 # Dump variable type mapping to a file.
 cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 
+# Try to make CFA of input program smaller. The goal is to make small test
+# for a case when CPAchecker analysis crashes.
+cfaMutation = false
+
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
 

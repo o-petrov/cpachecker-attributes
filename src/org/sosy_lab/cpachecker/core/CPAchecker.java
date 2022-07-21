@@ -193,6 +193,13 @@ public class CPAchecker {
       description = "Maximum number of counterexamples to be created.")
   private int cexLimit = 0;
 
+  @Option(
+      secure = true,
+      name = "cfaMutation",
+      description =
+          "Try to make CFA of input program smaller. The goal is to make small test for a case when CPAchecker analysis crashes.")
+  private boolean minimizeCfaForException = false;
+
   private final LogManager logger;
   private final Configuration config;
   private final ShutdownManager shutdownManager;
@@ -302,24 +309,29 @@ public class CPAchecker {
   }
 
   public CPAcheckerResult run(List<String> programDenotation) {
-    return new Analyzer(programDenotation).setupAndRunAnalysis();
+    if (!minimizeCfaForException) {
+      logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
+      return new Analyzer(programDenotation).setupAndRunAnalysis();
+    } else {
+      logger.logf(
+          Level.INFO, "%s / CFA mutation (%s) started", getVersion(config), getJavaInformation());
+      return new Mutator(programDenotation).minimizeForException();
+    }
   }
 
   private class Analyzer {
-    MainCPAStatistics stats = null;
-    Algorithm algorithm = null;
-    ReachedSet reached = null;
-    CFA cfa = null;
-    Result result = Result.NOT_YET_STARTED;
-    String targetDescription = "";
-    Specification specification = null;
-    final ShutdownRequestListener interruptThreadOnShutdown;
-    ImmutableList<String> programDenotation;
+    protected MainCPAStatistics stats = null;
+    protected Algorithm algorithm = null;
+    protected ReachedSet reached = null;
+    protected CFA cfa = null;
+    protected Result result = Result.NOT_YET_STARTED;
+    protected String targetDescription = "";
+    protected Specification specification = null;
+    protected final ShutdownRequestListener interruptThreadOnShutdown;
+    protected ImmutableList<String> programDenotation;
 
-    private Analyzer(List<String> pProgramDenotation) {
+    protected Analyzer(List<String> pProgramDenotation) {
       checkArgument(!pProgramDenotation.isEmpty());
-      logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
-
       programDenotation = ImmutableList.copyOf(pProgramDenotation);
 
       interruptThreadOnShutdown = interruptCurrentThreadOnShutdown();
@@ -328,6 +340,11 @@ public class CPAchecker {
 
     private void setupAnalysis()
         throws InvalidConfigurationException, InterruptedException, CPAException {
+      // Reset fields which are part of CPAcheckerResult, so they are correct if setup is
+      // interrupted. Other fields do not need to be reset, as they are reset when needed
+      // and are not accessible outside.
+      reached = null;
+      targetDescription = "";
 
       // create reached set, cpa, algorithm
       // XXX track more creation times (for spec, algorithm, reach)?
@@ -409,7 +426,7 @@ public class CPAchecker {
       }
     }
 
-    private CPAcheckerResult setupAndRunAnalysis() {
+    public CPAcheckerResult setupAndRunAnalysis() {
 
       try {
         stats = new MainCPAStatistics(config, logger, shutdownNotifier);
@@ -443,6 +460,18 @@ public class CPAchecker {
       }
 
       return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+    }
+  }
+
+  private class Mutator extends Analyzer {
+
+    protected Mutator(List<String> pProgramDenotation) {
+      super(pProgramDenotation);
+    }
+
+    public CPAcheckerResult minimizeForException() {
+      // stub
+      return new CPAcheckerResult(Result.DONE, "", null, null, null);
     }
   }
 
