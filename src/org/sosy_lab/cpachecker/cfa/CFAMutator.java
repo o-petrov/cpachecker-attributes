@@ -8,13 +8,19 @@
 
 package org.sosy_lab.cpachecker.cfa;
 
+import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.log.LogManager;
 
 /**
  * Stub class. Will be mutating CFA before next analysis run, mainly to minimize and simplify CFA.
  */
-public class CFAMutator {
-  public CFAMutator(Configuration pConfig) {
+public class CFAMutator extends CFACreator {
+
+  public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
+      throws InvalidConfigurationException {
+    super(pConfig, pLogger, pShutdownNotifier);
     // TODO Auto-generated constructor stub
   }
 

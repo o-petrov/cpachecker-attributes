@@ -437,7 +437,12 @@ public class CPAchecker {
       try {
         stats = new MainCPAStatistics(config, logger, shutdownNotifier);
         stats.creationTime.start();
-        cfa = serializedCfaFile == null ? parse(programDenotation) : loadCFA();
+        if (serializedCfaFile == null) {
+          cfa = parse(new CFACreator(config, logger, shutdownNotifier), programDenotation);
+        } else {
+          cfa = loadCFA();
+        }
+
         if (cfa != null) {
           try {
             stats.setCFACreatorStatistics(cfaCreationStats);
@@ -481,24 +486,29 @@ public class CPAchecker {
                 + "mutation to check that rollback fixes what mutation has broke.")
     private boolean doAnalysisBetweenRollbackAndMutation = false;
 
-    private final CFAMutator cfaMutator;
-
     protected Mutator(List<String> pProgramDenotation) {
       super(pProgramDenotation);
-      cfaMutator = new CFAMutator(config);
     }
 
     public CPAcheckerResult minimizeForException() {
       CFAMutatorStatistics totalStats = new CFAMutatorStatistics(logger);
 
-      cfa = parse(programDenotation);
-      if (cfa == null) {
-        // invalid input files
-        return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
-      }
-      totalStats.getSubStatistics().add(cfaCreationStats);
-
       try {
+        if (serializedCfaFile != null) {
+          throw new InvalidConfigurationException(
+              "CFA mutation needs source files to be parsed into CFA. "
+                  + "Either specify 'cfaMutation=true' or specify "
+                  + "loading CFA with 'analysis.serializedCfaFile'.");
+        }
+
+        final CFAMutator cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
+        cfa = parse(cfaMutator, programDenotation);
+        if (cfa == null) {
+          // invalid input files
+          return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
+        }
+        totalStats.getSubStatistics().add(cfaCreationStats);
+
         AnalysisResult originalResult = analysisRound();
         if (originalResult.getThrown() == null) {
           logger.log(
@@ -631,14 +641,13 @@ public class CPAchecker {
     }
   }
 
-  private CFA parse(List<String> fileNames) {
+  private CFA parse(CFACreator pCfaCreator, List<String> fileNames) {
     assert serializedCfaFile == null;
     logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
 
     try {
-      CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
-      CFA cfa = cfaCreator.parseFileAndCreateCFA(fileNames);
-      cfaCreationStats = cfaCreator.getStatistics();
+      CFA cfa = pCfaCreator.parseFileAndCreateCFA(fileNames);
+      cfaCreationStats = pCfaCreator.getStatistics();
       return cfa;
 
     } catch (InvalidConfigurationException e) {
