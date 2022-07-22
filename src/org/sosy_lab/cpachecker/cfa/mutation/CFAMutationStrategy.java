@@ -8,11 +8,9 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import org.sosy_lab.cpachecker.cfa.ParseResult;
-
 class CFAMutationStrategy {
 
-  public boolean canMutate(ParseResult pCfa) {
+  public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
     // TODO Auto-generated method stub
 
     // TODO strategy can analyze CFA, and gets info
@@ -20,12 +18,12 @@ class CFAMutationStrategy {
     return false;
   }
 
-  public ParseResult mutate(ParseResult pCfa) {
+  public FunctionCFAsWithMetadata mutate(FunctionCFAsWithMetadata pCfa) {
     // TODO Auto-generated method stub
     return null;
   }
 
-  public ParseResult rollback(ParseResult pCfa) {
+  public FunctionCFAsWithMetadata rollback(FunctionCFAsWithMetadata pCfa) {
     // TODO Auto-generated method stub
     return null;
   }

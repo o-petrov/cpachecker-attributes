@@ -15,18 +15,16 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
-import org.sosy_lab.cpachecker.cfa.ParseResult;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
 
 /**
  * Mutates the CFA before next analysis run, mainly to minimize and simplify CFA. Operates on {@link
- * ParseResult}. All processings in {@link CFACreator#createCFA} are applied after this to get
- * proper CFA for analysis run.
+ * FunctionCFAsWithMetadata}. All processings in {@link CFACreator#createCFA} are applied after this to
+ * get proper CFA for analysis run.
  */
 public class CFAMutator extends CFACreator {
   /** local CFA of functions before processing */
-  // TODO get other info, e.g. main function
-  private ParseResult localCfa = null;
+  private FunctionCFAsWithMetadata localCfa = null;
   /** Strategy that decides how to change the CFA and implements this change */
   private final CFAMutationStrategy strategy;
 
@@ -43,7 +41,7 @@ public class CFAMutator extends CFACreator {
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
     localCfa = strategy.mutate(localCfa);
-    return createCFA(localCfa, null);
+    return createCFA(localCfa, localCfa.getMainFunction());
   }
 
   /**
@@ -58,7 +56,7 @@ public class CFAMutator extends CFACreator {
       throws InterruptedException, InvalidConfigurationException, ParserException {
     localCfa = strategy.mutate(localCfa);
     if (needsFullyConstructed) {
-      return createCFA(localCfa, null);
+      return createCFA(localCfa, localCfa.getMainFunction());
     } else {
       return null;
     }
