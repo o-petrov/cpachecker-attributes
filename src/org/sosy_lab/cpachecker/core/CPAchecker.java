@@ -213,7 +213,7 @@ public class CPAchecker {
   private final ShutdownNotifier shutdownNotifier;
   private final CoreComponentsFactory factory;
 
-  private Statistics cfaCreatorStats;
+  private Statistics cfaCreationStats;
 
   // The content of this String is read from a file that is created by the
   // ant task "init".
@@ -437,10 +437,10 @@ public class CPAchecker {
       try {
         stats = new MainCPAStatistics(config, logger, shutdownNotifier);
         stats.creationTime.start();
-        cfa = parse(programDenotation);
+        cfa = serializedCfaFile == null ? parse(programDenotation) : loadCFA();
         if (cfa != null) {
           try {
-            stats.setCFACreatorStatistics(cfaCreatorStats);
+            stats.setCFACreatorStatistics(cfaCreationStats);
             setupAnalysis();
           } finally {
             stats.creationTime.stop();
@@ -496,7 +496,7 @@ public class CPAchecker {
         // invalid input files
         return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
       }
-      totalStats.getSubStatistics().add(cfaCreatorStats);
+      totalStats.getSubStatistics().add(cfaCreationStats);
 
       try {
         AnalysisResult originalResult = analysisRound();
@@ -632,29 +632,13 @@ public class CPAchecker {
   }
 
   private CFA parse(List<String> fileNames) {
+    assert serializedCfaFile == null;
+    logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
+
     try {
-
-      final CFA cfa;
-
-      if (serializedCfaFile == null) {
-        // parse file and create CFA
-        logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
-        CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
-        cfa = cfaCreator.parseFileAndCreateCFA(fileNames);
-        cfaCreatorStats = cfaCreator.getStatistics();
-
-      } else {
-        // load CFA from serialization file
-        logger.logf(Level.INFO, "Reading CFA from file \"%s\"", serializedCfaFile);
-        try (InputStream inputStream = Files.newInputStream(serializedCfaFile);
-            InputStream gzipInputStream = new GZIPInputStream(inputStream);
-            ObjectInputStream ois = new ObjectInputStream(gzipInputStream)) {
-          cfa = (CFA) ois.readObject();
-        }
-
-        assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
-      }
-
+      CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
+      CFA cfa = cfaCreator.parseFileAndCreateCFA(fileNames);
+      cfaCreationStats = cfaCreator.getStatistics();
       return cfa;
 
     } catch (InvalidConfigurationException e) {
@@ -692,12 +676,36 @@ public class CPAchecker {
       // we return normally instead of propagating the exception
       // so we can return the partial result we have so far
       logger.logUserException(Level.WARNING, e, "Analysis interrupted");
+    }
+
+    return null;
+  }
+
+  // load CFA from serialization file
+  private CFA loadCFA() {
+    assert serializedCfaFile != null;
+
+    CFA cfa = null;
+    logger.logf(Level.INFO, "Reading CFA from file \"%s\"", serializedCfaFile);
+
+    try (InputStream inputStream = Files.newInputStream(serializedCfaFile);
+        InputStream gzipInputStream = new GZIPInputStream(inputStream);
+        ObjectInputStream ois = new ObjectInputStream(gzipInputStream)) {
+      cfa = (CFA) ois.readObject();
+
+    } catch (IOException e) {
+      logger.logUserException(Level.SEVERE, e, "Could not read file");
 
     } catch (ClassNotFoundException e) {
       logger.logUserException(Level.SEVERE, e, "Could not read serialized CFA. Class is missing.");
 
     }
-    return null;
+
+    if (cfa != null) {
+      assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
+    }
+
+    return cfa;
   }
 
   private void printConfigurationWarnings() {
