@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import javax.annotation.Nullable;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
@@ -31,7 +30,7 @@ public class CFAMutator extends CFACreator {
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
-    strategy = new CFAMutationStrategy();
+    strategy = null; // TODO
   }
 
   public boolean canMutate() {
@@ -40,25 +39,12 @@ public class CFAMutator extends CFACreator {
 
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
-    localCfa = strategy.mutate(localCfa);
+    strategy.mutate(localCfa);
     return createCFA(localCfa, localCfa.getMainFunction());
   }
 
-  /**
-   * Undo last mutation.
-   *
-   * @param needsFullyConstructed Whether properly constructed CFA is needed as result. If false,
-   *     only changes to local CFA will be reverted, and interprocedural graph will not be
-   *     constructed, so null is returned. If true, ready CFA will be returned.
-   * @return Either null, or ready CFA.
-   */
-  public @Nullable CFA rollback(boolean needsFullyConstructed)
-      throws InterruptedException, InvalidConfigurationException, ParserException {
-    localCfa = strategy.mutate(localCfa);
-    if (needsFullyConstructed) {
-      return createCFA(localCfa, localCfa.getMainFunction());
-    } else {
-      return null;
-    }
+  /** Undo last mutation if needed */
+  public void setResult(DDResultOfARun pResult) {
+    strategy.setResult(localCfa, pResult);
   }
 }

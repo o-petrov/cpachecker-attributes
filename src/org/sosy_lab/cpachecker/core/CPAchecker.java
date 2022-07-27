@@ -14,7 +14,6 @@ import static org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutd
 
 import com.google.common.base.Joiner;
 import com.google.common.base.StandardSystemProperty;
-import com.google.common.base.Verify;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -57,6 +56,7 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
+import org.sosy_lab.cpachecker.cfa.mutation.DDResultOfARun;
 import org.sosy_lab.cpachecker.cmdline.CPAMain;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
@@ -475,16 +475,7 @@ public class CPAchecker {
     }
   }
 
-  @Options(prefix = "cfaMutation")
   private class Mutator extends Analyzer {
-    @Option(
-        secure = true,
-        name = "doAnalysisAfterRollback",
-        description =
-            "If after last CFA mutation analysis result changed from expected, mutation is "
-                + "rollbacked. If this option is set, run analysis between rollback and next "
-                + "mutation to check that rollback fixes what mutation has broke.")
-    private boolean doAnalysisBetweenRollbackAndMutation = false;
 
     protected Mutator(List<String> pProgramDenotation) {
       super(pProgramDenotation);
@@ -518,12 +509,24 @@ public class CPAchecker {
         }
         totalStats.getSubStatistics().add(cfaCreationStats);
 
+        // To use Delta Debugging algorithm we need to define PASS, FAIL, and UNRESOLVED outcome of
+        // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
+        // input program. Assume verdicts TRUE and FALSE are correct, let it be PASS then.
+        // Any other exceptions, and verdicts NOT_YET_STARTED and UNKNOWN are UNRESOLVED.
         AnalysisResult originalResult = analysisRound();
-        if (originalResult.getThrown() == null) {
+        if (originalResult.verdict == Result.TRUE) {
+          // TRUE verdicts are assumed to be correct,
+          // and there is no simple way to differ one from
+          // another, so do not deal with wrong one.
+          logger.log(
+              Level.SEVERE,
+              "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
+          return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
+        } else if (originalResult.verdict == Result.FALSE) {
+          // FALSE verdicts are assumed to be correct, unless given original incorrect one.
           logger.log(
               Level.WARNING,
-              "Analysis finished correctly. Mutated CFA may be meaningless "
-                  + "for given TRUE or FALSE verdict.");
+              "Analysis finished correctly. Mutated CFA may be meaningless for given FALSE verdict.");
         }
 
         // TODO -setprop console log level=NONE for following analysis
@@ -539,14 +542,8 @@ public class CPAchecker {
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
-          if (!newResult.equals(originalResult)) {
-            cfa = cfaMutator.rollback(doAnalysisBetweenRollbackAndMutation);
-            if (doAnalysisBetweenRollbackAndMutation) {
-              Verify.verify(
-                  analysisRound().equals(originalResult),
-                  "Result of analysis differs from original after rollback");
-            }
-          }
+          // XXX implement a check after 'rollback'? What is a rollback?
+          cfaMutator.setResult(newResult.toDDResult(originalResult));
         }
 
         totalStats.getSubStatistics().add(stats);
@@ -564,7 +561,7 @@ public class CPAchecker {
         logger.logUserException(Level.WARNING, e, "CFA mutation interrupted");
 
       } catch (ParserException e) {
-        logger.logUserException(Level.SEVERE, e, "Parser errro");
+        logger.logUserException(Level.SEVERE, e, "Parser error");
         // XXX is it possible?
         // TODO export previous CFA then?
       }
@@ -631,8 +628,31 @@ public class CPAchecker {
         thrown = pThrown;
       }
 
-      public @Nullable Throwable getThrown() {
-        return thrown;
+      public DDResultOfARun toDDResult(AnalysisResult pOriginal) {
+        switch (verdict) {
+          case TRUE:
+            // assume TRUE is always correct
+            return DDResultOfARun.PASS;
+
+          case FALSE:
+            // FALSE verdicts are assumed to be correct, unless given original incorrect one.
+            if (pOriginal.verdict != Result.FALSE) {
+              return DDResultOfARun.PASS;
+            }
+            // XXX FALSE are UNRESOLVED unless same description
+            return description.equals(pOriginal.description)
+                ? DDResultOfARun.FAIL
+                : DDResultOfARun.UNRESOLVED;
+
+          case NOT_YET_STARTED:
+          case UNKNOWN:
+            return thrown.equals(pOriginal.thrown)
+                ? DDResultOfARun.FAIL
+                : DDResultOfARun.UNRESOLVED;
+
+          default:
+            throw new AssertionError();
+        }
       }
 
       @Override

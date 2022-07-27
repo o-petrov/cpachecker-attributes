@@ -886,11 +886,6 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # test for a case when CPAchecker analysis crashes.
 cfaMutation = false
 
-# If after last CFA mutation analysis result changed from expected, mutation
-# is rollbacked. If this option is set, run analysis between rollback and
-# next mutation to check that rollback fixes what mutation has broke.
-cfaMutation.doAnalysisAfterRollback = false
-
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
 
