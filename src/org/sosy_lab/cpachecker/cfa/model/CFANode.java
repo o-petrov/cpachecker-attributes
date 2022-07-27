@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.model;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.io.Serializable;
@@ -327,5 +328,46 @@ public class CFANode implements Comparable<CFANode>, Serializable {
       return ImmutableSet.of();
     }
     return Collections.unmodifiableSet(outOfScopeVariables);
+  }
+
+  /**
+   * Insert new leaving edge instead of old one. Used only for consistent CFA mutation. Warning:
+   * everything is checked for equality by ==, not equals, as there should not be any copies.
+   */
+  @Deprecated
+  public void replaceLeavingEdge(CFAEdge pOldEdge, CFAEdge pNewEdge) {
+    Preconditions.checkArgument(this == pOldEdge.getPredecessor());
+    Preconditions.checkArgument(this == pNewEdge.getPredecessor());
+    for (int i = 0; i < leavingEdges.size(); i++) {
+      if (leavingEdges.get(i) == pOldEdge) {
+        leavingEdges.set(i, pNewEdge);
+        return;
+      }
+    }
+    throw new AssertionError(); // old edge not found
+  }
+
+  /**
+   * Insert new entering edge instead of old one. Used only for consistent CFA mutation. Warning:
+   * everything is checked for equality by ==, not equals, as there should not be any copies.
+   */
+  @Deprecated
+  public void replaceEnteringEdge(CFAEdge pOldEdge, CFAEdge pNewEdge) {
+    Preconditions.checkArgument(this == pOldEdge.getSuccessor());
+    Preconditions.checkArgument(this == pNewEdge.getSuccessor());
+    for (int i = 0; i < enteringEdges.size(); i++) {
+      if (enteringEdges.get(i) == pOldEdge) {
+        enteringEdges.set(i, pNewEdge);
+        return;
+      }
+    }
+    throw new AssertionError(); // old edge not found
+  }
+
+  /** Insert new entering edge at given index. Used only for consistent CFA mutation. */
+  @Deprecated
+  public void insertEnteringEdge(int pIndex, CFAEdge pEdge) {
+    Preconditions.checkArgument(pEdge.getSuccessor() == this);
+    enteringEdges.add(pIndex, pEdge);
   }
 }
