@@ -100,11 +100,33 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       case INIT:
         // set up if it is first call
         unresolvedObjects = getAllObjects(pCfa);
+        if (unresolvedObjects.isEmpty()) {
+          // nothing to do
+          logger.log(Level.INFO, "No objects to mutate");
+          causeObjects = ImmutableList.copyOf(causeObjects);
+          safeObjects = ImmutableList.copyOf(safeObjects);
+          return false;
+        }
+        logger.log(Level.INFO, "Got", unresolvedObjects.size(), "objects to remove");
         resetDeltaListWithOneDelta(ImmutableList.copyOf(unresolvedObjects));
         stage = DeltaDebuggingStage.REMOVE_DELTA;
-        break;
+        return true;
 
       case REMOVE_DELTA:
+        // DD can end only in delta-removing stage, when deltaList is empty
+        if (unresolvedObjects.isEmpty()) {
+          logger.log(
+              Level.INFO,
+              "All objects are resolved,",
+              causeObjects.size(),
+              " cause objects and",
+              safeObjects.size(),
+              "safe objects remain");
+          causeObjects = ImmutableList.copyOf(causeObjects);
+          safeObjects = ImmutableList.copyOf(safeObjects);
+          return false;
+        }
+
         if (deltaList.size() == 1) {
           // Split one remained delta.
           // Main cases are when deltaList was explicitly set to one delta above or in #setResult.
@@ -138,12 +160,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
       default:
         throw new AssertionError();
-    }
-
-    if (unresolvedObjects.isEmpty()) {
-      causeObjects = ImmutableList.copyOf(causeObjects);
-      safeObjects = ImmutableList.copyOf(safeObjects);
-      return false;
     }
 
     return true;
