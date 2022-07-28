@@ -482,6 +482,7 @@ public class CPAchecker {
     }
 
     public CPAcheckerResult minimizeForException() {
+      Result mutationsResult = Result.NOT_YET_STARTED;
       CFAMutatorStatistics totalStats = new CFAMutatorStatistics(logger);
 
       try {
@@ -495,7 +496,7 @@ public class CPAchecker {
         // XXX other way?
         @SuppressWarnings("deprecation")
         String withAcsl = config.getProperty("parser.collectACSLAnnotations");
-        if (withAcsl.equals("true")) {
+        if ("true".equals(withAcsl)) {
           throw new InvalidConfigurationException(
               "CFA mutation can not handle ACSL annotations. Do not specify "
                   + "'cfaMutation=true' and 'parser.collectACSLAnnotations=true' simultaneously");
@@ -505,7 +506,7 @@ public class CPAchecker {
         cfa = parse(cfaMutator, programDenotation);
         if (cfa == null) {
           // invalid input files
-          return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
+          return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         }
         totalStats.getSubStatistics().add(cfaCreationStats);
 
@@ -521,7 +522,7 @@ public class CPAchecker {
           logger.log(
               Level.SEVERE,
               "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
-          return new CPAcheckerResult(Result.NOT_YET_STARTED, "", reached, cfa, totalStats);
+          return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         } else if (originalResult.verdict == Result.FALSE) {
           // FALSE verdicts are assumed to be correct, unless given original incorrect one.
           logger.log(
@@ -546,6 +547,7 @@ public class CPAchecker {
           cfaMutator.setResult(newResult.toDDResult(originalResult));
         }
 
+        mutationsResult = Result.DONE;
         totalStats.getSubStatistics().add(stats);
         logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
 
@@ -566,7 +568,7 @@ public class CPAchecker {
         // TODO export previous CFA then?
       }
 
-      return new CPAcheckerResult(Result.DONE, "", reached, cfa, totalStats);
+      return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
     }
 
     // run analysis, but for already stored CFA, and catch its errors

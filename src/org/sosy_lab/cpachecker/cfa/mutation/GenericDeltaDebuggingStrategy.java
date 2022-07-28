@@ -74,12 +74,12 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   /** All objects that appear to be the cause, i.e. result of DD algorithm */
   private List<RemoveObject> causeObjects = new ArrayList<>();
   /** Objects that are removed in current round */
-  private Stream<RemoveObject> currentMutation = null;
+  private ImmutableList<RemoveObject> currentMutation = null;
   /** Store info to rollback current mutation if needed */
   private Stream<RestoreObject> rollbackInfos;
 
   /** Save stage of DD algorithm between calls to {@link #mutate} */
-  private DeltaDebuggingStage stage = null;
+  private DeltaDebuggingStage stage = DeltaDebuggingStage.INIT;
 
   private List<ImmutableList<RemoveObject>> deltaList = null;
   private Iterator<ImmutableList<RemoveObject>> deltaIter = null;
@@ -146,19 +146,21 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     switch (stage) {
       case REMOVE_COMPLEMENT:
         currentDelta = deltaIter.next();
-        currentMutation = unresolvedObjects.stream().filter(o -> !currentDelta.contains(o));
+        currentMutation =
+            ImmutableList.copyOf(
+                unresolvedObjects.stream().filter(o -> !currentDelta.contains(o)).iterator());
         break;
 
       case REMOVE_DELTA:
         currentDelta = deltaIter.next();
-        currentMutation = currentDelta.stream();
+        currentMutation = currentDelta;
         break;
 
       default:
         throw new AssertionError();
     }
     // remove objects (apply mutations)
-    rollbackInfos = currentMutation.map(mutation -> removeObject(pCfa, mutation));
+    rollbackInfos = currentMutation.stream().map(mutation -> removeObject(pCfa, mutation));
   }
 
   @Override
@@ -168,20 +170,17 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       case FAIL:
         // Error is present, do not restore removed objects.
         // Removed objects were safe, but are already removed.
-        currentMutation.forEach(o -> unresolvedObjects.remove(o));
+        unresolvedObjects.removeAll(currentMutation);
         break;
 
       case PASS:
         // No problems occur, last mutations hid the error.
         // Unresolved objects minus applied mutations are actually safe
         // No need to check them, but they remain in CFA.
+        unresolvedObjects.removeAll(currentMutation);
         safeObjects.addAll(unresolvedObjects);
         unresolvedObjects.clear();
-        currentMutation.forEach(
-            o -> { // TODO redo
-              safeObjects.remove(o);
-              unresolvedObjects.add(o);
-            });
+        unresolvedObjects.addAll(currentMutation);
 
         // restore objects
         ImmutableList.copyOf(rollbackInfos.iterator())
@@ -260,6 +259,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     var result = new ArrayList<ImmutableList<RemoveObject>>(deltaList.size() * 2);
 
     for (var delta : deltaList) {
+      assert !delta.isEmpty();
       if (delta.size() == 1) {
         // This delta is one object, that is not cause by itself
         // and can not be safe by itself. So, it is part of the cause.
@@ -276,12 +276,14 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   }
 
   private void resetDeltaList(List<ImmutableList<RemoveObject>> pDeltaList) {
+    assert !pDeltaList.isEmpty();
     deltaList = pDeltaList;
     deltaIter = deltaList.iterator();
     currentDelta = null;
   }
 
   private void resetDeltaListWithOneDelta(ImmutableList<RemoveObject> pOnlyDelta) {
+    assert !pOnlyDelta.isEmpty();
     List<ImmutableList<RemoveObject>> list = new ArrayList<>(1);
     list.add(pOnlyDelta);
     resetDeltaList(list);

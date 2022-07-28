@@ -14,6 +14,8 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
+import org.sosy_lab.cpachecker.cfa.ParseResult;
+import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
 
 /**
@@ -33,6 +35,31 @@ public class CFAMutator extends CFACreator {
     strategy = new SingleEdgeRemover();
   }
 
+  /**
+   * Use once while parsing the source, initialize CFA that will be mutated. Use {@link
+   * CFACreator#createCFA} to fully create CFA from function CFA.
+   */
+  @Override
+  protected CFA createCFA(ParseResult pParseResult, FunctionEntryNode pMainFunction)
+      throws InvalidConfigurationException, InterruptedException, ParserException {
+    localCfa =
+        new FunctionCFAsWithMetadata(
+            machineModel,
+            pParseResult.getFunctions(),
+            pParseResult.getCFANodes(),
+            pMainFunction,
+            pParseResult.getFileNames(),
+            language,
+            pParseResult.getGlobalDeclarations());
+    return super.createCFA(pParseResult, pMainFunction);
+  }
+
+  @Override
+  protected void exportCFAAsync(CFA pCfa) {
+    // do not export asynchronously as CFA will be mutated
+    super.exportCFA(pCfa);
+  }
+
   public boolean canMutate() {
     return strategy.canMutate(localCfa);
   }
@@ -40,7 +67,7 @@ public class CFAMutator extends CFACreator {
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
     strategy.mutate(localCfa);
-    return createCFA(localCfa, localCfa.getMainFunction());
+    return super.createCFA(localCfa, localCfa.getMainFunction());
   }
 
   /** Undo last mutation if needed */

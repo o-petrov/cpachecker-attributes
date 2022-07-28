@@ -145,7 +145,7 @@ public class CFACreator {
       secure = true,
       name = "analysis.machineModel",
       description = "the machine model, which determines the sizes of types like int")
-  private MachineModel machineModel = MachineModel.LINUX32;
+  protected MachineModel machineModel = MachineModel.LINUX32;
 
   @Option(
       secure = true,
@@ -312,7 +312,7 @@ public class CFACreator {
           "Programming language of the input program. If not given explicitly, "
               + "auto-detection will occur")
   // keep option name in sync with {@link CPAMain#language}, value might differ
-  private Language language = Language.C;
+  protected Language language = Language.C;
 
   // data structures for parsing ACSL annotations
   private final List<FileLocation> commentPositions = new ArrayList<>();
@@ -380,7 +380,7 @@ public class CFACreator {
   public CFACreator(Configuration config, LogManager logger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
 
-    config.inject(this);
+    config.inject(this, CFACreator.class);
 
     this.config = config;
     this.logger = logger;
@@ -1145,13 +1145,13 @@ public class CFACreator {
     }
   }
 
-  private void exportCFAAsync(final CFA cfa) {
+  protected void exportCFAAsync(final CFA cfa) {
     // Execute asynchronously, this may take several seconds for large programs on slow disks.
     // This is safe because we don't modify the CFA from this point on.
     Concurrency.newThread("CFA export thread", () -> exportCFA(cfa)).start();
   }
 
-  private void exportCFA(final CFA cfa) {
+  protected void exportCFA(final CFA cfa) {
     stats.exportTime.start();
 
     // write CFA to file
