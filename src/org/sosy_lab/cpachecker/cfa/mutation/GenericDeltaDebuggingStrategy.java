@@ -13,7 +13,9 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.stream.Stream;
+import org.sosy_lab.common.log.LogManager;
 
 enum DeltaDebuggingStage {
   INIT,
@@ -85,6 +87,12 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   private Iterator<ImmutableList<RemoveObject>> deltaIter = null;
   private ImmutableList<RemoveObject> currentDelta = null;
 
+  private LogManager logger;
+
+  public GenericDeltaDebuggingStrategy(LogManager pLogger) {
+    logger = Preconditions.checkNotNull(pLogger);
+  }
+
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
     // corner cases
@@ -102,15 +110,24 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
           // Main cases are when deltaList was explicitly set to one delta above or in #setResult.
           // Well, also can save at most like log(all objects count) rounds
           // not calling on last delta if it was not removed already.
+          logger.log(Level.INFO, "halving single delta of", deltaList.get(0).size(), "objects");
           halveDeltas();
         } else if (!deltaIter.hasNext()) {
           // tried all deltas, partition again
+          logger.log(
+              Level.INFO,
+              "halving remained",
+              deltaList.size(),
+              "deltas with total",
+              unresolvedObjects.size(),
+              "objects");
           stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
           halveDeltas();
         }
         break;
 
       case REMOVE_COMPLEMENT:
+        assert !unresolvedObjects.isEmpty();
         if (!deltaIter.hasNext()) {
           // tried all complements, switch to deltas
           stage = DeltaDebuggingStage.REMOVE_DELTA;
@@ -149,11 +166,13 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         currentMutation =
             ImmutableList.copyOf(
                 unresolvedObjects.stream().filter(o -> !currentDelta.contains(o)).iterator());
+        logger.log(Level.INFO, "removing a complement of", currentMutation.size(), "objects");
         break;
 
       case REMOVE_DELTA:
         currentDelta = deltaIter.next();
         currentMutation = currentDelta;
+        logger.log(Level.INFO, "removing a delta of", currentMutation.size(), "objects");
         break;
 
       default:
@@ -170,6 +189,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       case FAIL:
         // Error is present, do not restore removed objects.
         // Removed objects were safe, but are already removed.
+        logger.log(Level.INFO, "Removed objects are safe. Cause is inside remain objects");
         unresolvedObjects.removeAll(currentMutation);
         break;
 
@@ -177,6 +197,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         // No problems occur, last mutations hid the error.
         // Unresolved objects minus applied mutations are actually safe
         // No need to check them, but they remain in CFA.
+        logger.log(Level.INFO, "Cause is inside removed objects. Removed objects are safe");
         unresolvedObjects.removeAll(currentMutation);
         safeObjects.addAll(unresolvedObjects);
         unresolvedObjects.clear();
@@ -190,6 +211,8 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
       case UNRESOLVED:
         // some other problem, just undo mutation
+        logger.log(
+            Level.INFO, "Some of removed objects are needed for correct run. No objects resolved");
         ImmutableList.copyOf(rollbackInfos.iterator())
             .reverse()
             .forEach(r -> restoreObject(pCfa, r));
@@ -202,11 +225,13 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     // update delta list too
     if ((stage == DeltaDebuggingStage.REMOVE_DELTA && pResult == DDResultOfARun.FAIL)
         || (stage == DeltaDebuggingStage.REMOVE_COMPLEMENT && pResult == DDResultOfARun.PASS)) {
+      logger.log(Level.INFO, "This delta is resolved");
       // delta is safe, complement has the cause
       // Remove delta from list
       deltaIter.remove();
     } else if ((stage == DeltaDebuggingStage.REMOVE_DELTA && pResult == DDResultOfARun.PASS)
         || (stage == DeltaDebuggingStage.REMOVE_COMPLEMENT && pResult == DDResultOfARun.FAIL)) {
+      logger.log(Level.INFO, "This complement is resolved");
       // delta has the cause, complement is safe
       // Remove complement from list, i.e. make list of one delta.
       // It will be split in #canMutate.

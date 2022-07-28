@@ -10,6 +10,7 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.CFAUtils;
@@ -21,6 +22,10 @@ import org.sosy_lab.cpachecker.util.Pair;
  */
 public class SingleEdgeRemover
     extends GenericDeltaDebuggingStrategy<CFAEdge, Pair<Integer, CFAEdge>> {
+
+  public SingleEdgeRemover(LogManager pLogger) {
+    super(pLogger);
+  }
 
   // Usually we can remove a node with single leaving edge, but if a cycle consisted of three
   // nodes (see below) and we removed node C, we can't remove node A.

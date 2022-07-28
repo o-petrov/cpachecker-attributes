@@ -32,7 +32,7 @@ public class CFAMutator extends CFACreator {
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
-    strategy = new SingleEdgeRemover();
+    strategy = new SingleEdgeRemover(pLogger);
   }
 
   /**
