@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.logging.Level;
@@ -648,27 +647,20 @@ public class CPAchecker {
 
           case NOT_YET_STARTED:
           case UNKNOWN:
-            return thrown.equals(pOriginal.thrown)
+            assert thrown != null;
+            if (pOriginal.thrown == null) {
+              // there was no exception
+              return DDResultOfARun.UNRESOLVED;
+            }
+            // if equal, then same fail, else some other problem, i.e. unresolved
+            return pOriginal.thrown.getClass().equals(thrown.getClass())
+                    && pOriginal.thrown.getMessage().equals(thrown.getMessage())
                 ? DDResultOfARun.FAIL
                 : DDResultOfARun.UNRESOLVED;
 
           default:
             throw new AssertionError();
         }
-      }
-
-      @Override
-      public boolean equals(Object pObj) {
-        if (pObj == null) {
-          return false;
-        }
-        if (!(pObj instanceof AnalysisResult)) {
-          return false;
-        }
-        AnalysisResult that = (AnalysisResult) pObj;
-        return verdict == that.verdict
-            && description.equals(that.description)
-            && Objects.equals(thrown, that.thrown); // XXX better cmp for thrown?
       }
 
       @Override
