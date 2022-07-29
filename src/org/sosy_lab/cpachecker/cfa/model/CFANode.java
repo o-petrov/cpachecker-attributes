@@ -370,4 +370,60 @@ public class CFANode implements Comparable<CFANode>, Serializable {
     Preconditions.checkArgument(pEdge.getSuccessor() == this);
     enteringEdges.add(pIndex, pEdge);
   }
+
+  /**
+   * Check that current entering edges are the same and in same order as in given list. Edges must
+   * be identical, as #equals compares incident nodes and nothing more, so edges can be different.
+   * Entering summary edge is nulled.
+   */
+  @Deprecated
+  public void resetEnteringEdges(ImmutableList<CFAEdge> pEnteringEdges) {
+    for (int i = 0; i < pEnteringEdges.size(); i++) {
+      CFAEdge newEdge = pEnteringEdges.get(i);
+
+      if (enteringEdges.size() <= i) {
+        // add edge to the end, nothing to remove
+        enteringEdges.add(newEdge);
+
+      } else if (enteringEdges.get(i) != newEdge) {
+        // other instance, replace
+        enteringEdges.set(i, newEdge);
+      }
+    }
+
+    for (int i = enteringEdges.size() - 1; i >= pEnteringEdges.size(); i--) {
+      // remove excessive edges at the end of stored list
+      enteringEdges.remove(i);
+    }
+
+    enteringSummaryEdge = null;
+  }
+
+  /**
+   * Check that current leaving edges are the same and in same order as in given list. Edges must be
+   * identical, as #equals compares incident nodes and nothing more, so edges can be different.
+   * Leaving summary edge is nulled.
+   */
+  @Deprecated
+  public void resetLeavingEdges(ImmutableList<CFAEdge> pLeavingEdges) {
+    for (int i = 0; i < pLeavingEdges.size(); i++) {
+      CFAEdge newEdge = pLeavingEdges.get(i);
+
+      if (leavingEdges.size() <= i) {
+        // add edge to the end, nothing to remove
+        leavingEdges.add(newEdge);
+
+      } else if (leavingEdges.get(i) != newEdge) {
+        // other instance, replace
+        leavingEdges.set(i, newEdge);
+      }
+    }
+
+    for (int i = leavingEdges.size() - 1; i >= pLeavingEdges.size(); i--) {
+      // remove excessive edges at the end of stored list
+      leavingEdges.remove(i);
+    }
+
+    leavingSummaryEdge = null;
+  }
 }

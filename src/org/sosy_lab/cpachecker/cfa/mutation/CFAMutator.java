@@ -43,14 +43,8 @@ public class CFAMutator extends CFACreator {
   protected CFA createCFA(ParseResult pParseResult, FunctionEntryNode pMainFunction)
       throws InvalidConfigurationException, InterruptedException, ParserException {
     localCfa =
-        new FunctionCFAsWithMetadata(
-            machineModel,
-            pParseResult.getFunctions(),
-            pParseResult.getCFANodes(),
-            pMainFunction,
-            pParseResult.getFileNames(),
-            language,
-            pParseResult.getGlobalDeclarations());
+        FunctionCFAsWithMetadata.fromParseResult(
+            pParseResult, machineModel, pMainFunction, language);
     return super.createCFA(pParseResult, pMainFunction);
   }
 
@@ -61,17 +55,21 @@ public class CFAMutator extends CFACreator {
   }
 
   public boolean canMutate() {
+    // start next round of work with CFA -- clear processings
+    localCfa.resetEdgesInNodes();
     return strategy.canMutate(localCfa);
   }
 
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
     strategy.mutate(localCfa);
-    return super.createCFA(localCfa, localCfa.getMainFunction());
+    return super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
   }
 
   /** Undo last mutation if needed */
   public void setResult(DDResultOfARun pResult) {
+    // undo createCFA before possible mutation rollback
+    localCfa.resetEdgesInNodes();
     strategy.setResult(localCfa, pResult);
   }
 }
