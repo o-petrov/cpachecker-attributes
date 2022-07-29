@@ -112,20 +112,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         return true;
 
       case REMOVE_DELTA:
-        // DD can end only in delta-removing stage, when deltaList is empty
-        if (unresolvedObjects.isEmpty()) {
-          logger.log(
-              Level.INFO,
-              "All objects are resolved,",
-              causeObjects.size(),
-              " cause objects and",
-              safeObjects.size(),
-              "safe objects remain");
-          causeObjects = ImmutableList.copyOf(causeObjects);
-          safeObjects = ImmutableList.copyOf(safeObjects);
-          return false;
-        }
-
         if (deltaList.size() == 1) {
           // Split one remained delta.
           // Main cases are when deltaList was explicitly set to one delta above or in #setResult.
@@ -144,6 +130,20 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
               "objects");
           stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
           halveDeltas();
+        }
+
+        // DD can end only in delta-removing stage, when deltaList is empty
+        if (unresolvedObjects.isEmpty()) {
+          logger.log(
+              Level.INFO,
+              "All objects are resolved,",
+              causeObjects.size(),
+              "cause objects and",
+              safeObjects.size(),
+              "safe objects remain");
+          causeObjects = ImmutableList.copyOf(causeObjects);
+          safeObjects = ImmutableList.copyOf(safeObjects);
+          return false;
         }
         break;
 
@@ -214,7 +214,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         // No problems occur, last mutations hid the error.
         // Unresolved objects minus applied mutations are actually safe
         // No need to check them, but they remain in CFA.
-        logger.log(Level.INFO, "Cause is inside removed objects. Removed objects are safe");
+        logger.log(Level.INFO, "Cause is inside removed objects. Remained objects are safe");
         unresolvedObjects.removeAll(currentMutation);
         safeObjects.addAll(unresolvedObjects);
         unresolvedObjects.clear();
@@ -293,7 +293,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   // So, number of objects is likely to be not consistent during run.
   // XXX mark exclusive alternatives? or just abstract count?
   private void halveDeltas() {
-    assert !deltaList.isEmpty();
     var result = new ArrayList<ImmutableList<RemoveObject>>(deltaList.size() * 2);
 
     for (var delta : deltaList) {
@@ -314,7 +313,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   }
 
   private void resetDeltaList(List<ImmutableList<RemoveObject>> pDeltaList) {
-    assert !pDeltaList.isEmpty();
     deltaList = pDeltaList;
     deltaIter = deltaList.iterator();
     currentDelta = null;
