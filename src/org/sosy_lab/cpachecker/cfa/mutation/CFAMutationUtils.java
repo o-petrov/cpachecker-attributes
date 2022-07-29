@@ -65,9 +65,9 @@ class CFAMutationUtils {
 
       case DeclarationEdge:
         var d = ((ADeclarationEdge) pEdge).getDeclaration();
-        if (pEdge instanceof CAssumeEdge) {
+        if (pEdge instanceof CDeclarationEdge) {
           return new CDeclarationEdge(raw, loc, pred, pSuccessor, (CDeclaration) d);
-        } else if (pEdge instanceof JAssumeEdge) {
+        } else if (pEdge instanceof JDeclarationEdge) {
           return new JDeclarationEdge(raw, loc, pred, pSuccessor, (JDeclaration) d);
         } else {
           throw new AssertionError();
@@ -79,10 +79,10 @@ class CFAMutationUtils {
 
       case ReturnStatementEdge:
         var rs = ((AReturnStatementEdge) pEdge).getReturnStatement();
-        if (pEdge instanceof CAssumeEdge) {
+        if (pEdge instanceof CReturnStatementEdge) {
           return new CReturnStatementEdge(
               raw, (CReturnStatement) rs, loc, pred, (FunctionExitNode) pSuccessor);
-        } else if (pEdge instanceof JAssumeEdge) {
+        } else if (pEdge instanceof JReturnStatementEdge) {
           return new JReturnStatementEdge(
               raw, (JReturnStatement) rs, loc, pred, (FunctionExitNode) pSuccessor);
         } else {
@@ -91,9 +91,9 @@ class CFAMutationUtils {
 
       case StatementEdge:
         var s = ((AStatementEdge) pEdge).getStatement();
-        if (pEdge instanceof CAssumeEdge) {
+        if (pEdge instanceof CStatementEdge) {
           return new CStatementEdge(raw, (CStatement) s, loc, pred, pSuccessor);
-        } else if (pEdge instanceof JAssumeEdge) {
+        } else if (pEdge instanceof JStatementEdge) {
           return new JStatementEdge(raw, (JStatement) s, loc, pred, pSuccessor);
         } else {
           throw new AssertionError();
