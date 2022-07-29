@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.collect.ImmutableList;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
@@ -32,7 +33,9 @@ public class CFAMutator extends CFACreator {
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
-    strategy = new FunctionBodyRemover(pLogger);
+    strategy =
+        new CompositeCFAMutationStrategy(
+            ImmutableList.of(new FunctionBodyRemover(pLogger), new SingleEdgeRemover(pLogger)));
   }
 
   /**
