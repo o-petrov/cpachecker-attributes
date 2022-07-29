@@ -12,6 +12,7 @@ import static com.google.common.base.Verify.verify;
 import static org.sosy_lab.cpachecker.util.CFAUtils.enteringEdges;
 import static org.sosy_lab.cpachecker.util.CFAUtils.leavingEdges;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -116,7 +117,15 @@ public class CFACheck {
         } else if (node.getNumLeavingEdges() > 0) {
           location = node.getLeavingEdge(0).getFileLocation();
         }
-        return node.getFunctionName() + ":" + node + " (" + location + ")";
+        return node.getFunctionName()
+            + ":"
+            + node
+            + " ("
+            + location
+            + ") with edges\n"
+            + Joiner.on('\n').join(CFAUtils.allEnteringEdges(node).transform(CFAEdge::toString))
+            + "\n"
+            + Joiner.on('\n').join(CFAUtils.allLeavingEdges(node).transform(CFAEdge::toString));
       }
     };
   }
