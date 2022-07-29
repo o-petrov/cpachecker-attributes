@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
-import java.util.stream.Stream;
 import org.sosy_lab.common.log.LogManager;
 
 enum DeltaDebuggingStage {
@@ -78,7 +77,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   /** Objects that are removed in current round */
   private ImmutableList<RemoveObject> currentMutation = null;
   /** Store info to rollback current mutation if needed */
-  private Stream<RestoreObject> rollbackInfos;
+  private ImmutableList<RestoreObject> rollbackInfos = null;
 
   /** Save stage of DD algorithm between calls to {@link #mutate} */
   private DeltaDebuggingStage stage = DeltaDebuggingStage.INIT;
@@ -87,7 +86,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   private Iterator<ImmutableList<RemoveObject>> deltaIter = null;
   private ImmutableList<RemoveObject> currentDelta = null;
 
-  private LogManager logger;
+  protected LogManager logger;
 
   public GenericDeltaDebuggingStrategy(LogManager pLogger) {
     logger = Preconditions.checkNotNull(pLogger);
@@ -195,7 +194,9 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         throw new AssertionError();
     }
     // remove objects (apply mutations)
-    rollbackInfos = currentMutation.stream().map(mutation -> removeObject(pCfa, mutation));
+    rollbackInfos =
+        ImmutableList.copyOf(
+            currentMutation.stream().map(mutation -> removeObject(pCfa, mutation)).iterator());
   }
 
   @Override
@@ -220,18 +221,14 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         unresolvedObjects.addAll(currentMutation);
 
         // restore objects
-        ImmutableList.copyOf(rollbackInfos.iterator())
-            .reverse()
-            .forEach(r -> restoreObject(pCfa, r));
+        rollbackInfos.reverse().forEach(r -> restoreObject(pCfa, r));
         break;
 
       case UNRESOLVED:
         // some other problem, just undo mutation
         logger.log(
             Level.INFO, "Some of removed objects are needed for correct run. No objects resolved");
-        ImmutableList.copyOf(rollbackInfos.iterator())
-            .reverse()
-            .forEach(r -> restoreObject(pCfa, r));
+        rollbackInfos.reverse().forEach(r -> restoreObject(pCfa, r));
         break;
 
       default:
