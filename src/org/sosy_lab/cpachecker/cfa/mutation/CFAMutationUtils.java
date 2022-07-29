@@ -36,7 +36,7 @@ import org.sosy_lab.cpachecker.cfa.model.java.JStatementEdge;
 
 class CFAMutationUtils {
 
-  public static CFAEdge changeSuccessor(CFAEdge pEdge, CFANode pSuccessor) {
+  public static CFAEdge copyWithOtherSuccessor(CFAEdge pEdge, CFANode pSuccessor) {
     String raw = pEdge.getRawStatement();
     FileLocation loc = pEdge.getFileLocation();
     CFANode pred = pEdge.getPredecessor();
@@ -102,5 +102,35 @@ class CFAMutationUtils {
       default:
         throw new AssertionError();
     }
+  }
+
+  /**
+   * Remove given edge both from its successor's entering edges list and from CFA's list of edges in
+   * this function.
+   */
+  public static void removeFromSuccessor(CFAEdge pEdge) {
+    pEdge.getSuccessor().removeEnteringEdge(pEdge);
+  }
+
+  /**
+   * Add given edge both to its successor's entering edges list and CFA's list of edges in this
+   * function.
+   */
+  public static void addToSuccessor(CFAEdge pEdge) {
+    pEdge.getSuccessor().addEnteringEdge(pEdge);
+  }
+
+  /**
+   * Replace one edge with another both in its predecessor's leaving edges list and CFA's list of
+   * edges in this function.
+   */
+  @SuppressWarnings("deprecation") // uses 'private' method
+  public static void replaceInPredecessor(CFAEdge pEdge, CFAEdge pNewEdge) {
+    pEdge.getPredecessor().replaceLeavingEdge(pEdge, pNewEdge);
+  }
+
+  @SuppressWarnings("deprecation") // uses 'private' method
+  public static void insertInSuccessor(int pIndex, CFAEdge pEdge) {
+    pEdge.getSuccessor().insertEnteringEdge(pIndex, pEdge);
   }
 }

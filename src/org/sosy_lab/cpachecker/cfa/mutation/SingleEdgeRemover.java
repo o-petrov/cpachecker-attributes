@@ -44,18 +44,37 @@ public class SingleEdgeRemover
   }
 
   protected boolean canRemoveWithLeavingEdge(CFANode pNode) {
-    // TODO proper constraints (on class or else too)
-    return pNode.getNumLeavingEdges() == 1 && pNode.getClass().equals(CFANode.class);
+    // TODO proper constraints (on node class too?)
+    if (pNode.getNumLeavingEdges() != 1) {
+      return false;
+    }
+    if (pNode.getNumEnteringEdges() != 1) {
+      return false;
+    }
+    CFANode successor = pNode.getLeavingEdge(0).getSuccessor();
+    if (successor == pNode) {
+      return false;
+    }
+    CFANode predecessor = pNode.getEnteringEdge(0).getPredecessor();
+    if (successor == predecessor) {
+      return false;
+    }
+    if (predecessor.getNumLeavingEdges() > 1) {
+      return false;
+    }
+    if (canRemoveWithLeavingEdge(predecessor)) {
+      return false;
+    }
+    return true;
   }
 
-  @SuppressWarnings("deprecation") // uses 'private' method
   @Override
   protected Pair<Integer, CFAEdge> removeObject(FunctionCFAsWithMetadata pCfa, CFAEdge pChosen) {
     // TODO do not remove node for some cases, just replace edge with blank // other strategy??
     final CFANode predecessor = pChosen.getPredecessor();
     final CFANode successor = pChosen.getSuccessor();
 
-    // remove predecessor itself
+    // remove predecessor itself (no edges disconnected yet)
     assert pCfa.getCFANodes().remove(predecessor.getFunctionName(), predecessor);
 
     // save index to restore properly
@@ -67,19 +86,18 @@ public class SingleEdgeRemover
       }
     }
     // disconnect edge from successor
-    successor.removeEnteringEdge(pChosen);
+    CFAMutationUtils.removeFromSuccessor(pChosen);
 
     // disconnect pred-predecessors from predecessor and connect to successor
     for (CFAEdge edge : CFAUtils.allEnteringEdges(predecessor)) {
-      CFAEdge newEdge = CFAMutationUtils.changeSuccessor(edge, successor);
-      edge.getPredecessor().replaceLeavingEdge(edge, newEdge);
-      successor.addEnteringEdge(edge);
+      CFAEdge newEdge = CFAMutationUtils.copyWithOtherSuccessor(edge, successor);
+      CFAMutationUtils.replaceInPredecessor(edge, newEdge);
+      CFAMutationUtils.addToSuccessor(newEdge);
     }
 
     return Pair.of(index, pChosen);
   }
 
-  @SuppressWarnings("deprecation") // uses two 'private' method
   @Override
   protected void restoreObject(FunctionCFAsWithMetadata pCfa, Pair<Integer, CFAEdge> pRemoved) {
     final int index = pRemoved.getFirst();
@@ -94,11 +112,11 @@ public class SingleEdgeRemover
     for (CFAEdge oldEdge : CFAUtils.allEnteringEdges(oldPredecessor)) {
       CFANode predpred = oldEdge.getPredecessor();
       CFAEdge newEdge = predpred.getEdgeTo(successor);
-      predpred.replaceLeavingEdge(newEdge, oldEdge);
-      successor.removeEnteringEdge(newEdge);
+      CFAMutationUtils.replaceInPredecessor(newEdge, oldEdge);
+      CFAMutationUtils.removeFromSuccessor(newEdge);
     }
 
     // reconnect predecessor and successor
-    successor.insertEnteringEdge(index, removedEdge);
+    CFAMutationUtils.insertInSuccessor(index, removedEdge);
   }
 }
