@@ -179,50 +179,74 @@ public class CFACreator {
       description = "add loop-structure information to CFA.")
   private boolean useLoopStructure = true;
 
-  @Option(secure = true, name = "cfa.export", description = "export CFA as .dot file")
-  private boolean exportCfa = true;
+  @Option(
+      secure = true,
+      name = "cfa.export.directory",
+      description = "directory to export all CFA-related files to")
+  @FileOption(FileOption.Type.OUTPUT_DIRECTORY)
+  protected Path exportDirectory = Path.of("control-flow-automaton");
 
   @Option(
       secure = true,
-      name = "cfa.exportPerFunction",
-      description = "export individual CFAs for function as .dot files")
-  private boolean exportCfaPerFunction = true;
-
-  @Option(secure = true, name = "cfa.exportToC", description = "export CFA as C file")
-  private boolean exportCfaToC = false;
-
-  @Option(secure = true, name = "cfa.exportToC.file", description = "export CFA as C file")
-  @FileOption(FileOption.Type.OUTPUT_FILE)
-  private Path exportCfaToCFile = Path.of("cfa.c");
+      name = "cfa.export.toDot",
+      description = "export program as CFA in .dot format")
+  private boolean exportToDot = true;
 
   @Option(
       secure = true,
-      name = "cfa.exportToC.stayCloserToInput",
+      name = "cfa.export.toDot.file",
+      description = "export program as CFA in .dot format")
+  private Path exportDotFile = Path.of("cfa.dot");
+
+  @Option(
+      secure = true,
+      name = "cfa.export.toDot.perFunction",
+      description = "export individual CFAs for function as .dot files in given subdirectory")
+  private boolean exportDotPerFunction = true;
+
+  @Option(
+      secure = true,
+      name = "cfa.export.toDot.perFunction.dir",
+      description = "export individual CFAs for function as .dot files in given subdirectory")
+  private Path exportFunctionsSubdir = Path.of("function-cfas");
+
+  @Option(
+      secure = true,
+      name = "cfa.export.toC",
+      description = "export program CFA as C source file")
+  private boolean exportToC = false;
+
+  @Option(
+      secure = true,
+      name = "cfa.export.toC.file",
+      description = "export program CFA as C source file")
+  private Path exportCFile = Path.of("cfa.c");
+
+  @Option(
+      secure = true,
+      name = "cfa.export.toC.stayCloserToInput",
       description =
           "produce C programs more similar to the input program"
               + "\n(only possible for a single input file)")
-  private boolean exportCfaToCStayingCloserToInput = false;
+  private boolean exportToCCloserToInput = false;
 
-  @Option(secure = true, name = "cfa.callgraph.export", description = "dump a simple call graph")
+  @Option(
+      secure = true,
+      name = "cfa.export.callgraph",
+      description = "dump graphs of all function calls and used functions calls in .dot format")
   private boolean exportFunctionCalls = true;
 
   @Option(
       secure = true,
-      name = "cfa.callgraph.file",
-      description = "file name for call graph as .dot file")
-  @FileOption(FileOption.Type.OUTPUT_FILE)
-  private Path exportFunctionCallsFile = Path.of("functionCalls.dot");
+      name = "cfa.export.callgraph.all.file",
+      description = "dump graphs of all function calls and used functions calls in .dot format")
+  private Path exportFunctionCallsFile = Path.of("function-calls.dot");
 
   @Option(
       secure = true,
-      name = "cfa.callgraph.fileUsed",
-      description = "file name for call graph as .dot file")
-  @FileOption(FileOption.Type.OUTPUT_FILE)
-  private Path exportFunctionCallsUsedFile = Path.of("functionCallsUsed.dot");
-
-  @Option(secure = true, name = "cfa.file", description = "export CFA as .dot file")
-  @FileOption(FileOption.Type.OUTPUT_FILE)
-  private Path exportCfaFile = Path.of("cfa.dot");
+      name = "cfa.export.callgraph.used.file",
+      description = "dump graphs of all function calls and used functions calls in .dot format")
+  private Path exportFunctionCallsUsedFile = Path.of("function-calls-used.dot");
 
   @Option(
       secure = true,
@@ -232,21 +256,25 @@ public class CFACreator {
 
   @Option(
       secure = true,
-      name = "cfa.serializeFile",
+      name = "cfa.serialize.file",
       description = "export CFA as .ser file (dump Java objects)")
-  @FileOption(FileOption.Type.OUTPUT_FILE)
   private Path serializeCfaFile = Path.of("cfa.ser.gz");
 
   @Option(
       secure = true,
-      name = "cfa.pixelGraphicFile",
+      name = "cfa.export.toPixelGraphic",
       description =
           "Export CFA as pixel graphic to the given file name. The suffix is added"
-              + " corresponding"
-              + " to the value of option pixelgraphic.export.format"
-              + "If set to 'null', no pixel graphic is exported.")
-  @FileOption(FileOption.Type.OUTPUT_FILE)
-  private Path exportCfaPixelFile = Path.of("cfaPixel");
+              + " corresponding to the value of option pixelgraphic.export.format")
+  private boolean exportToPixelGraphic = false;
+
+  @Option(
+      secure = true,
+      name = "cfa.export.toPixelGraphic.file",
+      description =
+          "Export CFA as pixel graphic to the given file name. The suffix is added"
+              + " corresponding to the value of option pixelgraphic.export.format")
+  private Path exportPixelGraphicFile = Path.of("cfa-pixel-graphic");
 
   @Option(
       secure = true,
@@ -673,12 +701,12 @@ public class CFACreator {
     assert CFACheck.check(mainFunction, null, machineModel);
     stats.checkTime.stop();
 
-    if (((exportCfaFile != null) && (exportCfa || exportCfaPerFunction))
-        || ((exportFunctionCallsFile != null) && exportFunctionCalls)
-        || ((exportFunctionCallsUsedFile != null) && exportFunctionCalls)
-        || ((serializeCfaFile != null) && serializeCfa)
-        || (exportCfaPixelFile != null)
-        || (exportCfaToCFile != null && exportCfaToC)) {
+    if (exportToDot
+        || exportDotPerFunction
+        || exportFunctionCalls
+        || serializeCfa
+        || exportToPixelGraphic
+        || exportToC) {
       exportCFAAsync(immutableCFA);
     }
 
@@ -1155,8 +1183,9 @@ public class CFACreator {
     stats.exportTime.start();
 
     // write CFA to file
-    if (exportCfa && exportCfaFile != null) {
-      try (Writer w = IO.openOutputFile(exportCfaFile, Charset.defaultCharset())) {
+    if (exportToDot) {
+      try (Writer w =
+          IO.openOutputFile(exportDirectory.resolve(exportDotFile), Charset.defaultCharset())) {
         DOTBuilder.generateDOT(w, cfa);
       } catch (IOException e) {
         logger.logUserException(Level.WARNING, e, "Could not write CFA to dot file");
@@ -1165,18 +1194,19 @@ public class CFACreator {
     }
 
     // write the CFA to files (one file per function)
-    if (exportCfaPerFunction && exportCfaFile != null) {
+    if (exportDotPerFunction) {
       try {
-        Path outdir = exportCfaFile.getParent().resolve("cfa");
-        new DOTBuilder2(cfa).writeGraphs(outdir);
+        new DOTBuilder2(cfa).writeGraphs(exportDirectory.resolve(exportFunctionsSubdir));
       } catch (IOException e) {
         logger.logUserException(Level.WARNING, e, "Could not write CFA to dot files");
         // continue with analysis
       }
     }
 
-    if (exportFunctionCalls && exportFunctionCallsFile != null) {
-      try (Writer w = IO.openOutputFile(exportFunctionCallsFile, Charset.defaultCharset())) {
+    if (exportFunctionCalls) {
+      try (Writer w =
+          IO.openOutputFile(
+              exportDirectory.resolve(exportFunctionCallsFile), Charset.defaultCharset())) {
         FunctionCallDumper.dump(w, cfa, false);
       } catch (IOException e) {
         logger.logUserException(Level.WARNING, e, "Could not write functionCalls to dot file");
@@ -1184,8 +1214,10 @@ public class CFACreator {
       }
     }
 
-    if (exportFunctionCalls && exportFunctionCallsUsedFile != null) {
-      try (Writer w = IO.openOutputFile(exportFunctionCallsUsedFile, Charset.defaultCharset())) {
+    if (exportFunctionCalls) {
+      try (Writer w =
+          IO.openOutputFile(
+              exportDirectory.resolve(exportFunctionCallsUsedFile), Charset.defaultCharset())) {
         FunctionCallDumper.dump(w, cfa, true);
       } catch (IOException e) {
         logger.logUserException(Level.WARNING, e, "Could not write functionCalls to dot file");
@@ -1193,18 +1225,20 @@ public class CFACreator {
       }
     }
 
-    if (exportCfaPixelFile != null) {
+    if (exportToPixelGraphic) {
       try {
-        new CFAToPixelsWriter(config).write(cfa.getMainFunction(), exportCfaPixelFile);
+        new CFAToPixelsWriter(config)
+            .write(cfa.getMainFunction(), exportDirectory.resolve(exportPixelGraphicFile));
       } catch (IOException | InvalidConfigurationException e) {
         logger.logUserException(Level.WARNING, e, "Could not write CFA as pixel graphic.");
       }
     }
 
-    if (serializeCfa && serializeCfaFile != null) {
+    if (serializeCfa) {
       try {
-        MoreFiles.createParentDirectories(serializeCfaFile);
-        try (OutputStream outputStream = Files.newOutputStream(serializeCfaFile);
+        MoreFiles.createParentDirectories(exportDirectory.resolve(serializeCfaFile));
+        try (OutputStream outputStream =
+                Files.newOutputStream(exportDirectory.resolve(serializeCfaFile));
             OutputStream gzipOutputStream = new GZIPOutputStream(outputStream);
             ObjectOutputStream oos = new ObjectOutputStream(gzipOutputStream)) {
           oos.writeObject(cfa);
@@ -1214,13 +1248,13 @@ public class CFACreator {
       }
     }
 
-    if (exportCfaToC && exportCfaToCFile != null) {
+    if (exportToC) {
       try {
         String code;
-        if (exportCfaToCStayingCloserToInput && cfa.getFileNames().size() == 1) {
+        if (exportToCCloserToInput && cfa.getFileNames().size() == 1) {
           code = new CfaToCExporter(logger, config, shutdownNotifier).exportCfa(cfa);
         } else {
-          if (exportCfaToCStayingCloserToInput) {
+          if (exportToCCloserToInput) {
             logger.log(
                 Level.INFO,
                 "Using the regular CFA-to-C exporter (staying closer to the input program is only"
@@ -1228,7 +1262,8 @@ public class CFACreator {
           }
           code = new CFAToCTranslator(config).translateCfa(cfa);
         }
-        try (Writer writer = IO.openOutputFile(exportCfaToCFile, Charset.defaultCharset())) {
+        try (Writer writer =
+            IO.openOutputFile(exportDirectory.resolve(exportCFile), Charset.defaultCharset())) {
           writer.write(code);
         }
       } catch (CPAException

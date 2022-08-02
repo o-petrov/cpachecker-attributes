@@ -236,7 +236,7 @@ public final class DOTBuilder2 {
 
     void writeFunctionFile(String funcname, Path outdir) throws IOException {
 
-      Path cfaFile = outdir.resolve("cfa__" + funcname + ".dot");
+      Path cfaFile = outdir.resolve(funcname + ".dot");
       MoreFiles.createParentDirectories(cfaFile);
       try (Writer out = Files.newBufferedWriter(cfaFile, StandardCharsets.UTF_8)) {
         out.write("digraph " + funcname + " {\n");

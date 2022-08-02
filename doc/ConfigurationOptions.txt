@@ -767,13 +767,6 @@ cegar.useRefinementSelection = false
 # Which functions should be interpreted as encoding assumptions
 cfa.assumeFunctions = {"__VERIFIER_assume"}
 
-# dump a simple call graph
-cfa.callgraph.export = true
-
-# file name for call graph as .dot file
-cfa.callgraph.file = "functionCalls.dot"
-cfa.callgraph.fileUsed = "functionCallsUsed.dot"
-
 # how often do we clone a function?
 cfa.cfaCloner.numberOfCopies = 5
 
@@ -789,22 +782,34 @@ cfa.checkNullPointers.singleTargetPerFunction = true
 # create a series of if-else edges with explicit indizes instead.
 cfa.expandFunctionPointerArrayAssignments = false
 
-# export CFA as .dot file
-cfa.export = true
+# dump graphs of all function calls and used functions calls in .dot format
+cfa.export.callgraph = true
+cfa.export.callgraph.all.file = "function-calls.dot"
+cfa.export.callgraph.used.file = "function-calls-used.dot"
 
-# export individual CFAs for function as .dot files
-cfa.exportPerFunction = true
+# directory to export all CFA-related files to
+cfa.export.directory = "control-flow-automaton"
 
-# export CFA as C file
-cfa.exportToC = false
-cfa.exportToC.file = "cfa.c"
+# export program CFA as C source file
+cfa.export.toC = false
+cfa.export.toC.file = "cfa.c"
 
 # produce C programs more similar to the input program
 # (only possible for a single input file)
-cfa.exportToC.stayCloserToInput = false
+cfa.export.toC.stayCloserToInput = false
 
-# export CFA as .dot file
-cfa.file = "cfa.dot"
+# export program as CFA in .dot format
+cfa.export.toDot = true
+cfa.export.toDot.file = "cfa.dot"
+
+# export individual CFAs for function as .dot files in given subdirectory
+cfa.export.toDot.perFunction = true
+cfa.export.toDot.perFunction.dir = "function-cfas"
+
+# Export CFA as pixel graphic to the given file name. The suffix is added
+# corresponding to the value of option pixelgraphic.export.format
+cfa.export.toPixelGraphic = false
+cfa.export.toPixelGraphic.file = "cfa-pixel-graphic"
 
 # By enabling this option the variables that are live are computed for each
 # edge of the cfa. Live means that their value is read later on.
@@ -828,14 +833,9 @@ cfa.moveDeclarationsToFunctionStart = false
 # Which functions should be interpreted as never returning to their call site
 cfa.nonReturningFunctions = {"abort", "exit"}
 
-# Export CFA as pixel graphic to the given file name. The suffix is added
-# corresponding to the value of option pixelgraphic.export.formatIf set to
-# 'null', no pixel graphic is exported.
-cfa.pixelGraphicFile = "cfaPixel"
-
 # export CFA as .ser file (dump Java objects)
 cfa.serialize = false
-cfa.serializeFile = "cfa.ser.gz"
+cfa.serialize.file = "cfa.ser.gz"
 
 # Show messages when dead code is encountered during parsing.
 cfa.showDeadCode = true
