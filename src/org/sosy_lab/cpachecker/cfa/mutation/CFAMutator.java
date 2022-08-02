@@ -35,7 +35,11 @@ public class CFAMutator extends CFACreator {
     super(pConfig, pLogger, pShutdownNotifier);
     strategy =
         new CompositeCFAMutationStrategy(
-            ImmutableList.of(new FunctionBodyRemover(pLogger), new SingleEdgeRemover(pLogger)));
+            ImmutableList.of(
+                new FunctionBodyRemover(pLogger),
+                new SimpleBranchingRemover(pLogger),
+                new ChainRemover(pLogger),
+                new SingleEdgeRemover(pLogger)));
   }
 
   /**

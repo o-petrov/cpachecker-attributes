@@ -133,4 +133,9 @@ class CFAMutationUtils {
   public static void insertInSuccessor(int pIndex, CFAEdge pEdge) {
     pEdge.getSuccessor().insertEnteringEdge(pIndex, pEdge);
   }
+
+  @SuppressWarnings("deprecation")
+  public static void replaceInSuccessor(CFAEdge pEdge, CFAEdge pNewEdge) {
+    pEdge.getSuccessor().replaceEnteringEdge(pEdge, pNewEdge);
+  }
 }
