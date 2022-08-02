@@ -14,6 +14,7 @@ import static org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutd
 
 import com.google.common.base.Joiner;
 import com.google.common.base.StandardSystemProperty;
+import com.google.common.base.Verify;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -205,6 +206,15 @@ public class CPAchecker {
           "Try to make CFA of the input program smaller. The goal is to make a small test "
               + "for a case when CPAchecker analysis crashes.")
   private boolean minimizeCfaForException = false;
+
+  @Option(
+      secure = true,
+      name = "cfaMutation.checkAfterRollbacks",
+      description =
+          "If a mutation round is unsuccessfull (i.e. hids the bug), the mutation "
+              + "is rollbacked. Check that rollbacked CFA produces the sought-for "
+              + "bug. (Increases amount of analysis runs.)")
+  private boolean checkAfterRollbacks = true;
 
   private final LogManager logger;
   private final Configuration config;
@@ -533,17 +543,22 @@ public class CPAchecker {
 
         // CFAMutator stores needed info from #parse,
         // so no need to pass CFA as argument in next calls
+        int round = 0;
         while (cfaMutator.canMutate()) {
+          round += 1;
+          logger.log(Level.INFO, "Mutation round", round);
           shutdownNotifier.shutdownIfNecessary();
 
           cfa = cfaMutator.mutate();
-
           AnalysisResult newResult = analysisRound();
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
-          // XXX implement a check after 'rollback'? What is a rollback?
-          cfaMutator.setResult(newResult.toDDResult(originalResult));
+          cfa = cfaMutator.setResult(newResult.toDDResult(originalResult));
+          if (cfa != null && checkAfterRollbacks) {
+            newResult = analysisRound();
+            Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
+          }
         }
 
         mutationsResult = Result.DONE;
@@ -600,6 +615,22 @@ public class CPAchecker {
 
       } finally {
         CPAs.closeIfPossible(algorithm, logger);
+      }
+
+      if (result == Result.FALSE) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("FALSE. Property violation");
+        if (!targetDescription.isEmpty()) {
+          sb.append(" (").append(targetDescription).append(")");
+        }
+        sb.append(" found by chosen configuration.");
+        logger.log(Level.INFO, sb);
+
+      } else if (result == Result.TRUE) {
+        logger.log(Level.INFO, "TRUE. No property violation found by chosen configuration.");
+
+      } else if (t == null) {
+        throw new AssertionError();
       }
 
       return new AnalysisResult(result, targetDescription, t);

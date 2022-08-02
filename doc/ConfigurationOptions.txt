@@ -886,6 +886,11 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # test for a case when CPAchecker analysis crashes.
 cfaMutation = false
 
+# If a mutation round is unsuccessfull (i.e. hids the bug), the mutation is
+# rollbacked. Check that rollbacked CFA produces the sought-for bug.
+# (Increases amount of analysis runs.)
+cfaMutation.checkAfterRollbacks = true
+
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
 

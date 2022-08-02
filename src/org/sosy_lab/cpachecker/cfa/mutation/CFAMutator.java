@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
+import java.nio.file.Path;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
@@ -30,16 +31,23 @@ public class CFAMutator extends CFACreator {
   /** Strategy that decides how to change the CFA and implements this change */
   private final CFAMutationStrategy strategy;
 
+  private int round = 0;
+
+  private CFA lastCfa = null;
+
+  private final Path cfaExportDirectory = exportDirectory;
+
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
     strategy =
         new CompositeCFAMutationStrategy(
+            pLogger,
             ImmutableList.of(
                 new FunctionBodyRemover(pLogger),
                 new SimpleBranchingRemover(pLogger),
                 new ChainRemover(pLogger),
-                new SingleEdgeRemover(pLogger)));
+                new StatementRemover(pLogger)));
   }
 
   /**
@@ -58,7 +66,10 @@ public class CFAMutator extends CFACreator {
   @Override
   protected void exportCFAAsync(CFA pCfa) {
     // do not export asynchronously as CFA will be mutated
-    super.exportCFA(pCfa);
+    if (round == 0) {
+      exportDirectory = cfaExportDirectory.resolve("original-cfa");
+      super.exportCFA(pCfa);
+    }
   }
 
   public boolean canMutate() {
@@ -69,14 +80,33 @@ public class CFAMutator extends CFACreator {
 
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
+    round += 1;
     strategy.mutate(localCfa);
-    return super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
+    lastCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
+    return lastCfa;
   }
 
   /** Undo last mutation if needed */
-  public void setResult(DDResultOfARun pResult) {
+  public CFA setResult(DDResultOfARun pResult)
+      throws InvalidConfigurationException, InterruptedException, ParserException {
+    // export after analysis
+    exportDirectory =
+        cfaExportDirectory.resolve(pResult + "/" + String.valueOf(round) + "-mutation-round");
+    super.exportCFA(lastCfa);
+
     // undo createCFA before possible mutation rollback
     localCfa.resetEdgesInNodes();
     strategy.setResult(localCfa, pResult);
+    CFA rollbackedCfa = null;
+    if (pResult != DDResultOfARun.FAIL) {
+      rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
+
+      // export after rollback
+      exportDirectory =
+          cfaExportDirectory.resolve(
+              pResult + "/" + String.valueOf(round) + "-mutation-round-rollbacked");
+      super.exportCFA(rollbackedCfa);
+    }
+    return rollbackedCfa;
   }
 }
