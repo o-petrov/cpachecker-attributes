@@ -27,6 +27,10 @@ public class SingleEdgeRemover
     super(pLogger, "nodes with single leaving edge");
   }
 
+  protected SingleEdgeRemover(LogManager pLogger, String pTitle) {
+    super(pLogger, pTitle);
+  }
+
   // Usually we can remove a node with single leaving edge, but if a cycle consisted of three
   // nodes (see below) and we removed node C, we can't remove node A.
   // (Removing a node here means removing its leaving edge and connecting its entering edges to
