@@ -24,7 +24,7 @@ public class SingleEdgeRemover
     extends GenericDeltaDebuggingStrategy<CFAEdge, Pair<Integer, CFAEdge>> {
 
   public SingleEdgeRemover(LogManager pLogger) {
-    super(pLogger);
+    super(pLogger, "nodes with single leaving edge");
   }
 
   // Usually we can remove a node with single leaving edge, but if a cycle consisted of three

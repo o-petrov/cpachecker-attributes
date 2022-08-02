@@ -20,7 +20,7 @@ import org.sosy_lab.cpachecker.util.Pair;
 public class FunctionBodyRemover extends GenericDeltaDebuggingStrategy<String, Pair<FunctionEntryNode, SortedSet<CFANode>>> {
 
   public FunctionBodyRemover(LogManager pLogger) {
-    super(pLogger);
+    super(pLogger, "functions");
   }
 
   @Override

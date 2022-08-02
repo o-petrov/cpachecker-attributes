@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -86,10 +87,13 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   private Iterator<ImmutableList<RemoveObject>> deltaIter = null;
   private ImmutableList<RemoveObject> currentDelta = null;
 
-  protected LogManager logger;
+  protected final LogManager logger;
+  private final String objectsTitle;
 
-  public GenericDeltaDebuggingStrategy(LogManager pLogger) {
+  public GenericDeltaDebuggingStrategy(LogManager pLogger, String pObjectsTitle) {
+    Preconditions.checkArgument(!Strings.isNullOrEmpty(pObjectsTitle));
     logger = Preconditions.checkNotNull(pLogger);
+    objectsTitle = pObjectsTitle;
   }
 
   @Override
@@ -101,12 +105,12 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         unresolvedObjects = getAllObjects(pCfa);
         if (unresolvedObjects.isEmpty()) {
           // nothing to do
-          logger.log(Level.INFO, "No objects to mutate");
+          logger.log(Level.INFO, "No", objectsTitle, "to mutate");
           causeObjects = ImmutableList.copyOf(causeObjects);
           safeObjects = ImmutableList.copyOf(safeObjects);
           return false;
         }
-        logger.log(Level.INFO, "Got", unresolvedObjects.size(), "objects to remove");
+        logger.log(Level.INFO, "Got", unresolvedObjects.size(), objectsTitle, "to remove");
         resetDeltaListWithOneDelta(ImmutableList.copyOf(unresolvedObjects));
         stage = DeltaDebuggingStage.REMOVE_DELTA;
         return true;
@@ -117,7 +121,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
           // Main cases are when deltaList was explicitly set to one delta above or in #setResult.
           // Well, also can save at most like log(all objects count) rounds
           // not calling on last delta if it was not removed already.
-          logger.log(Level.INFO, "halving single delta of", deltaList.get(0).size(), "objects");
+          logger.log(Level.INFO, "halving single delta of", deltaList.get(0).size(), objectsTitle);
           halveDeltas();
         } else if (!deltaIter.hasNext()) {
           // tried all deltas, partition again
@@ -127,7 +131,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
               deltaList.size(),
               "deltas with total",
               unresolvedObjects.size(),
-              "objects");
+              objectsTitle);
           stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
           halveDeltas();
         }
@@ -136,11 +140,17 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         if (unresolvedObjects.isEmpty()) {
           logger.log(
               Level.INFO,
-              "All objects are resolved,",
+              "All",
+              objectsTitle,
+              "are resolved,",
               causeObjects.size(),
-              "cause objects and",
+              "cause",
+              objectsTitle,
+              "and",
               safeObjects.size(),
-              "safe objects remain");
+              "safe",
+              objectsTitle,
+              "remain");
           causeObjects = ImmutableList.copyOf(causeObjects);
           safeObjects = ImmutableList.copyOf(safeObjects);
           return false;
@@ -181,13 +191,13 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         currentMutation =
             ImmutableList.copyOf(
                 unresolvedObjects.stream().filter(o -> !currentDelta.contains(o)).iterator());
-        logger.log(Level.INFO, "removing a complement of", currentMutation.size(), "objects");
+        logger.log(Level.INFO, "removing a complement of", currentMutation.size(), objectsTitle);
         break;
 
       case REMOVE_DELTA:
         currentDelta = deltaIter.next();
         currentMutation = currentDelta;
-        logger.log(Level.INFO, "removing a delta of", currentMutation.size(), "objects");
+        logger.log(Level.INFO, "removing a delta of", currentMutation.size(), objectsTitle);
         break;
 
       default:
@@ -206,7 +216,8 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       case FAIL:
         // Error is present, do not restore removed objects.
         // Removed objects were safe, but are already removed.
-        logger.log(Level.INFO, "Removed objects are safe. Cause is inside remain objects");
+        logger.log(
+            Level.INFO, "Removed", objectsTitle, "are safe. Cause is inside remain", objectsTitle);
         unresolvedObjects.removeAll(currentMutation);
         break;
 
@@ -214,7 +225,12 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         // No problems occur, last mutations hid the error.
         // Unresolved objects minus applied mutations are actually safe
         // No need to check them, but they remain in CFA.
-        logger.log(Level.INFO, "Cause is inside removed objects. Remained objects are safe");
+        logger.log(
+            Level.INFO,
+            "Cause is inside removed",
+            objectsTitle + ". Remained",
+            objectsTitle,
+            "are safe");
         unresolvedObjects.removeAll(currentMutation);
         safeObjects.addAll(unresolvedObjects);
         unresolvedObjects.clear();
@@ -227,7 +243,12 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       case UNRESOLVED:
         // some other problem, just undo mutation
         logger.log(
-            Level.INFO, "Some of removed objects are needed for correct run. No objects resolved");
+            Level.INFO,
+            "Some of removed",
+            objectsTitle,
+            "are needed for correct run. No",
+            objectsTitle,
+            "resolved");
         rollbackInfos.reverse().forEach(r -> restoreObject(pCfa, r));
         break;
 
@@ -270,7 +291,10 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
    */
   public ImmutableList<RemoveObject> getCauseObjects() {
     Preconditions.checkState(
-        unresolvedObjects.isEmpty(), "Can not identify cause, as there are objects to investigate");
+        unresolvedObjects.isEmpty(),
+        "Can not identify cause, as there are",
+        objectsTitle,
+        "to investigate");
     return (ImmutableList<RemoveObject>) causeObjects;
   }
 
@@ -283,7 +307,10 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
    */
   public ImmutableList<RemoveObject> getRemainedSafeObjects() {
     Preconditions.checkState(
-        unresolvedObjects.isEmpty(), "Can not identify cause, as there are objects to investigate");
+        unresolvedObjects.isEmpty(),
+        "Can not identify cause, as there are",
+        objectsTitle,
+        "to investigate");
     return (ImmutableList<RemoveObject>) safeObjects;
   }
 
