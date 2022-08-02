@@ -21,7 +21,7 @@ import org.sosy_lab.cpachecker.util.Pair;
  * one. Predecessor has to have single leaving edge.
  */
 public class SingleEdgeRemover
-    extends GenericDeltaDebuggingStrategy<CFAEdge, Pair<Integer, CFAEdge>> {
+    extends GenericDeltaDebuggingStrategy<CFANode, Pair<Integer, CFANode>> {
 
   public SingleEdgeRemover(LogManager pLogger) {
     super(pLogger, "nodes with single leaving edge");
@@ -35,61 +35,53 @@ public class SingleEdgeRemover
   // --> A -----> B -->    |  --> A ---> B -->
   //     ^-- C <--'        |      ^------'
   @Override
-  protected List<CFAEdge> getAllObjects(FunctionCFAsWithMetadata pCfa) {
-    List<CFAEdge> result = new ArrayList<>();
+  protected List<CFANode> getAllObjects(FunctionCFAsWithMetadata pCfa) {
+    List<CFANode> result = new ArrayList<>();
     pCfa.getCFANodes().values().stream()
         .filter(node -> canRemoveWithLeavingEdge(node))
-        .forEach(node -> result.add(node.getLeavingEdge(0)));
+        .forEach(node -> result.add(node));
     return result;
   }
 
   protected boolean canRemoveWithLeavingEdge(CFANode pNode) {
-    // TODO proper constraints (on node class too?)
-    if (pNode.getNumLeavingEdges() != 1) {
+    if (pNode.getNumLeavingEdges() != 1 || pNode.getNumEnteringEdges() == 0) {
       return false;
     }
-    if (pNode.getNumEnteringEdges() != 1) {
-      return false;
-    }
+
     CFANode successor = pNode.getLeavingEdge(0).getSuccessor();
     if (successor == pNode) {
       return false;
     }
-    CFANode predecessor = pNode.getEnteringEdge(0).getPredecessor();
-    if (successor == predecessor) {
-      return false;
-    }
-    if (predecessor.getNumLeavingEdges() > 1) {
-      return false;
-    }
-    if (canRemoveWithLeavingEdge(predecessor)) {
-      return false;
+    for (CFANode predecessor : CFAUtils.predecessorsOf(pNode)) {
+      if (successor == predecessor || predecessor.getNumLeavingEdges() > 1) {
+        return false;
+      }
     }
     return true;
   }
 
   @Override
-  protected Pair<Integer, CFAEdge> removeObject(FunctionCFAsWithMetadata pCfa, CFAEdge pChosen) {
-    // TODO do not remove node for some cases, just replace edge with blank // other strategy??
-    final CFANode predecessor = pChosen.getPredecessor();
-    final CFANode successor = pChosen.getSuccessor();
+  protected Pair<Integer, CFANode> removeObject(FunctionCFAsWithMetadata pCfa, CFANode pChosen) {
+
+    final CFAEdge toRemove = pChosen.getLeavingEdge(0);
+    final CFANode successor = toRemove.getSuccessor();
 
     // remove predecessor itself (no edges disconnected yet)
-    assert pCfa.getCFANodes().remove(predecessor.getFunctionName(), predecessor);
-
+    assert pCfa.getCFANodes().remove(pChosen.getFunctionName(), pChosen);
     // save index to restore properly
     int index = -1;
     for (int i = 0; i < successor.getNumEnteringEdges(); i++) {
-      if (pChosen == successor.getEnteringEdge(i)) {
+      if (toRemove == successor.getEnteringEdge(i)) {
         index = i;
         break;
       }
     }
+    assert index >= 0;
     // disconnect edge from successor
-    CFAMutationUtils.removeFromSuccessor(pChosen);
+    CFAMutationUtils.removeFromSuccessor(toRemove);
 
     // disconnect pred-predecessors from predecessor and connect to successor
-    for (CFAEdge edge : CFAUtils.allEnteringEdges(predecessor)) {
+    for (CFAEdge edge : CFAUtils.allEnteringEdges(pChosen)) {
       CFAEdge newEdge = CFAMutationUtils.copyWithOtherSuccessor(edge, successor);
       CFAMutationUtils.replaceInPredecessor(edge, newEdge);
       CFAMutationUtils.addToSuccessor(newEdge);
@@ -99,10 +91,10 @@ public class SingleEdgeRemover
   }
 
   @Override
-  protected void restoreObject(FunctionCFAsWithMetadata pCfa, Pair<Integer, CFAEdge> pRemoved) {
+  protected void restoreObject(FunctionCFAsWithMetadata pCfa, Pair<Integer, CFANode> pRemoved) {
     final int index = pRemoved.getFirst();
-    final CFAEdge removedEdge = pRemoved.getSecond();
-    final CFANode oldPredecessor = removedEdge.getPredecessor();
+    final CFANode oldPredecessor = pRemoved.getSecond();
+    final CFAEdge removedEdge = oldPredecessor.getLeavingEdge(0);
     final CFANode successor = removedEdge.getSuccessor();
 
     // restore predecessor itself
