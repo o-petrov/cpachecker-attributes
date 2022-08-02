@@ -426,4 +426,11 @@ public class CFANode implements Comparable<CFANode>, Serializable {
 
     leavingSummaryEdge = null;
   }
+
+  @Deprecated
+  public void resetNodeInfo() {
+    isLoopStart = false;
+    outOfScopeVariables = null;
+    reversePostorderId = 0;
+  }
 }

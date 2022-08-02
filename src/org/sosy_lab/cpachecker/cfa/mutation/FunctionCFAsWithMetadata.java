@@ -100,7 +100,7 @@ class FunctionCFAsWithMetadata extends ParseResult {
    * Restore local edges. Use after analysis run, so this CFA is ready for mutation and processings
    * in {@link CFACreator#createCFA}.
    */
-  @SuppressWarnings("deprecation") // uses two 'private' methods
+  @SuppressWarnings("deprecation") // uses three 'private' methods
   public void resetEdgesInNodes() {
     if (localEdges == null) {
       return;
@@ -111,6 +111,7 @@ class FunctionCFAsWithMetadata extends ParseResult {
       assert localEdges.get(node) != null : "new node " + node;
       assert localEdges.get(node).enteringEdges != null;
       assert localEdges.get(node).leavingEdges != null;
+      node.resetNodeInfo();
       node.resetEnteringEdges(localEdges.get(node).enteringEdges);
       node.resetLeavingEdges(localEdges.get(node).leavingEdges);
     }
