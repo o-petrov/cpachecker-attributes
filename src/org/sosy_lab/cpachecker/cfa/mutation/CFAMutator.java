@@ -33,8 +33,6 @@ public class CFAMutator extends CFACreator {
 
   private int round = 0;
 
-  private CFA lastCfa = null;
-
   private final Path cfaExportDirectory = exportDirectory;
 
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
@@ -83,29 +81,25 @@ public class CFAMutator extends CFACreator {
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
     round += 1;
     strategy.mutate(localCfa);
-    lastCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
-    return lastCfa;
+    CFA result = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
+    exportDirectory = cfaExportDirectory.resolve(String.valueOf(round) + "-mutation-round");
+    super.exportCFA(result);
+    return result;
   }
 
   /** Undo last mutation if needed */
   public CFA setResult(DDResultOfARun pResult)
       throws InvalidConfigurationException, InterruptedException, ParserException {
-    // export after analysis
-    exportDirectory =
-        cfaExportDirectory.resolve(pResult + "/" + String.valueOf(round) + "-mutation-round");
-    super.exportCFA(lastCfa);
-
+    // XXX write result?
     // undo createCFA before possible mutation rollback
     localCfa.resetEdgesInNodes();
     strategy.setResult(localCfa, pResult);
     CFA rollbackedCfa = null;
     if (pResult != DDResultOfARun.FAIL) {
-      rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
-
       // export after rollback
+      rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
       exportDirectory =
-          cfaExportDirectory.resolve(
-              pResult + "/" + String.valueOf(round) + "-mutation-round-rollbacked");
+          cfaExportDirectory.resolve(String.valueOf(round) + "-mutation-round-rollbacked");
       super.exportCFA(rollbackedCfa);
     }
     return rollbackedCfa;
