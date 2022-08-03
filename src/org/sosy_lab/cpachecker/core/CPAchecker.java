@@ -554,10 +554,13 @@ public class CPAchecker {
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
-          cfa = cfaMutator.setResult(newResult.toDDResult(originalResult));
-          if (cfa != null && checkAfterRollbacks) {
-            newResult = analysisRound();
-            Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
+          CFA rollback = cfaMutator.setResult(newResult.toDDResult(originalResult));
+          if (rollback != null) {
+            cfa = rollback;
+            if (checkAfterRollbacks) {
+              newResult = analysisRound();
+              Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
+            }
           }
         }
 
