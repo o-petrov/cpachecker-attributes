@@ -318,9 +318,12 @@ public class CFACreator {
   private final List<FileLocation> commentPositions = new ArrayList<>();
   private final List<SyntacticBlock> blocks = new ArrayList<>();
 
-  private final LogManager logger;
   private final Parser parser;
-  private final ShutdownNotifier shutdownNotifier;
+  private final CFACreatorStatistics stats;
+  protected final Configuration config;
+  protected final LogManager logger;
+  protected final ShutdownNotifier shutdownNotifier;
+
   private static final String EXAMPLE_JAVA_METHOD_NAME =
       "Please note that a method has to be given in the following notation:\n <ClassName>_"
           + "<MethodName>_<ParameterTypes>.\nExample: pack1.Car_drive_int_Car\n"
@@ -373,9 +376,6 @@ public class CFACreator {
       }
     }
   }
-
-  private final CFACreatorStatistics stats;
-  private final Configuration config;
 
   public CFACreator(Configuration config, LogManager logger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
@@ -566,7 +566,7 @@ public class CFACreator {
                 "Method " + mainFunction + " not found.\n" + EXAMPLE_JAVA_METHOD_NAME));
   }
 
-  private CFA createCFA(ParseResult pParseResult, FunctionEntryNode pMainFunction)
+  protected CFA createCFA(ParseResult pParseResult, FunctionEntryNode pMainFunction)
       throws InvalidConfigurationException, InterruptedException, ParserException {
 
     FunctionEntryNode mainFunction = pMainFunction;

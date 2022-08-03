@@ -52,11 +52,11 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACheck;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
-import org.sosy_lab.cpachecker.cfa.CFAMutator;
 import org.sosy_lab.cpachecker.cfa.CFAMutatorStatistics;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
+import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.cmdline.CPAMain;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
@@ -501,6 +501,15 @@ public class CPAchecker {
                   + "loading CFA with 'analysis.serializedCfaFile'.");
         }
 
+        // XXX other way?
+        @SuppressWarnings("deprecation")
+        String withAcsl = config.getProperty("parser.collectACSLAnnotations");
+        if (withAcsl.equals("true")) {
+          throw new InvalidConfigurationException(
+              "CFA mutation can not handle ACSL annotations. Do not specify "
+                  + "'cfaMutation=true' and 'parser.collectACSLAnnotations=true' simultaneously");
+        }
+
         final CFAMutator cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
         cfa = parse(cfaMutator, programDenotation);
         if (cfa == null) {
@@ -518,17 +527,20 @@ public class CPAchecker {
         }
 
         // TODO -setprop console log level=NONE for following analysis
-        while (cfaMutator.canMinimize(cfa)) {
+
+        // CFAMutator stores needed info from #parse,
+        // so no need to pass CFA as argument in next calls
+        while (cfaMutator.canMutate()) {
           shutdownNotifier.shutdownIfNecessary();
 
-          cfa = cfaMutator.mutate(cfa);
+          cfa = cfaMutator.mutate();
 
           AnalysisResult newResult = analysisRound();
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
           if (!newResult.equals(originalResult)) {
-            cfa = cfaMutator.rollback(cfa);
+            cfa = cfaMutator.rollback(doAnalysisBetweenRollbackAndMutation);
             if (doAnalysisBetweenRollbackAndMutation) {
               Verify.verify(
                   analysisRound().equals(originalResult),
@@ -549,7 +561,12 @@ public class CPAchecker {
         // CPAchecker must exit because it was asked to
         // we return normally instead of propagating the exception
         // so we can return the partial result we have so far
-        logger.logUserException(Level.WARNING, e, "Analysis interrupted");
+        logger.logUserException(Level.WARNING, e, "CFA mutation interrupted");
+
+      } catch (ParserException e) {
+        logger.logUserException(Level.SEVERE, e, "Parser errro");
+        // XXX is it possible?
+        // TODO export previous CFA then?
       }
 
       return new CPAcheckerResult(Result.DONE, "", reached, cfa, totalStats);
