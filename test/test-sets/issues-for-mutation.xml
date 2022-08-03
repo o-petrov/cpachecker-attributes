@@ -1,0 +1,86 @@
+<?xml version="1.0" ?>
+
+<!--
+This file is part of CPAchecker,
+a tool for configurable software verification:
+https://cpachecker.sosy-lab.org
+
+SPDX-FileCopyrightText: 2007-2020 Dirk Beyer <https://www.sosy-lab.org>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<!--
+CPAchecker crashes on these input files (that means, these programs are failing tests).
+These programs are used to test CFA mutator when it tries to make minimal failing test.
+-->
+
+<benchmark hardtimelimit="300" timelimit="270" tool="cpachecker">
+    <rundefinition>
+        <option name="-setprop">cfaMutation=true</option>
+        <option name="-setprop">cfaMutation.checkAfterRollback=true</option>
+
+        <option name="-setprop">cfa.export.toDot=true</option>
+        <option name="-setprop">cfa.export.toDot.perFunction=true</option>
+        <option name="-setprop">cfa.export.toC=true</option>
+        <option name="-setprop">cfa.serialize=true</option>
+    </rundefinition>
+
+    <tasks name="issue-939">
+        <option name="-terminationAnalysis"/>
+        <option name="-setprop">cpa.predicate.memoryAllocationsAlwaysSucceed=true</option>
+        <include>../programs/benchmarks/termination-nla/hard-both-t.c</include>
+        <propertyfile>../programs/benchmarks/properties/termination.prp</propertyfile>
+    </tasks>
+
+    <tasks name="issue-924">
+        <option name="-terminationAnalysis"/>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_BER_test6-1.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_BER_test6-2.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_FNV_test6-1.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_FNV_test6-2.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_JEN_test6-1.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_JEN_test6-2.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_OAT_test6-1.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_OAT_test6-2.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_SAX_test6-1.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_SAX_test6-2.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_SFH_test6-1.i</include>
+        <include>../programs/benchmarks/uthash-2.0.2/uthash_SFH_test6-2.i</include>
+        <propertyfile>../programs/benchmarks/properties/termination.prp</propertyfile>
+    </tasks>
+
+    <tasks name="issue-779">
+        <option name="-setprop">cpa.callstack.unsupportedFunctions=__VERIFIER_nonexisting_dummy_function</option>
+        <option name="-setprop">cpa.predicate.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
+        <option name="-setprop">counterexample.export.extendedWitnessFile=witness.%d.graphml</option>
+        <option name="-setprop">counterexample.export.exportExtendedWitness=true</option>
+        <option name="-setprop">counterexample.export.compressWitness=false</option>
+        <option name="-setprop">cpa.arg.witness.removeInsufficientEdges=false</option>
+        <option name="-noout"/>
+        <option name="-heap">4000m</option>
+        <option name="-64"/>
+        <option name="-smg-ldv"/>
+        <option name="-setprop">CompositeCPA.cpas=cpa.location.LocationCPA,cpa.callstack.CallstackCPA,cpa.smg.SMGCPA</option>
+        <option name="-setprop">parser.readLineDirectives=false</option>
+        <include>../programs/issues-for-mutation/issue-779.cil.i</include>
+        <propertyfile>../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+    </tasks>
+
+    <tasks name="issue-778">
+        <option name="-setprop">cpa.callstack.unsupportedFunctions=__VERIFIER_nonexisting_dummy_function</option>
+        <option name="-setprop">cpa.predicate.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
+        <option name="-setprop">counterexample.export.extendedWitnessFile=witness.%d.graphml</option>
+        <option name="-setprop">counterexample.export.exportExtendedWitness=true</option>
+        <option name="-setprop">counterexample.export.compressWitness=false</option>
+        <option name="-setprop">cpa.arg.witness.removeInsufficientEdges=false</option>
+        <option name="-noout"/>
+        <option name="-heap">4000m</option>
+        <option name="-64"/>
+        <option name="-smg-ldv"/>
+        <option name="-setprop">CompositeCPA.cpas=cpa.location.LocationCPA,cpa.callstack.CallstackCPA,cpa.smg.SMGCPA</option>
+        <option name="-setprop">parser.readLineDirectives=false</option>
+        <include>../programs/issues-for-mutation/issue-778a.cil.i</include>
+        <propertyfile>../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+    </tasks>
+</benchmark>
