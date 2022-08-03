@@ -402,7 +402,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   }
 
   private void resetDeltaListWithOneDelta(ImmutableList<RemoveObject> pOnlyDelta) {
-    assert !pOnlyDelta.isEmpty();
     List<ImmutableList<RemoveObject>> list = new ArrayList<>(1);
     list.add(pOnlyDelta);
     resetDeltaList(list);
