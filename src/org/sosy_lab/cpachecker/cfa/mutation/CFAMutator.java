@@ -33,11 +33,13 @@ public class CFAMutator extends CFACreator {
 
   private int round = 0;
 
-  private final Path cfaExportDirectory = exportDirectory;
+  private final Path cfaExportDirectory;
 
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
+    cfaExportDirectory =
+        exportDirectory == null ? Path.of("output/contol-flow-automaton") : exportDirectory;
     strategy =
         new CompositeCFAMutationStrategy(
             pLogger,
