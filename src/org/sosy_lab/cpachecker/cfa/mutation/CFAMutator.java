@@ -45,7 +45,8 @@ public class CFAMutator extends CFACreator {
             pLogger,
             ImmutableList.of(
                 new FunctionBodyRemover(pLogger),
-                new SimpleBranchingRemover(pLogger),
+                new SimpleBranchingRemover(pLogger, 1),
+                new SimpleBranchingRemover(pLogger, 0),
                 new ChainRemover(pLogger),
                 new StatementRemover(pLogger)));
   }

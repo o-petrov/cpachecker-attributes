@@ -16,6 +16,10 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
+/**
+ * Information needed to rollback a removal of branching point with one edge leaving to a node
+ * reachable other way.
+ */
 class RollbackInfo {
   CFANode branchingNode;
   int whichRemoved;
@@ -66,11 +70,15 @@ class RollbackInfo {
   }
 }
 
+/** Removes branching when one of assume edges leaves to a node that has other entering edges */
 public class SimpleBranchingRemover
     extends GenericDeltaDebuggingStrategy<RollbackInfo, RollbackInfo> {
+  private final int side;
 
-  public SimpleBranchingRemover(LogManager pLogger) {
+  public SimpleBranchingRemover(LogManager pLogger, int pSide) {
     super(pLogger, "branching nodes");
+    assert pSide == 0 || pSide == 1;
+    side = pSide;
   }
 
   @Override
@@ -82,7 +90,7 @@ public class SimpleBranchingRemover
         continue;
       }
 
-      CFAEdge edge = branchingNode.getLeavingEdge(0);
+      CFAEdge edge = branchingNode.getLeavingEdge(side);
       CFANode successor = edge.getSuccessor();
       if (successor.getNumEnteringEdges() > 1) {
         // can remove assume edge to this point as it is reachable from somewhere else
@@ -94,19 +102,6 @@ public class SimpleBranchingRemover
           continue;
         }
       }
-
-      edge = branchingNode.getLeavingEdge(1);
-      successor = edge.getSuccessor();
-      if (successor.getNumEnteringEdges() > 1) {
-        // can remove assume edge to this point as it is reachable from somewhere else
-        // check that there are other edges after assume edges are removed
-        // or just dont remove first one
-        if (CFAUtils.enteringEdges(successor).anyMatch(e -> !(e instanceof AssumeEdge))
-            || successor.getEnteringEdge(0) != edge) {
-          result.add(new RollbackInfo(edge));
-        }
-      }
-
     }
 
     return result;
