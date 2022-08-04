@@ -114,12 +114,7 @@ public class SimpleBranchingRemover
     CFANode otherSuccessor = otherEdge.getSuccessor();
     CFAMutationUtils.removeFromSuccessor(otherEdge);
 
-    for (CFAEdge edge : CFAUtils.enteringEdges(pChosen.branchingNode)) {
-      CFAEdge newEdge = CFAMutationUtils.copyWithOtherSuccessor(edge, otherSuccessor);
-      CFAMutationUtils.replaceInPredecessor(edge, newEdge);
-      CFAMutationUtils.addToSuccessor(newEdge);
-    }
-
+    CFAMutationUtils.changeSuccessor(pChosen.branchingNode, otherSuccessor);
     return pChosen;
   }
 
@@ -129,11 +124,7 @@ public class SimpleBranchingRemover
     CFAEdge otherEdge = pRemoved.branchingNode.getLeavingEdge(1 - pRemoved.whichRemoved);
     CFANode otherSuccessor = otherEdge.getSuccessor();
 
-    for (CFAEdge edge : CFAUtils.enteringEdges(pRemoved.branchingNode)) {
-      CFAEdge newEdge = edge.getPredecessor().getEdgeTo(otherSuccessor);
-      CFAMutationUtils.replaceInPredecessor(newEdge, edge);
-      CFAMutationUtils.removeFromSuccessor(newEdge);
-    }
+    CFAMutationUtils.restoreSuccessor(pRemoved.branchingNode, otherSuccessor);
 
     CFAMutationUtils.insertInSuccessor(pRemoved.indexForOther, otherEdge);
     CFAMutationUtils.insertInSuccessor(

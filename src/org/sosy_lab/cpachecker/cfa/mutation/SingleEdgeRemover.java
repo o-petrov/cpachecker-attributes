@@ -81,15 +81,11 @@ public class SingleEdgeRemover
       }
     }
     assert index >= 0;
+
     // disconnect edge from successor
     CFAMutationUtils.removeFromSuccessor(toRemove);
-
     // disconnect pred-predecessors from predecessor and connect to successor
-    for (CFAEdge edge : CFAUtils.allEnteringEdges(pChosen)) {
-      CFAEdge newEdge = CFAMutationUtils.copyWithOtherSuccessor(edge, successor);
-      CFAMutationUtils.replaceInPredecessor(edge, newEdge);
-      CFAMutationUtils.addToSuccessor(newEdge);
-    }
+    CFAMutationUtils.changeSuccessor(pChosen, successor);
 
     return Pair.of(index, pChosen);
   }
@@ -103,15 +99,8 @@ public class SingleEdgeRemover
 
     // restore predecessor itself
     assert pCfa.getCFANodes().put(oldPredecessor.getFunctionName(), oldPredecessor);
-
     // reconnect pred-predecessors to predecessor, disconnect from successor
-    for (CFAEdge oldEdge : CFAUtils.allEnteringEdges(oldPredecessor)) {
-      CFANode predpred = oldEdge.getPredecessor();
-      CFAEdge newEdge = predpred.getEdgeTo(successor);
-      CFAMutationUtils.replaceInPredecessor(newEdge, oldEdge);
-      CFAMutationUtils.removeFromSuccessor(newEdge);
-    }
-
+    CFAMutationUtils.restoreSuccessor(oldPredecessor, successor);
     // reconnect predecessor and successor
     CFAMutationUtils.insertInSuccessor(index, removedEdge);
   }

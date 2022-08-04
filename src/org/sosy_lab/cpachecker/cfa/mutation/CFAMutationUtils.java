@@ -33,6 +33,7 @@ import org.sosy_lab.cpachecker.cfa.model.java.JAssumeEdge;
 import org.sosy_lab.cpachecker.cfa.model.java.JDeclarationEdge;
 import org.sosy_lab.cpachecker.cfa.model.java.JReturnStatementEdge;
 import org.sosy_lab.cpachecker.cfa.model.java.JStatementEdge;
+import org.sosy_lab.cpachecker.util.CFAUtils;
 
 class CFAMutationUtils {
 
@@ -142,5 +143,31 @@ class CFAMutationUtils {
   @SuppressWarnings("deprecation")
   public static void replaceInSuccessor(CFAEdge pEdge, CFAEdge pNewEdge) {
     pEdge.getSuccessor().replaceEnteringEdge(pEdge, pNewEdge);
+  }
+
+  /**
+   * Disconnect entering edges of node pOldSuccessor from their predecessors and connect their
+   * copies leaving to pNewSuccessor instead.
+   */
+  public static void changeSuccessor(CFANode pOldSuccessor, CFANode pNewSuccessor) {
+    for (CFAEdge edge : CFAUtils.enteringEdges(pOldSuccessor)) {
+      CFAEdge newEdge = CFAMutationUtils.copyWithOtherSuccessor(edge, pNewSuccessor);
+      CFAMutationUtils.replaceInPredecessor(edge, newEdge);
+      CFAMutationUtils.addToSuccessor(newEdge);
+    }
+  }
+
+  /**
+   * Undo {@link #changeSuccessor}.
+   *
+   * <p>Disconnect replacements of pOldSuccessor entering edges from their predecessors and connect
+   * back to pOldSuccessor.
+   */
+  public static void restoreSuccessor(CFANode pOldSuccessor, CFANode pNewSuccessor) {
+    for (CFAEdge oldEdge : CFAUtils.enteringEdges(pOldSuccessor)) {
+      CFAEdge newEdge = oldEdge.getPredecessor().getEdgeTo(pNewSuccessor);
+      CFAMutationUtils.replaceInPredecessor(newEdge, oldEdge);
+      CFAMutationUtils.removeFromSuccessor(newEdge);
+    }
   }
 }

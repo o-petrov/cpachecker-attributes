@@ -15,7 +15,6 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.BlankEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
-import org.sosy_lab.cpachecker.util.CFAUtils;
 
 /**
  * Removes node with assume edges if one of them leads to empty branch, i.e. that consists only of
@@ -146,12 +145,7 @@ class EmptyBranchPruner
       // disconnect branching node from other branch
       CFAMutationUtils.removeFromSuccessor(pChosen.otherEdge);
       // connect edges from branching node to other branch
-      for (CFAEdge edge : CFAUtils.enteringEdges(pChosen.branchingNode)) {
-        CFAEdge newEdge =
-            CFAMutationUtils.copyWithOtherSuccessor(edge, pChosen.otherEdge.getSuccessor());
-        CFAMutationUtils.replaceInPredecessor(edge, newEdge);
-        CFAMutationUtils.addToSuccessor(newEdge);
-      }
+      CFAMutationUtils.changeSuccessor(pChosen.branchingNode, pChosen.otherEdge.getSuccessor());
 
     } else {
       CFANode s0 = pChosen.branchingNode.getLeavingEdge(0).getSuccessor();
@@ -166,12 +160,7 @@ class EmptyBranchPruner
       CFAMutationUtils.removeFromSuccessor(s1.getLeavingEdge(0));
 
       // reconnect all entering branches from branching node to successor
-      for (CFAEdge edge : CFAUtils.enteringEdges(pChosen.branchingNode)) {
-        CFAEdge newEdge =
-            CFAMutationUtils.copyWithOtherSuccessor(edge, s0.getLeavingEdge(0).getSuccessor());
-        CFAMutationUtils.replaceInPredecessor(edge, newEdge);
-        CFAMutationUtils.addToSuccessor(newEdge);
-      }
+      CFAMutationUtils.changeSuccessor(pChosen.branchingNode, s0.getLeavingEdge(0).getSuccessor());
     }
 
     return pChosen;
@@ -184,11 +173,7 @@ class EmptyBranchPruner
       pCfa.getCFANodes().put(pRemoved.branchingNode.getFunctionName(), pRemoved.removedSuccessor);
 
       // reconnect edges to branching node
-      for (CFAEdge oldEdge : CFAUtils.enteringEdges(pRemoved.branchingNode)) {
-        CFAEdge newEdge = oldEdge.getPredecessor().getEdgeTo(pRemoved.otherEdge.getSuccessor());
-        CFAMutationUtils.replaceInPredecessor(newEdge, oldEdge);
-        CFAMutationUtils.removeFromSuccessor(newEdge);
-      }
+      CFAMutationUtils.restoreSuccessor(pRemoved.branchingNode, pRemoved.otherEdge.getSuccessor());
 
       // connect empty branch to successor
       CFAMutationUtils.insertInSuccessor(pRemoved.i, pRemoved.removedSuccessor.getLeavingEdge(0));
@@ -204,11 +189,8 @@ class EmptyBranchPruner
       pCfa.getCFANodes().put(pRemoved.branchingNode.getFunctionName(), s1);
 
       // reconnect all entering branches to branching node from successor
-      for (CFAEdge edge : CFAUtils.enteringEdges(pRemoved.branchingNode)) {
-        CFAEdge newEdge = edge.getPredecessor().getEdgeTo(s0.getLeavingEdge(0).getSuccessor());
-        CFAMutationUtils.replaceInPredecessor(newEdge, edge);
-        CFAMutationUtils.addToSuccessor(newEdge);
-      }
+      CFAMutationUtils.restoreSuccessor(
+          pRemoved.branchingNode, s0.getLeavingEdge(0).getSuccessor());
 
       // connect both branches from successor
       CFAMutationUtils.insertInSuccessor(pRemoved.i, s0.getLeavingEdge(0));
