@@ -347,7 +347,7 @@ public class CFACreator {
   private final List<SyntacticBlock> blocks = new ArrayList<>();
 
   private final Parser parser;
-  private final CFACreatorStatistics stats;
+  protected CFACreatorStatistics stats;
   protected final Configuration config;
   protected final LogManager logger;
   protected final ShutdownNotifier shutdownNotifier;
@@ -357,7 +357,7 @@ public class CFACreator {
           + "<MethodName>_<ParameterTypes>.\nExample: pack1.Car_drive_int_Car\n"
           + "for the method drive(int speed, Car car) in the class Car.";
 
-  private static class CFACreatorStatistics implements Statistics {
+  protected static class CFACreatorStatistics implements Statistics {
 
     private final Timer parserInstantiationTime = new Timer();
     private final Timer totalTime = new Timer();
@@ -369,7 +369,7 @@ public class CFACreator {
     private final List<Statistics> statisticsCollection;
     private final LogManager logger;
 
-    private CFACreatorStatistics(LogManager pLogger) {
+    public CFACreatorStatistics(LogManager pLogger) {
       logger = pLogger;
       statisticsCollection = new ArrayList<>();
     }

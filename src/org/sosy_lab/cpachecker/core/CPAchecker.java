@@ -518,6 +518,7 @@ public class CPAchecker {
           return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         }
         totalStats.getSubStatistics().add(cfaCreationStats);
+        cfaMutator.collectStatistics(totalStats.getSubStatistics());
 
         // To use Delta Debugging algorithm we need to define PASS, FAIL, and UNRESOLVED outcome of
         // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
