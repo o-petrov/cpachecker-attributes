@@ -8,13 +8,24 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.BlankEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
+import org.sosy_lab.cpachecker.cfa.model.CFATerminationNode;
+import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
+import org.sosy_lab.cpachecker.util.CFATraversal;
+import org.sosy_lab.cpachecker.util.CFATraversal.CFAVisitor;
+import org.sosy_lab.cpachecker.util.CFATraversal.DefaultCFAVisitor;
+import org.sosy_lab.cpachecker.util.CFATraversal.TraversalProcess;
 
 /**
  * Removes node with assume edges if one of them leads to empty branch, i.e. that consists only of
@@ -86,47 +97,122 @@ class EmptyBranchPruner
         continue;
       }
 
-      List<CFANode> branch0 = new ArrayList<>();
+      Set<CFANode> leftNodes = new TreeSet<>();
+      Set<CFANode> rightNodes = new TreeSet<>();
+      Set<CFANode> commonNodes = new TreeSet<>();
+      // TODO for now it ignores endless loop heads with two leaving edges
+      Set<CFANode> sinks = new TreeSet<>();
+
+      CFAVisitor branchResolver =
+          new DefaultCFAVisitor() {
+            @Override
+            public TraversalProcess visitEdge(CFAEdge pEdge) {
+              CFANode s = pEdge.getSuccessor();
+              CFANode p = pEdge.getPredecessor();
+              assert !commonNodes.contains(p);
+              if (s instanceof CFATerminationNode || s instanceof FunctionExitNode) {
+                sinks.add(s);
+              }
+
+              if (leftNodes.contains(p)) {
+                if (leftNodes.contains(s)) {
+                  // node has only path out and was reached already -- it is endless loop head
+                  if (s.getNumLeavingEdges() == 1) {
+                    sinks.add(s);
+                  }
+                  return TraversalProcess.SKIP;
+
+                } else if (rightNodes.contains(s)) {
+                  rightNodes.remove(s);
+                  commonNodes.add(s);
+                  return TraversalProcess.SKIP;
+
+                } else if (commonNodes.contains(s)) {
+                  return TraversalProcess.SKIP;
+
+                } else {
+                  leftNodes.add(s);
+                  return s == branchingNode ? TraversalProcess.SKIP : TraversalProcess.CONTINUE;
+                }
+
+              } else if (rightNodes.contains(p)) {
+                if (rightNodes.contains(s)) {
+                  // node has only path out and was reached already -- it is endless loop head
+                  if (s.getNumLeavingEdges() == 1) {
+                    sinks.add(s);
+                  }
+                  return TraversalProcess.SKIP;
+
+                } else if (leftNodes.contains(s)) {
+                  rightNodes.remove(s);
+                  commonNodes.add(s);
+                  return TraversalProcess.SKIP;
+
+                } else if (commonNodes.contains(s)) {
+                  return TraversalProcess.SKIP;
+
+                } else {
+                  rightNodes.add(s);
+                  return s == branchingNode ? TraversalProcess.SKIP : TraversalProcess.CONTINUE;
+                }
+
+              } else {
+                throw new AssertionError("on " + branchingNode + ": " + pEdge);
+              }
+            }
+          };
+
       CFANode s0 = branchingNode.getLeavingEdge(0).getSuccessor();
-      while (CFAMutationUtils.isInsideChain(s0)) {
-        branch0.add(s0);
-        s0 = s0.getLeavingEdge(0).getSuccessor();
-      }
-      // s0 is first node after branch 0, i.e. successor
-
-      List<CFANode> branch1 = new ArrayList<>();
       CFANode s1 = branchingNode.getLeavingEdge(1).getSuccessor();
-      while (CFAMutationUtils.isInsideChain(s1)) {
-        branch1.add(s1);
-        s1 = s1.getLeavingEdge(0).getSuccessor();
-      }
-      // s1 is first node after branch 1, i.e. successor
+      leftNodes.add(s0);
+      rightNodes.add(s1);
 
-      if (s0 == branchingNode || s1 == branchingNode) {
+      CFATraversal.dfs().traverseOnce(s0, branchResolver);
+      CFATraversal.dfs().traverseOnce(s1, branchResolver);
+
+      Set<CFANode> leftSinks = Sets.intersection(sinks, rightNodes);
+      SetView<CFANode> rightSinks = Sets.intersection(sinks, leftNodes);
+      if (!leftSinks.isEmpty() || !rightSinks.isEmpty()) {
+        logger.log(
+            Level.INFO,
+            "Can not deal with branches from",
+            branchingNode,
+            "as they do not merge completely: right branch never reaches",
+            leftSinks,
+            "and left never reaches",
+            rightSinks);
+        continue;
+      }
+
+      if (commonNodes.contains(branchingNode)
+          || rightNodes.contains(branchingNode)
+          || leftNodes.contains(branchingNode)) {
         // loops will be dealt with in another strategy
         continue;
       }
 
-      boolean empty0 = branch0.size() == 1 && branch0.get(0).getLeavingEdge(0) instanceof BlankEdge;
-      boolean empty1 = branch1.size() == 1 && branch1.get(0).getLeavingEdge(0) instanceof BlankEdge;
+      boolean emptyLeft =
+          leftNodes.size() == 1
+              && Iterables.getOnlyElement(leftNodes).getLeavingEdge(0) instanceof BlankEdge;
+      boolean emptyRight =
+          rightNodes.size() == 1
+              && Iterables.getOnlyElement(rightNodes).getLeavingEdge(0) instanceof BlankEdge;
 
-      if (empty0 && empty1) {
-        if (s0 != s1) {
+      if (emptyLeft && emptyRight) {
+        if (commonNodes.size() != 1) {
           logger.logf(
               Level.INFO,
-              "Can not prune both empty branches from %s, as they leave to diferent successors: %s and %s",
-              branchingNode,
-              s0,
-              s1);
+              "Can not prune empty branches from %s, as they leave to diferent successors",
+              branchingNode);
           continue;
         }
 
         // remove three nodes, all edges entering branching node should enter s0
         result.add(new RollbackInfo(branchingNode));
-      } else if (empty0) {
+      } else if (emptyLeft) {
         // remove branching, connect pred to successor
         result.add(new RollbackInfo(branchingNode, 0));
-      } else if (empty1) {
+      } else if (emptyRight) {
         // remove b
         result.add(new RollbackInfo(branchingNode, 1));
       }
