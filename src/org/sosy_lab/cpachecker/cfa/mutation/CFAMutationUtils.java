@@ -104,6 +104,11 @@ class CFAMutationUtils {
     }
   }
 
+  /** Is this node inside a chain, i.e. has it exctly one entering and exactly one leaving edge */
+  public static boolean isInsideChain(CFANode pNode) {
+    return pNode.getNumLeavingEdges() == 1 && pNode.getNumEnteringEdges() == 1;
+  }
+
   /**
    * Remove given edge both from its successor's entering edges list and from CFA's list of edges in
    * this function.

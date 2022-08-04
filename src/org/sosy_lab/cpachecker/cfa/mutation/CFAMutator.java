@@ -48,6 +48,7 @@ public class CFAMutator extends CFACreator {
                 new SimpleBranchingRemover(pLogger, 1),
                 new SimpleBranchingRemover(pLogger, 0),
                 new ChainRemover(pLogger),
+                new EmptyBranchPruner(pLogger),
                 new StatementRemover(pLogger)));
   }
 

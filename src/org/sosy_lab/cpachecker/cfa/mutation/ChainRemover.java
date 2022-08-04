@@ -48,10 +48,6 @@ class ChainRemover extends GenericDeltaDebuggingStrategy<CFANode, CFAEdge> {
     return chainHeads;
   }
 
-  static boolean isInsideChain(CFANode pNode) {
-    return pNode.getNumLeavingEdges() == 1 && pNode.getNumEnteringEdges() == 1;
-  }
-
   @Override
   protected CFAEdge removeObject(FunctionCFAsWithMetadata pCfa, CFANode pChainHead) {
     // collect edges in chain to summarize them in blank edge
@@ -61,7 +57,7 @@ class ChainRemover extends GenericDeltaDebuggingStrategy<CFANode, CFAEdge> {
     CFANode successor = pChainHead.getLeavingEdge(0).getSuccessor();
 
     // remove nodes after head (no edges disconnected yet)
-    while (isInsideChain(successor)) {
+    while (CFAMutationUtils.isInsideChain(successor)) {
       assert pCfa.getCFANodes().remove(pChainHead.getFunctionName(), successor);
       chainEdges.add(successor.getLeavingEdge(0));
       successor = successor.getLeavingEdge(0).getSuccessor();

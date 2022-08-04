@@ -16,63 +16,60 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
-/**
- * Information needed to rollback a removal of branching point with one edge leaving to a node
- * reachable other way.
- */
-class RollbackInfo {
-  CFANode branchingNode;
-  int whichRemoved;
-  int indexForRemoved;
-  int indexForOther;
-
-  RollbackInfo(CFAEdge pEdge) {
-    branchingNode = pEdge.getPredecessor();
-
-    CFAEdge e0 = branchingNode.getLeavingEdge(0);
-    CFAEdge e1 = branchingNode.getLeavingEdge(1);
-
-    whichRemoved = pEdge == e0 ? 0 : 1;
-
-    CFANode s0 = e0.getSuccessor();
-    CFANode s1 = e1.getSuccessor();
-
-    int index = -1;
-    for (int i = 0; i < s0.getNumEnteringEdges(); i++) {
-      if (e0 == s0.getEnteringEdge(i)) {
-        index = i;
-      }
-    }
-    assert index >= 0;
-    if (e0 == pEdge) {
-      indexForRemoved = index;
-    } else {
-      indexForOther = index;
-    }
-
-    index = -1;
-    for (int i = 0; i < s1.getNumEnteringEdges(); i++) {
-      if (e1 == s1.getEnteringEdge(i)) {
-        index = i;
-      }
-    }
-    assert index >= 0;
-    if (e1 == pEdge) {
-      indexForRemoved = index;
-    } else {
-      indexForOther = index;
-    }
-  }
-
-  @Override
-  public String toString() {
-    return branchingNode + " with " + branchingNode.getLeavingEdge(whichRemoved);
-  }
-}
-
 /** Removes branching when one of assume edges leaves to a node that has other entering edges */
 public class SimpleBranchingRemover
-    extends GenericDeltaDebuggingStrategy<RollbackInfo, RollbackInfo> {
+    extends GenericDeltaDebuggingStrategy<
+        SimpleBranchingRemover.RollbackInfo, SimpleBranchingRemover.RollbackInfo> {
+  static class RollbackInfo {
+    CFANode branchingNode;
+    int whichRemoved;
+    int indexForRemoved;
+    int indexForOther;
+
+    RollbackInfo(CFAEdge pEdge) {
+      branchingNode = pEdge.getPredecessor();
+
+      CFAEdge e0 = branchingNode.getLeavingEdge(0);
+      CFAEdge e1 = branchingNode.getLeavingEdge(1);
+
+      whichRemoved = pEdge == e0 ? 0 : 1;
+
+      CFANode s0 = e0.getSuccessor();
+      CFANode s1 = e1.getSuccessor();
+
+      int index = -1;
+      for (int i = 0; i < s0.getNumEnteringEdges(); i++) {
+        if (e0 == s0.getEnteringEdge(i)) {
+          index = i;
+        }
+      }
+      assert index >= 0;
+      if (e0 == pEdge) {
+        indexForRemoved = index;
+      } else {
+        indexForOther = index;
+      }
+
+      index = -1;
+      for (int i = 0; i < s1.getNumEnteringEdges(); i++) {
+        if (e1 == s1.getEnteringEdge(i)) {
+          index = i;
+        }
+      }
+      assert index >= 0;
+      if (e1 == pEdge) {
+        indexForRemoved = index;
+      } else {
+        indexForOther = index;
+      }
+    }
+
+    @Override
+    public String toString() {
+      return branchingNode + " with " + branchingNode.getLeavingEdge(whichRemoved);
+    }
+  }
+
   private final int side;
 
   public SimpleBranchingRemover(LogManager pLogger, int pSide) {
