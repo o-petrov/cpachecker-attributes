@@ -651,7 +651,12 @@ public class CPAchecker {
           | CPAException e) {
         // Expect exceptions as bugs of CPAchecker, and remember them to reproduce on a smaller CFA.
         // TODO which types exactly
-        logger.logUserException(Level.SEVERE, e, null);
+        if (e.getStackTrace().length == 0) {
+          // too many same exceptions were thrown, its JVM optimization
+          logger.log(Level.SEVERE, "Recurring error:", e.getClass(), "(no stack trace)");
+        } else {
+          logger.logUserException(Level.SEVERE, e, null);
+        }
         t = e;
 
       } finally {
@@ -726,7 +731,8 @@ public class CPAchecker {
             }
             // if equal, then same fail, else some other problem, i.e. unresolved
             return pOriginal.thrown.getClass().equals(thrown.getClass())
-                    && pOriginal.thrown.getMessage().equals(thrown.getMessage())
+                    && (thrown.getStackTrace().length == 0 // optimized by JVM
+                        || pOriginal.thrown.getStackTrace()[0].equals(thrown.getStackTrace()[0]))
                 ? DDResultOfARun.FAIL
                 : DDResultOfARun.UNRESOLVED;
 
