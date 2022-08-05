@@ -638,6 +638,7 @@ public class CPAchecker {
           | IllegalArgumentException
           | IllegalStateException
           | IndexOutOfBoundsException
+          | ClassCastException
           | NullPointerException
           | NoSuchElementException
           | VerifyException
