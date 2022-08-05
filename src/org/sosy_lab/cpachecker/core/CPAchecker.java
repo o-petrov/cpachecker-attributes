@@ -519,6 +519,8 @@ public class CPAchecker {
             }
           };
 
+      CFAMutator cfaMutator = null;
+
       try {
         if (serializedCfaFile != null) {
           throw new InvalidConfigurationException(
@@ -536,7 +538,7 @@ public class CPAchecker {
                   + "'cfaMutation=true' and 'parser.collectACSLAnnotations=true' simultaneously");
         }
 
-        final CFAMutator cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
+        cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
         cfa = parse(cfaMutator, programDenotation);
         if (cfa == null) {
           // invalid input files
@@ -595,7 +597,6 @@ public class CPAchecker {
         }
 
         mutationsResult = Result.DONE;
-        cfaMutator.collectStatistics(totalStats.getSubStatistics());
         totalStats.getSubStatistics().add(stats);
         logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
 
@@ -614,6 +615,11 @@ public class CPAchecker {
         logger.logUserException(Level.SEVERE, e, "Parser error");
         // XXX is it possible?
         // TODO export previous CFA then?
+
+      } finally {
+        if (cfaMutator != null) {
+          cfaMutator.collectStatistics(totalStats.getSubStatistics());
+        }
       }
 
       return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
