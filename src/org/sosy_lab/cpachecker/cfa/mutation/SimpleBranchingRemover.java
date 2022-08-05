@@ -73,7 +73,9 @@ public class SimpleBranchingRemover
   private final int side;
 
   public SimpleBranchingRemover(LogManager pLogger, int pSide) {
-    super(pLogger, "branching nodes");
+    super(
+        pLogger.withComponentName(SimpleBranchingRemover.class.getSimpleName() + "-side" + pSide),
+        "branching nodes");
     assert pSide == 0 || pSide == 1;
     side = pSide;
   }

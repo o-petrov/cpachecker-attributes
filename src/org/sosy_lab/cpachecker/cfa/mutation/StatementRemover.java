@@ -16,7 +16,9 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 public class StatementRemover extends SingleEdgeRemover {
 
   public StatementRemover(LogManager pLogger) {
-    super(pLogger, "statement and blank edges");
+    super(
+        pLogger.withComponentName(StatementRemover.class.getSimpleName()),
+        "statement and blank edges");
   }
 
   @Override

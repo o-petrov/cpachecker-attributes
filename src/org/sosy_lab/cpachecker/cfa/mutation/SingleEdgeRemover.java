@@ -24,7 +24,9 @@ public class SingleEdgeRemover
     extends GenericDeltaDebuggingStrategy<CFANode, Pair<Integer, CFANode>> {
 
   public SingleEdgeRemover(LogManager pLogger) {
-    super(pLogger, "nodes with single leaving edge");
+    super(
+        pLogger.withComponentName(SingleEdgeRemover.class.getSimpleName()),
+        "nodes with single leaving edge");
   }
 
   protected SingleEdgeRemover(LogManager pLogger, String pTitle) {

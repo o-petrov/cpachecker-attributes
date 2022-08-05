@@ -85,7 +85,7 @@ class EmptyBranchPruner
   }
 
   public EmptyBranchPruner(LogManager pLogger) {
-    super(pLogger, "empty branches");
+    super(pLogger.withComponentName(EmptyBranchPruner.class.getSimpleName()), "empty branches");
   }
 
   @Override

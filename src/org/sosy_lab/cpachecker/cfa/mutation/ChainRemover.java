@@ -27,7 +27,7 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 class ChainRemover extends GenericDeltaDebuggingStrategy<CFANode, CFAEdge> {
 
   public ChainRemover(LogManager pLogger) {
-    super(pLogger, "chains of edges");
+    super(pLogger.withComponentName(ChainRemover.class.getSimpleName()), "chains of edges");
   }
 
   @Override
