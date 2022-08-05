@@ -1,21 +1,20 @@
 <?xml version="1.0" ?>
 
-<!--
-This file is part of CPAchecker,
-a tool for configurable software verification:
-https://cpachecker.sosy-lab.org
-
-SPDX-FileCopyrightText: 2007-2020 Dirk Beyer <https://www.sosy-lab.org>
-
-SPDX-License-Identifier: Apache-2.0
--->
+<!-- This file is part of CPAchecker, -->
+<!-- a tool for configurable software verification: -->
+<!-- https://cpachecker.sosy-lab.org -->
+<!-- -->
+<!-- SPDX-FileCopyrightText: 2022 Dirk Beyer <https://www.sosy-lab.org> -->
+<!-- -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 
 <!--
 CPAchecker crashes on these input files (that means, these programs are failing tests).
 These programs are used to test CFA mutator when it tries to make minimal failing test.
 -->
 
-<benchmark hardtimelimit="300" timelimit="270" tool="cpachecker">
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
+<benchmark hardtimelimit="100" timelimit="50" tool="cpachecker">
     <option name="-setprop">cfaMutation=true</option>
     <option name="-setprop">cfaMutation.checkAfterRollback=true</option>
 
@@ -38,14 +37,23 @@ These programs are used to test CFA mutator when it tries to make minimal failin
         <option name="-setprop">CompositeCPA.cpas=cpa.location.LocationCPA,cpa.callstack.CallstackCPA,cpa.smg.SMGCPA</option>
         <option name="-setprop">parser.readLineDirectives=false</option>
 
+        <!-- timeout
 		<tasks name="issue-779">
-	        <include>../programs/issues-for-mutation/issue-779.cil.i</include>
-	        <propertyfile>../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
-	    </tasks>
+	        <include>../../programs/issues-for-mutation/issue-779.cil.i</include>
+	        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+	    </tasks> -->
 
 	    <tasks name="issue-778">
-	        <include>../programs/issues-for-mutation/issue-778a.cil.i</include>
-	        <propertyfile>../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+            <!-- parsing error <include>../../programs/issues-for-mutation/issue-778a.cil.i</include> -->
+	        <include>../../programs/issues-for-mutation/issue-778b.cil.i</include>
+	        <include>../../programs/issues-for-mutation/issue-778c.cil.i</include>
+	        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
 	    </tasks>
+
+		<tasks name="issue-777">
+	        <include>../../programs/issues-for-mutation/issue-777.cil.i</include>
+	        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+	    </tasks>
+
 	</rundefinition>
 </benchmark>
