@@ -543,7 +543,6 @@ public class CPAchecker {
           return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         }
         totalStats.getSubStatistics().add(cfaCreationStats);
-        cfaMutator.collectStatistics(totalStats.getSubStatistics());
 
         // To use Delta Debugging algorithm we need to define PASS, FAIL, and UNRESOLVED outcome of
         // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
@@ -557,6 +556,7 @@ public class CPAchecker {
           logger.log(
               Level.SEVERE,
               "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
+          cfaMutator.collectStatistics(totalStats.getSubStatistics());
           return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         } else if (originalResult.verdict == Result.FALSE) {
           // FALSE verdicts are assumed to be correct, unless given original incorrect one.
@@ -595,6 +595,7 @@ public class CPAchecker {
         }
 
         mutationsResult = Result.DONE;
+        cfaMutator.collectStatistics(totalStats.getSubStatistics());
         totalStats.getSubStatistics().add(stats);
         logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
 
