@@ -110,6 +110,7 @@ class EmptyBranchPruner
               CFANode s = pEdge.getSuccessor();
               CFANode p = pEdge.getPredecessor();
               assert !commonNodes.contains(p);
+
               if (s instanceof CFATerminationNode || s instanceof FunctionExitNode) {
                 sinks.add(s);
               }
@@ -168,7 +169,11 @@ class EmptyBranchPruner
       rightNodes.add(s1);
 
       CFATraversal.dfs().traverseOnce(s0, branchResolver);
-      CFATraversal.dfs().traverseOnce(s1, branchResolver);
+      // s1 can be moved to common if left branch ends on s1
+      // no need to traverse right branch then
+      if (rightNodes.contains(s1)) {
+        CFATraversal.dfs().traverseOnce(s1, branchResolver);
+      }
 
       Set<CFANode> leftSinks = Sets.intersection(sinks, rightNodes);
       SetView<CFANode> rightSinks = Sets.intersection(sinks, leftNodes);
