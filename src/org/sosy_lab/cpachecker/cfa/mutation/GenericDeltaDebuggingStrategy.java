@@ -221,6 +221,11 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
               "remain");
           logger.log(Level.INFO, "Cause", objectsTitle, "are:", causeObjects);
           logger.log(Level.INFO, "Safe", objectsTitle, "are:", safeObjects);
+          if (safeObjects.isEmpty()) {
+            stage = DeltaDebuggingStage.DONE;
+            result = false;
+            break;
+          }
           stage = DeltaDebuggingStage.REMOVE_SAFE;
           resetDeltaListWithOneDelta(ImmutableList.copyOf(safeObjects));
         }
