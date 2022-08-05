@@ -28,7 +28,7 @@ import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
 import org.sosy_lab.cpachecker.util.statistics.StatCounter;
-import org.sosy_lab.cpachecker.util.statistics.StatTimer;
+import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 
 /**
  * Mutates the CFA before next analysis run, mainly to minimize and simplify CFA. Operates on {@link
@@ -48,12 +48,20 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   private static class CFAMutatorStatistics extends MultiStatistics {
     private StatCounter round = new StatCounter("mutation rounds");
     private StatCounter rollbacks = new StatCounter("unsuccessful mutation rounds (rollbacks)");
-    private StatTimer mutationTimer = new StatTimer("time for mutations");
-    private StatTimer rollbackTimer = new StatTimer("time for rollbacks");
-    private StatTimer totalMutatorTimer = new StatTimer("total time for CFA mutator");
-    private StatTimer processCfaTimer = new StatTimer("time for CFA creation from function CFAs");
-    private StatTimer resetCfaTimer = new StatTimer("time for reverting CFA to function CFAs");
-    private StatTimer exportTimer = new StatTimer("time for CFA export");
+    private StatTimerWithMoreOutput preparationTimer =
+        new StatTimerWithMoreOutput("time for preparations");
+    private StatTimerWithMoreOutput mutationTimer =
+        new StatTimerWithMoreOutput("time for mutations");
+    private StatTimerWithMoreOutput rollbackTimer =
+        new StatTimerWithMoreOutput("time for rollbacks");
+    private StatTimerWithMoreOutput totalMutatorTimer =
+        new StatTimerWithMoreOutput("total time for CFA mutator");
+    private StatTimerWithMoreOutput processCfaTimer =
+        new StatTimerWithMoreOutput("time for CFA creation from function CFAs");
+    private StatTimerWithMoreOutput resetCfaTimer =
+        new StatTimerWithMoreOutput("time for reverting CFA to function CFAs");
+    private StatTimerWithMoreOutput exportTimer =
+        new StatTimerWithMoreOutput("time for CFA export");
 
     private CFAMutatorStatistics(LogManager pLogger) {
       super(pLogger);
@@ -69,6 +77,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       put(pOut, 1, round);
       put(pOut, 2, rollbacks);
       put(pOut, 1, totalMutatorTimer);
+      put(pOut, 2, preparationTimer);
       put(pOut, 2, mutationTimer);
       put(pOut, 2, rollbackTimer);
       put(pOut, 2, processCfaTimer);
@@ -122,6 +131,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   public boolean canMutate() {
     mutatorStats.totalMutatorTimer.start();
+    mutatorStats.preparationTimer.start();
     mutatorStats.resetCfaTimer.start();
     // save previous CFACreator stats and reset it
     stats = new CFACreatorStatistics(logger);
@@ -133,6 +143,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
     boolean result = strategy.canMutate(localCfa);
 
+    mutatorStats.preparationTimer.stop();
     mutatorStats.totalMutatorTimer.stop();
     return result;
   }
@@ -197,5 +208,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   @Override
   public void collectStatistics(Collection<Statistics> pStatsCollection) {
     pStatsCollection.add(mutatorStats);
+    strategy.collectStatistics(pStatsCollection);
   }
 }

@@ -10,9 +10,11 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.Collection;
 import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
 /**
  * Use given strategies one after another in given order. Switch to next strategy only when current
@@ -20,25 +22,28 @@ import org.sosy_lab.common.log.LogManager;
  */
 public class CompositeCFAMutationStrategy implements CFAMutationStrategy {
   private final ImmutableList<CFAMutationStrategy> strategies;
-  private final UnmodifiableIterator<CFAMutationStrategy> strategyIterator;
+  private UnmodifiableIterator<CFAMutationStrategy> strategyIterator = null;
   private CFAMutationStrategy currentStrategy = null;
   private final LogManager logger;
 
   public CompositeCFAMutationStrategy(LogManager pLogger, List<CFAMutationStrategy> pStrategies) {
     strategies = ImmutableList.copyOf(pStrategies);
-    strategyIterator = strategies.iterator();
     logger = pLogger;
-    if (strategyIterator.hasNext()) {
-      currentStrategy = strategyIterator.next();
-      logger.log(
-          Level.INFO, "Switched to next strategy", currentStrategy.getClass().getSimpleName());
-    } else {
-      logger.log(Level.INFO, "No strategies to mutate CFA");
-    }
   }
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
+    if (strategyIterator == null) {
+      strategyIterator = strategies.iterator();
+      if (strategyIterator.hasNext()) {
+        currentStrategy = strategyIterator.next();
+        logger.log(
+            Level.INFO, "Switched to next strategy", currentStrategy.getClass().getSimpleName());
+      } else {
+        logger.log(Level.INFO, "No strategies to mutate CFA");
+      }
+    }
+
     if (currentStrategy == null) {
       // no more strategies
       return false;
@@ -70,5 +75,22 @@ public class CompositeCFAMutationStrategy implements CFAMutationStrategy {
   @Override
   public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
     currentStrategy.setResult(pCfa, pResult);
+  }
+
+  @Override
+  public void collectStatistics(Collection<Statistics> pStatsCollection) {
+    if (strategyIterator == null) {
+      // no strategies used
+      return;
+    }
+
+    for (CFAMutationStrategy strategy : strategies) {
+      if (currentStrategy == strategy) {
+        // current strategy and all after it have not finished
+        return;
+      }
+
+      strategy.collectStatistics(pStatsCollection);
+    }
   }
 }

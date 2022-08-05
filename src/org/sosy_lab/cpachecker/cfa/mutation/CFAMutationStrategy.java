@@ -8,12 +8,14 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
+
 /**
  * A strategy capable to mutate a CFA in form of function CFAs (without interprocedure edges) with
  * separate list of global declarations. Main function entry, language, and machine model are also
  * supplied.
  */
-interface CFAMutationStrategy {
+interface CFAMutationStrategy extends StatisticsProvider {
 
   /**
    * Whether this strategy can mutate given CFA. Prepares strategy for next call to {@link #mutate}.

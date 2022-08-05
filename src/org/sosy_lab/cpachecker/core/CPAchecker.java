@@ -23,6 +23,7 @@ import com.google.common.io.Resources;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
+import java.io.PrintStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -51,7 +52,6 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACheck;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
-import org.sosy_lab.cpachecker.cfa.CFAMutatorStatistics;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
@@ -63,6 +63,7 @@ import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm.AlgorithmStatus;
 import org.sosy_lab.cpachecker.core.algorithm.impact.ImpactAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.mpv.MPVAlgorithm;
+import org.sosy_lab.cpachecker.core.defaults.MultiStatistics;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Precision;
@@ -72,6 +73,7 @@ import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.core.reachedset.AggregatedReachedSets;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.ResultProviderReachedSet;
+import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.core.specification.Specification;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
@@ -83,6 +85,7 @@ import org.sosy_lab.cpachecker.util.LoopStructure;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProvider;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProviderImpl;
 import org.sosy_lab.cpachecker.util.globalinfo.GlobalInfo;
+import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 
 @Options
 public class CPAchecker {
@@ -492,7 +495,29 @@ public class CPAchecker {
 
     public CPAcheckerResult minimizeForException() {
       Result mutationsResult = Result.NOT_YET_STARTED;
-      CFAMutatorStatistics totalStats = new CFAMutatorStatistics(logger);
+
+      StatTimerWithMoreOutput mutationAnalysisTimer =
+          new StatTimerWithMoreOutput("time for analysis after mutation");
+      StatTimerWithMoreOutput rollbackAnalysisTimer =
+          new StatTimerWithMoreOutput("time for analysis after rollback");
+
+      MultiStatistics totalStats =
+          new MultiStatistics(logger) {
+            @Override
+            public @Nullable String getName() {
+              // TODO Auto-generated method stub
+              return "CFA mutation rounds";
+            }
+
+            @Override
+            public void printStatistics(
+                PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
+              put(pOut, 1, mutationAnalysisTimer);
+              put(pOut, 1, rollbackAnalysisTimer);
+
+              super.printStatistics(pOut, pResult, pReached);
+            }
+          };
 
       try {
         if (serializedCfaFile != null) {
@@ -551,7 +576,9 @@ public class CPAchecker {
           shutdownNotifier.shutdownIfNecessary();
 
           cfa = cfaMutator.mutate();
+          mutationAnalysisTimer.start();
           AnalysisResult newResult = analysisRound();
+          mutationAnalysisTimer.stop();
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
@@ -559,7 +586,9 @@ public class CPAchecker {
           if (rollback != null) {
             cfa = rollback;
             if (checkAfterRollbacks) {
+              rollbackAnalysisTimer.start();
               newResult = analysisRound();
+              rollbackAnalysisTimer.stop();
               Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
             }
           }
