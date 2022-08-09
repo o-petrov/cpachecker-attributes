@@ -634,9 +634,9 @@ public class CPAchecker {
         // TODO which types exactly
         if (e.getStackTrace().length == 0) {
           // too many same exceptions were thrown, its JVM optimization
-          logger.log(Level.SEVERE, "Recurring error:", e.getClass(), "(no stack trace)");
+          logger.log(Level.WARNING, "Recurring error:", e.getClass(), "(no stack trace)");
         } else {
-          logger.logUserException(Level.SEVERE, e, null);
+          logger.logUserException(Level.WARNING, e, null);
         }
         t = e;
 
@@ -747,7 +747,6 @@ public class CPAchecker {
         if (pResult != Result.DONE) {
           lastResult = pResult;
         }
-        lastResult = Result.DONE;
 
         if (lastMainStats != null) {
           pOut.println("Last analysis statistics");
