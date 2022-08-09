@@ -9,10 +9,8 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
-import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.Collection;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
@@ -21,14 +19,9 @@ import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.ParseResult;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
-import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
-import org.sosy_lab.cpachecker.core.defaults.MultiStatistics;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
-import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
-import org.sosy_lab.cpachecker.util.statistics.StatCounter;
-import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 
 /**
  * Mutates the CFA before next analysis run, mainly to minimize and simplify CFA. Operates on {@link
@@ -44,48 +37,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   private final Path cfaExportDirectory;
 
   private final CFAMutatorStatistics mutatorStats;
-
-  private static class CFAMutatorStatistics extends MultiStatistics {
-    private StatCounter round = new StatCounter("mutation rounds");
-    private StatCounter rollbacks = new StatCounter("unsuccessful mutation rounds (rollbacks)");
-    private StatTimerWithMoreOutput preparationTimer =
-        new StatTimerWithMoreOutput("time for preparations");
-    private StatTimerWithMoreOutput mutationTimer =
-        new StatTimerWithMoreOutput("time for mutations");
-    private StatTimerWithMoreOutput rollbackTimer =
-        new StatTimerWithMoreOutput("time for rollbacks");
-    private StatTimerWithMoreOutput totalMutatorTimer =
-        new StatTimerWithMoreOutput("total time for CFA mutator");
-    private StatTimerWithMoreOutput processCfaTimer =
-        new StatTimerWithMoreOutput("time for CFA creation from function CFAs");
-    private StatTimerWithMoreOutput resetCfaTimer =
-        new StatTimerWithMoreOutput("time for reverting CFA to function CFAs");
-    private StatTimerWithMoreOutput exportTimer =
-        new StatTimerWithMoreOutput("time for CFA export");
-
-    private CFAMutatorStatistics(LogManager pLogger) {
-      super(pLogger);
-    }
-
-    @Override
-    public @Nullable String getName() {
-      return "CFA mutator";
-    }
-
-    @Override
-    public void printStatistics(PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
-      put(pOut, 1, round);
-      put(pOut, 2, rollbacks);
-      put(pOut, 1, totalMutatorTimer);
-      put(pOut, 2, preparationTimer);
-      put(pOut, 2, mutationTimer);
-      put(pOut, 2, rollbackTimer);
-      put(pOut, 2, processCfaTimer);
-      put(pOut, 2, resetCfaTimer);
-      put(pOut, 2, exportTimer);
-      super.printStatistics(pOut, pResult, pReached);
-    }
-  }
 
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
@@ -115,93 +66,87 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     localCfa =
         FunctionCFAsWithMetadata.fromParseResult(
             pParseResult, machineModel, pMainFunction, language);
-    return super.createCFA(pParseResult, pMainFunction);
+    mutatorStats.setCfaStats(localCfa);
+    CFA result = super.createCFA(pParseResult, pMainFunction);
+    mutatorStats.setCfaStats(result);
+    return result;
   }
 
   @Override
   protected void exportCFAAsync(CFA pCfa) {
     // do not export asynchronously as CFA will be mutated
-    if (mutatorStats.round.getValue() == 0) {
-      mutatorStats.exportTimer.start();
+    if (mutatorStats.getRound() == 0) {
+      mutatorStats.startExport();
       exportDirectory = cfaExportDirectory.resolve("original-cfa");
       super.exportCFA(pCfa);
-      mutatorStats.exportTimer.stop();
+      mutatorStats.stopExport();
     }
   }
 
-  public boolean canMutate() {
-    mutatorStats.totalMutatorTimer.start();
-    mutatorStats.preparationTimer.start();
-    mutatorStats.resetCfaTimer.start();
-    // save previous CFACreator stats and reset it
+  public void setup() {
+    // reset CFACreator stats so following variable classification
+    // and pointer resolving wont add a lot of similar stats to print
     stats = new CFACreatorStatistics(logger);
+  }
 
-    // start next round of work with CFA -- clear processings
+  public boolean canMutate() {
+    // clear processings before first #canMutate and after rollbacks
+    mutatorStats.startCfaReset();
     localCfa.resetEdgesInNodes();
+    mutatorStats.stopCfaReset();
 
-    mutatorStats.resetCfaTimer.stop();
-
+    mutatorStats.startPreparations();
     boolean result = strategy.canMutate(localCfa);
-
-    mutatorStats.preparationTimer.stop();
-    mutatorStats.totalMutatorTimer.stop();
+    mutatorStats.stopPreparations();
     return result;
   }
 
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
-    mutatorStats.totalMutatorTimer.start();
-    mutatorStats.mutationTimer.start();
-    mutatorStats.round.inc();
-
+    mutatorStats.startMutation();
     strategy.mutate(localCfa);
+    mutatorStats.stopMutation();
 
-    mutatorStats.processCfaTimer.start();
+    mutatorStats.setCfaStats(localCfa);
     CFA result = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
-    mutatorStats.processCfaTimer.stop();
+    mutatorStats.setCfaStats(result);
 
-    mutatorStats.exportTimer.start();
-    exportDirectory = cfaExportDirectory.resolve(mutatorStats.round.getValue() + "-mutation-round");
+    mutatorStats.startExport();
+    exportDirectory = cfaExportDirectory.resolve(mutatorStats.getRound() + "-mutation-round");
     super.exportCFA(result);
-    mutatorStats.exportTimer.stop();
+    mutatorStats.stopExport();
 
-    mutatorStats.mutationTimer.stop();
-    mutatorStats.totalMutatorTimer.stop();
     return result;
   }
 
   /** Undo last mutation if needed */
   public CFA setResult(DDResultOfARun pResult)
       throws InvalidConfigurationException, InterruptedException, ParserException {
-    mutatorStats.totalMutatorTimer.start();
-    mutatorStats.rollbackTimer.start();
 
     // XXX write result?
     // undo createCFA before possible mutation rollback
-    mutatorStats.resetCfaTimer.start();
+    mutatorStats.startCfaReset();
     localCfa.resetEdgesInNodes();
-    mutatorStats.resetCfaTimer.stop();
+    mutatorStats.stopCfaReset();
 
+    mutatorStats.startAftermath(pResult);
     strategy.setResult(localCfa, pResult);
+    mutatorStats.stopAftermath();
 
     CFA rollbackedCfa = null;
     if (pResult != DDResultOfARun.FAIL) {
-      mutatorStats.rollbacks.inc();
-
-      mutatorStats.processCfaTimer.start();
-      // export after rollback
+      // export after rollback as there may be no more mutations
+      mutatorStats.setCfaStats(localCfa);
       rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
-      mutatorStats.processCfaTimer.stop();
+      mutatorStats.setCfaStats(rollbackedCfa);
 
-      mutatorStats.exportTimer.start();
+      mutatorStats.startExport();
       exportDirectory =
-          cfaExportDirectory.resolve(mutatorStats.round.getValue() + "-mutation-round-rollbacked");
+          cfaExportDirectory.resolve(mutatorStats.getRound() + "-mutation-round-rollbacked");
       super.exportCFA(rollbackedCfa);
-      mutatorStats.exportTimer.stop();
+      mutatorStats.stopExport();
     }
 
-    mutatorStats.rollbackTimer.stop();
-    mutatorStats.totalMutatorTimer.stop();
     return rollbackedCfa;
   }
 

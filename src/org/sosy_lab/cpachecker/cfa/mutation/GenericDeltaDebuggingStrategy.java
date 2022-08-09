@@ -73,23 +73,19 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
   protected class GenericDeltaDebuggingStatistics implements Statistics {
     private final String name;
-    private final StatCounter round = new StatCounter("mutation rounds");
-    private final StatCounter testPass =
-        new StatCounter("unsuccessful mutation rounds (no errors)");
-    private final StatCounter testUnresolved =
-        new StatCounter("unsuccessful mutation rounds (other problems)");
-    private final StatTimer preparationTimer = new StatTimerWithMoreOutput("time for preparations");
-    private final StatTimer mutationTimer = new StatTimerWithMoreOutput("time for mutations");
-    private final StatTimer rollbackTimer = new StatTimerWithMoreOutput("time for rollbacks");
+
+    private final StatCounter totalRounds = new StatCounter("mutation rounds");
+    private final StatCounter passRounds = new StatCounter("unsuccessful, no errors");
+    private final StatCounter unresRounds = new StatCounter("unsuccessful, other problems");
+
     private final StatTimer totalTimer = new StatTimerWithMoreOutput("total time for strategy");
+
     private final StatInt unresolvedCount =
         new StatInt(StatKind.SUM, "count of unresolved " + objectsTitle);
     private final StatInt safeCount = new StatInt(StatKind.SUM, "count of safe " + objectsTitle);
-    private final StatInt causeCount = new StatInt(StatKind.SUM, "count of cause " + objectsTitle);
     private final StatInt removedCount =
         new StatInt(StatKind.SUM, "count of removed " + objectsTitle);
-    private final StatInt totalCount =
-        new StatInt(StatKind.SUM, "count of total " + objectsTitle + " found");
+    private long totalCount;
 
     protected GenericDeltaDebuggingStatistics(String pName) {
       name = pName;
@@ -97,23 +93,19 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
     @Override
     public void printStatistics(PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
-      put(pOut, 2, round);
-      put(pOut, 3, testPass);
-      put(pOut, 3, testUnresolved);
-      put(pOut, 2, totalTimer);
-      put(pOut, 3, preparationTimer);
-      put(pOut, 3, mutationTimer);
-      put(pOut, 3, rollbackTimer);
-      put(pOut, 2, totalCount);
-      put(pOut, 3, causeCount);
-      put(pOut, 3, safeCount);
-      put(pOut, 3, removedCount);
-      put(pOut, 3, unresolvedCount);
+      put(pOut, 1, totalRounds);
+      put(pOut, 2, passRounds);
+      put(pOut, 2, unresRounds);
+      put(pOut, 1, totalTimer);
+      put(pOut, 1, "count of total " + objectsTitle + " found", totalCount);
+      put(pOut, 2, "count of cause " + objectsTitle, causeObjects.size());
+      put(pOut, 2, safeCount);
+      put(pOut, 2, removedCount);
+      put(pOut, 2, unresolvedCount);
     }
 
     @Override
     public @Nullable String getName() {
-      // TODO Auto-generated method stub
       return name;
     }
   }
@@ -166,7 +158,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
     stats.totalTimer.start();
-    stats.preparationTimer.start();
     boolean result;
 
     // corner cases
@@ -175,7 +166,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         // set up if it is first call
         unresolvedObjects = getAllObjects(pCfa);
         stats.unresolvedCount.setNextValue(unresolvedObjects.size());
-        stats.totalCount.setNextValue(unresolvedObjects.size());
+        stats.totalCount = unresolvedObjects.size();
         if (unresolvedObjects.isEmpty()) {
           // nothing to do
           logger.log(Level.INFO, "No", objectsTitle, "to mutate");
@@ -264,7 +255,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         throw new AssertionError();
     }
 
-    stats.preparationTimer.stop();
     stats.totalTimer.stop();
     return result;
   }
@@ -279,8 +269,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   @Override
   public void mutate(FunctionCFAsWithMetadata pCfa) {
     stats.totalTimer.start();
-    stats.mutationTimer.start();
-    stats.round.inc();
+    stats.totalRounds.inc();
 
     // set next mutation
     // not in the switch of #canMutate because stage can be changed there
@@ -314,14 +303,12 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         ImmutableList.copyOf(
             currentMutation.stream().map(mutation -> removeObject(pCfa, mutation)).iterator());
 
-    stats.mutationTimer.stop();
     stats.totalTimer.stop();
   }
 
   @Override
   public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
     stats.totalTimer.start();
-    stats.rollbackTimer.start();
 
     if (stage == DeltaDebuggingStage.REMOVE_SAFE) {
       if (pResult == DDResultOfARun.FAIL) {
@@ -358,7 +345,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         halveDeltas();
       }
 
-      stats.rollbackTimer.stop();
       stats.totalTimer.stop();
       return;
     }
@@ -376,7 +362,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         break;
 
       case PASS:
-        stats.testPass.inc();
+        stats.passRounds.inc();
         // No problems occur, last mutations hid the error.
         // Unresolved objects minus applied mutations are actually safe
         // No need to check them, but they remain in CFA.
@@ -397,7 +383,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         break;
 
       case UNRESOLVED:
-        stats.testUnresolved.inc();
+        stats.unresRounds.inc();
         // some other problem, just undo mutation
         logger.log(
             Level.INFO,
@@ -441,8 +427,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
     currentMutation = null;
     rollbackInfos = null;
-
-    stats.rollbackTimer.stop();
     stats.totalTimer.stop();
   }
 
@@ -493,7 +477,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         // This delta is one object, that is not cause by itself
         // and can not be safe by itself. So, it is part of the cause.
         causeObjects.add(delta.get(0));
-        stats.causeCount.setNextValue(1);
         if (stage == DeltaDebuggingStage.REMOVE_SAFE) {
           safeObjects.remove(delta.get(0));
           stats.safeCount.setNextValue(-1);

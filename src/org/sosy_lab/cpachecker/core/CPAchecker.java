@@ -28,6 +28,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -63,7 +64,6 @@ import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm.AlgorithmStatus;
 import org.sosy_lab.cpachecker.core.algorithm.impact.ImpactAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.mpv.MPVAlgorithm;
-import org.sosy_lab.cpachecker.core.defaults.MultiStatistics;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Precision;
@@ -85,7 +85,9 @@ import org.sosy_lab.cpachecker.util.LoopStructure;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProvider;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProviderImpl;
 import org.sosy_lab.cpachecker.util.globalinfo.GlobalInfo;
+import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
+import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
 @Options
 public class CPAchecker {
@@ -496,29 +498,7 @@ public class CPAchecker {
     public CPAcheckerResult minimizeForException() {
       Result mutationsResult = Result.NOT_YET_STARTED;
 
-      StatTimerWithMoreOutput mutationAnalysisTimer =
-          new StatTimerWithMoreOutput("time for analysis after mutation");
-      StatTimerWithMoreOutput rollbackAnalysisTimer =
-          new StatTimerWithMoreOutput("time for analysis after rollback");
-
-      MultiStatistics totalStats =
-          new MultiStatistics(logger) {
-            @Override
-            public @Nullable String getName() {
-              // TODO Auto-generated method stub
-              return "CFA mutation rounds";
-            }
-
-            @Override
-            public void printStatistics(
-                PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
-              put(pOut, 1, mutationAnalysisTimer);
-              put(pOut, 1, rollbackAnalysisTimer);
-
-              super.printStatistics(pOut, pResult, pReached);
-            }
-          };
-
+      MainCFAMutationStatistics totalStats = new MainCFAMutationStatistics();
       CFAMutator cfaMutator = null;
 
       try {
@@ -544,13 +524,14 @@ public class CPAchecker {
           // invalid input files
           return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         }
-        totalStats.getSubStatistics().add(cfaCreationStats);
 
         // To use Delta Debugging algorithm we need to define PASS, FAIL, and UNRESOLVED outcome of
         // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
         // input program. Assume verdicts TRUE and FALSE are correct, let it be PASS then.
         // Any other exceptions, and verdicts NOT_YET_STARTED and UNKNOWN are UNRESOLVED.
+        totalStats.originalTime.start();
         AnalysisResult originalResult = analysisRound();
+        totalStats.originalTime.stop();
         if (originalResult.verdict == Result.TRUE) {
           // TRUE verdicts are assumed to be correct,
           // and there is no simple way to differ one from
@@ -558,7 +539,7 @@ public class CPAchecker {
           logger.log(
               Level.SEVERE,
               "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
-          cfaMutator.collectStatistics(totalStats.getSubStatistics());
+          cfaMutator.collectStatistics(totalStats.subStats);
           return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
         } else if (originalResult.verdict == Result.FALSE) {
           // FALSE verdicts are assumed to be correct, unless given original incorrect one.
@@ -569,18 +550,17 @@ public class CPAchecker {
 
         // TODO -setprop console log level=NONE for following analysis
 
+        cfaMutator.setup();
         // CFAMutator stores needed info from #parse,
         // so no need to pass CFA as argument in next calls
-        int round = 0;
-        while (cfaMutator.canMutate()) {
-          round += 1;
+        for (int round = 1; cfaMutator.canMutate(); round++) {
           logger.log(Level.INFO, "Mutation round", round);
           shutdownNotifier.shutdownIfNecessary();
 
           cfa = cfaMutator.mutate();
-          mutationAnalysisTimer.start();
+          totalStats.afterMutations.start();
           AnalysisResult newResult = analysisRound();
-          mutationAnalysisTimer.stop();
+          totalStats.afterMutations.stop();
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
@@ -588,16 +568,17 @@ public class CPAchecker {
           if (rollback != null) {
             cfa = rollback;
             if (checkAfterRollbacks) {
-              rollbackAnalysisTimer.start();
+              totalStats.afterRollbacks.start();
               newResult = analysisRound();
-              rollbackAnalysisTimer.stop();
+              totalStats.afterRollbacks.stop();
               Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
             }
           }
         }
 
+        totalStats.lastResult = result;
+        totalStats.lastMainStats = stats;
         mutationsResult = Result.DONE;
-        totalStats.getSubStatistics().add(stats);
         logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
 
       } catch (InvalidConfigurationException e) {
@@ -618,7 +599,7 @@ public class CPAchecker {
 
       } finally {
         if (cfaMutator != null) {
-          cfaMutator.collectStatistics(totalStats.getSubStatistics());
+          cfaMutator.collectStatistics(totalStats.subStats);
         }
       }
 
@@ -746,6 +727,69 @@ public class CPAchecker {
         return verdict.hashCode() * 31
             + description.hashCode() * 37
             + (thrown == null ? 0 : thrown.hashCode());
+      }
+    }
+
+    class MainCFAMutationStatistics implements Statistics {
+      MainCPAStatistics lastMainStats = null;
+      Result lastResult;
+      List<Statistics> subStats = new ArrayList<>();
+
+      final StatTimer originalTime = new StatTimer("time for original analysis run");
+      final StatTimerWithMoreOutput afterMutations =
+          new StatTimerWithMoreOutput("total time for analysis after mutations");
+      final StatTimerWithMoreOutput afterRollbacks =
+          new StatTimerWithMoreOutput("total time for analysis after rollbacks");
+
+      @Override
+      public void printStatistics(
+          PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
+        if (pResult != Result.DONE) {
+          lastResult = pResult;
+        }
+        lastResult = Result.DONE;
+
+        if (lastMainStats != null) {
+          pOut.println("Last analysis statistics");
+          pOut.println("========================");
+          lastMainStats.printStatistics(pOut, lastResult, pReached);
+          pOut.println();
+        }
+
+        if (cfaCreationStats != null) {
+          pOut.println("Original CFA creation statistics");
+          pOut.println("--------------------------------");
+          cfaCreationStats.printStatistics(pOut, lastResult, pReached);
+          pOut.println();
+        }
+
+        pOut.println("CFA mutation statistics");
+        pOut.println("=======================");
+        pOut.println("Time for analysis");
+        pOut.println("-----------------");
+        put(pOut, 1, originalTime);
+        put(pOut, 1, afterMutations);
+        if (afterRollbacks.getUpdateCount() > 0) {
+          put(pOut, 1, afterRollbacks);
+        }
+
+        subStats.forEach(s -> StatisticsUtils.printStatistics(s, pOut, logger, pResult, pReached));
+      }
+
+      @Override
+      public @Nullable String getName() {
+        return "CFA mutation";
+      }
+
+      @Override
+      public void writeOutputFiles(Result pResult, UnmodifiableReachedSet pReached) {
+        if (lastMainStats != null) {
+          lastMainStats.writeOutputFiles(lastResult, pReached);
+        }
+        if (cfaCreationStats != null) {
+          cfaCreationStats.writeOutputFiles(lastResult, pReached);
+        }
+        subStats.forEach(s -> StatisticsUtils.writeOutputFiles(s, logger, pResult, pReached));
       }
     }
   }
