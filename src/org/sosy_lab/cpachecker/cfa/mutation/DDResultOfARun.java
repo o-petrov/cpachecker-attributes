@@ -15,5 +15,18 @@ public enum DDResultOfARun {
   /** There is sought-for error */
   FAIL,
   /** There is unexpected problem */
-  UNRESOLVED
+  UNRESOLVED;
+
+  @Override public String toString() {
+    switch (this) {
+      case FAIL:
+        return "Sought-for error occured during analysis";
+      case PASS:
+        return "Analysis finished correctly, no errors occured";
+      case UNRESOLVED:
+        return "Some other problem occured during analysis";
+      default:
+        throw new AssertionError();
+    }
+  }
 }

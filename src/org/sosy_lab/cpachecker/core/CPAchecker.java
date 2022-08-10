@@ -564,10 +564,13 @@ public class CPAchecker {
           // TODO export intermediate results
           // XXX it is incorrect to save intermediate stats, as reached is updated?
 
-          CFA rollback = cfaMutator.setResult(newResult.toDDResult(originalResult));
+          DDResultOfARun ddRunResult = newResult.toDDResult(originalResult);
+          logger.log(Level.INFO, ddRunResult);
+          CFA rollback = cfaMutator.setResult(ddRunResult);
           if (rollback != null) {
             cfa = rollback;
             if (checkAfterRollbacks) {
+              logger.log(Level.INFO, "Running analysis after mutation rollback");
               totalStats.afterRollbacks.start();
               newResult = analysisRound();
               totalStats.afterRollbacks.stop();
