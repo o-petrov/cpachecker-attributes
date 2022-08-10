@@ -41,8 +41,10 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
-    cfaExportDirectory =
-        exportDirectory == null ? Path.of("output/contol-flow-automaton") : exportDirectory;
+    if (exportDirectory == null) {
+      throw new InvalidConfigurationException("Enable output to get results of CFA mutation");
+    }
+    cfaExportDirectory = exportDirectory;
     strategy =
         new CompositeCFAMutationStrategy(
             pLogger,
@@ -77,7 +79,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     // do not export asynchronously as CFA will be mutated
     if (mutatorStats.getRound() == 0) {
       mutatorStats.startExport();
-      exportDirectory = cfaExportDirectory.resolve("original-cfa");
+      exportDirectory = cfaExportDirectory.resolve("0-original-cfa");
       super.exportCFA(pCfa);
       mutatorStats.stopExport();
     }

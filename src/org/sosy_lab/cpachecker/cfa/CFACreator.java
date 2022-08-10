@@ -1180,6 +1180,11 @@ public class CFACreator {
   }
 
   protected void exportCFA(final CFA cfa) {
+    if (exportDirectory == null) {
+      // -noout option
+      return;
+    }
+
     stats.exportTime.start();
 
     // write CFA to file
