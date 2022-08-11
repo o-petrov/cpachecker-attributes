@@ -891,6 +891,9 @@ cfaMutation = false
 # (Increases amount of analysis runs.)
 cfaMutation.checkAfterRollbacks = true
 
+# for debug
+cfaMutation.order = no default value
+
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
 

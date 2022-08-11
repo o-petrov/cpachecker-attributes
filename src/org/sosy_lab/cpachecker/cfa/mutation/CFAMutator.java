@@ -10,10 +10,14 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.configuration.Option;
+import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
@@ -28,7 +32,11 @@ import org.sosy_lab.cpachecker.exceptions.ParserException;
  * FunctionCFAsWithMetadata}. All processings in {@link CFACreator#createCFA} are applied after this
  * to get proper CFA for analysis run.
  */
+@Options
 public class CFAMutator extends CFACreator implements StatisticsProvider {
+  @Option(secure = true, name = "cfaMutation.order", description = "for debug")
+  private String order = null;
+
   /** local CFA of functions before processing */
   private FunctionCFAsWithMetadata localCfa = null;
   /** Strategy that decides how to change the CFA and implements this change */
@@ -41,20 +49,41 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
+    config.inject(this, CFAMutator.class);
+
     if (exportDirectory == null) {
       throw new InvalidConfigurationException("Enable output to get results of CFA mutation");
     }
     cfaExportDirectory = exportDirectory;
-    strategy =
-        new CompositeCFAMutationStrategy(
-            pLogger,
-            ImmutableList.of(
-                new FunctionBodyRemover(pLogger),
-                new SimpleBranchingRemover(pLogger, 1),
-                new SimpleBranchingRemover(pLogger, 0),
-                new ChainRemover(pLogger),
-                new EmptyBranchPruner(pLogger),
-                new StatementRemover(pLogger)));
+    List<CFAMutationStrategy> subs;
+    if (order == null) {
+      subs =
+          ImmutableList.of(
+              new FunctionBodyRemover(pLogger),
+              new SimpleBranchingRemover(pLogger, 1),
+              new SimpleBranchingRemover(pLogger, 0),
+              new StatementChainRemover(pLogger),
+              new EmptyBranchPruner(pLogger),
+              new StatementEdgeRemover(pLogger));
+    } else {
+      subs = new ArrayList<>(order.length());
+      for (int i = 0; i < order.length(); i++) {
+        if (order.charAt(i) == 'f') {
+          subs.add(new FunctionBodyRemover(pLogger));
+        } else if (order.charAt(i) == 'b') {
+          subs.add(new SimpleBranchingRemover(pLogger, 1));
+          subs.add(new SimpleBranchingRemover(pLogger, 0));
+        } else if (order.charAt(i) == 'c') {
+          subs.add(new StatementChainRemover(pLogger));
+        } else if (order.charAt(i) == 's') {
+          subs.add(new StatementEdgeRemover(pLogger));
+        } else {
+          throw new AssertionError("wrong strategy code");
+        }
+      }
+    }
+
+    strategy = new CompositeCFAMutationStrategy(pLogger, subs);
     mutatorStats = new CFAMutatorStatistics(pLogger);
   }
 
