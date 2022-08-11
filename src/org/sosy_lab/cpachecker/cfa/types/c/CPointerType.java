@@ -80,15 +80,11 @@ public final class CPointerType implements CType, Serializable {
 
   @Override
   public String toString() {
-    return toASTString("", false);
+    return toASTString("");
   }
 
   @Override
   public String toASTString(String pDeclarator) {
-    return toASTString(pDeclarator, true);
-  }
-
-  public String toASTString(String pDeclarator, boolean compositeWithMembers) {
     checkNotNull(pDeclarator);
     ArrayList<String> parts = new ArrayList<>();
 
@@ -113,7 +109,7 @@ public final class CPointerType implements CType, Serializable {
     // do not want to have different methods doing similar thing,
     // so explicitly treat composite type as elaborated type in toString
     if (type instanceof CCompositeType) {
-      parts.add(((CCompositeType) type).toASTString(declarator, compositeWithMembers));
+      parts.add(((CCompositeType) type).toASTString(declarator, false));
     } else {
       parts.add(type.toASTString(declarator));
     }
