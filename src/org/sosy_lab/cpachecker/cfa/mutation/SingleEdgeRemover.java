@@ -13,7 +13,6 @@ import java.util.List;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
-import org.sosy_lab.cpachecker.util.CFAUtils;
 import org.sosy_lab.cpachecker.util.Pair;
 
 /**
@@ -55,14 +54,10 @@ public class SingleEdgeRemover
     }
 
     CFANode successor = pNode.getLeavingEdge(0).getSuccessor();
-    if (successor == pNode) {
+    if (successor == pNode || successor.getNumEnteringEdges() > 1) {
       return false;
     }
-    for (CFANode predecessor : CFAUtils.predecessorsOf(pNode)) {
-      if (successor == predecessor || predecessor.getNumLeavingEdges() > 1) {
-        return false;
-      }
-    }
+
     return true;
   }
 

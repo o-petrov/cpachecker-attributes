@@ -110,6 +110,10 @@ class CFAMutationUtils {
     return pNode.getNumLeavingEdges() == 1 && pNode.getNumEnteringEdges() == 1;
   }
 
+  public static boolean isStatementOrBlank(CFAEdge pEdge) {
+    return pEdge instanceof AStatementEdge || pEdge instanceof BlankEdge;
+  }
+
   /**
    * Remove given edge both from its successor's entering edges list and from CFA's list of edges in
    * this function.

@@ -27,24 +27,31 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 class ChainRemover extends GenericDeltaDebuggingStrategy<CFANode, CFAEdge> {
 
   public ChainRemover(LogManager pLogger) {
-    super(pLogger.withComponentName(ChainRemover.class.getSimpleName()), "chains of edges");
+    this(pLogger.withComponentName(ChainRemover.class.getSimpleName()), "chains of edges");
+  }
+
+  protected ChainRemover(LogManager pLogger, String pString) {
+    super(pLogger, pString);
+  }
+
+  protected boolean isChainHead(CFANode pNode) {
+    return pNode.getNumLeavingEdges() == 1
+        && (pNode.getNumEnteringEdges() != 1
+            || pNode.getEnteringEdge(0).getPredecessor().getNumLeavingEdges() > 1);
+  }
+
+  protected boolean isInsideChain(CFANode pNode) {
+    return CFAMutationUtils.isInsideChain(pNode);
   }
 
   @Override
   protected List<CFANode> getAllObjects(FunctionCFAsWithMetadata pCfa) {
     List<CFANode> chainHeads = new ArrayList<>();
-
     for (CFANode n : pCfa.getCFANodes().values()) {
-      if (n.getNumLeavingEdges() != 1 || n.getNumEnteringEdges() == 0) {
-        continue;
-      }
-      if (n.getNumEnteringEdges() > 1
-          || n.getEnteringEdge(0).getPredecessor().getNumLeavingEdges() > 1) {
-        // has more than one predecessor or predecessor is branching point (i.e. not in a chain)
+      if (isChainHead(n)) {
         chainHeads.add(n);
       }
     }
-
     return chainHeads;
   }
 
@@ -57,7 +64,7 @@ class ChainRemover extends GenericDeltaDebuggingStrategy<CFANode, CFAEdge> {
     CFANode successor = pChainHead.getLeavingEdge(0).getSuccessor();
 
     // remove nodes after head (no edges disconnected yet)
-    while (CFAMutationUtils.isInsideChain(successor)) {
+    while (isInsideChain(successor)) {
       assert pCfa.getCFANodes().remove(pChainHead.getFunctionName(), successor);
       chainEdges.add(successor.getLeavingEdge(0));
       successor = successor.getLeavingEdge(0).getSuccessor();
