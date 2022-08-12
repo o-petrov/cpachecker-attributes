@@ -44,6 +44,7 @@ class GlobalDeclarationRemover
     // subseq runs
     result = super.canMutate(pCfa);
     if (!result) {
+      reset();
       dc.collectUsed(pCfa);
       result = super.canMutate(pCfa);
     }
@@ -58,6 +59,9 @@ class GlobalDeclarationRemover
 
     for (Pair<ADeclaration, String> gdPair : pCfa.getGlobalDeclarations()) {
       ADeclaration decl = gdPair.getFirst();
+      if (getCauseObjects().contains(gdPair) || getRemainedSafeObjects().contains(gdPair)) {
+        continue;
+      }
 
       if (decl instanceof AFunctionDeclaration) {
         if (!functionDeclarations.contains(decl)) {

@@ -74,6 +74,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
   protected class GenericDeltaDebuggingStatistics implements Statistics {
     private final String name;
 
+    private final StatCounter passes = new StatCounter("passes");
     private final StatCounter totalRounds = new StatCounter("mutation rounds");
     private final StatCounter passRounds = new StatCounter("unsuccessful, no errors");
     private final StatCounter unresRounds = new StatCounter("unsuccessful, other problems");
@@ -85,7 +86,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     private final StatInt safeCount = new StatInt(StatKind.SUM, "count of safe " + objectsTitle);
     private final StatInt removedCount =
         new StatInt(StatKind.SUM, "count of removed " + objectsTitle);
-    private long totalCount;
+    private final StatInt totalCount = new StatInt(StatKind.SUM, "count of found " + objectsTitle);
 
     protected GenericDeltaDebuggingStatistics(String pName) {
       name = pName;
@@ -93,11 +94,15 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
     @Override
     public void printStatistics(PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
+      if (passes.getValue() > 0) {
+        passes.inc(); // as counting pass after it was finished
+        put(pOut, 1, passes);
+      }
       put(pOut, 1, totalRounds);
       put(pOut, 2, passRounds);
       put(pOut, 2, unresRounds);
       put(pOut, 1, totalTimer);
-      put(pOut, 1, "count of total " + objectsTitle + " found", totalCount);
+      put(pOut, 1, totalCount);
       put(pOut, 2, "count of cause " + objectsTitle, causeObjects.size());
       put(pOut, 2, safeCount);
       put(pOut, 2, removedCount);
@@ -155,6 +160,11 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     pStatsCollection.add(stats);
   }
 
+  protected void reset() {
+    stats.passes.inc();
+    stage = DeltaDebuggingStage.INIT;
+  }
+
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
     stats.totalTimer.start();
@@ -166,12 +176,10 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
         // set up if it is first call
         unresolvedObjects = getAllObjects(pCfa);
         stats.unresolvedCount.setNextValue(unresolvedObjects.size());
-        stats.totalCount = unresolvedObjects.size();
+        stats.totalCount.setNextValue(unresolvedObjects.size());
         if (unresolvedObjects.isEmpty()) {
           // nothing to do
           logger.log(Level.INFO, "No", objectsTitle, "to mutate");
-          causeObjects = ImmutableList.copyOf(causeObjects);
-          safeObjects = ImmutableList.copyOf(safeObjects);
           result = false;
           break;
         }
@@ -238,7 +246,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       case REMOVE_SAFE:
         assert unresolvedObjects.isEmpty();
         if (safeObjects.isEmpty()) {
-          safeObjects = ImmutableList.of();
           logger.log(Level.INFO, "No safe", objectsTitle, "to remove");
           stage = DeltaDebuggingStage.DONE;
           result = false;
@@ -435,31 +442,18 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
    * {@link #canMutate} returns false, as the cause may be not identified.
    *
    * @return all the objects that remain in CFA and are not safe.
-   * @throws IllegalStateException if called before this strategy has resolved all objects.
    */
   public ImmutableList<RemoveObject> getCauseObjects() {
-    Preconditions.checkState(
-        unresolvedObjects.isEmpty(),
-        "Can not identify cause, as there are",
-        unresolvedObjects.size(),
-        objectsTitle,
-        "to investigate");
     return ImmutableList.copyOf(causeObjects);
   }
 
   /**
    * Return the safe part that remains in the CFA. Do not call this method until {@link #canMutate}
-   * returns false, as the cause is not identified (and it will throw).
+   * returns false, as the cause is not identified.
    *
-   * @return all the objects that remain in CFA and are safe.
-   * @throws IllegalStateException if called before this strategy has resolved all objects.
+   * @return all the objects that remain in CFA and seem to be safe.
    */
   public ImmutableList<RemoveObject> getRemainedSafeObjects() {
-    Preconditions.checkState(
-        stage == DeltaDebuggingStage.DONE,
-        "Can not identify remained safe",
-        objectsTitle,
-        "as strategy has not finished");
     return ImmutableList.copyOf(safeObjects);
   }
 

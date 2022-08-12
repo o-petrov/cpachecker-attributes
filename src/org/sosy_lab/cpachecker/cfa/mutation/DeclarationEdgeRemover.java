@@ -35,6 +35,7 @@ class DeclarationEdgeRemover extends SingleEdgeRemover {
     // subseq runs
     result = super.canMutate(pCfa);
     if (!result) {
+      reset();
       dc.collectUsed(pCfa);
       result = super.canMutate(pCfa);
     }
@@ -43,10 +44,13 @@ class DeclarationEdgeRemover extends SingleEdgeRemover {
 
   @Override
   protected boolean canRemoveWithLeavingEdge(CFANode pNode) {
-    if (! super.canRemoveWithLeavingEdge(pNode)) {
+    if (!super.canRemoveWithLeavingEdge(pNode)) {
       return false;
     }
     if (!(pNode.getLeavingEdge(0) instanceof ADeclarationEdge)) {
+      return false;
+    }
+    if (getCauseObjects().contains(pNode) || getRemainedSafeObjects().contains(pNode)) {
       return false;
     }
     ADeclaration decl = ((ADeclarationEdge) pNode.getLeavingEdge(0)).getDeclaration();
