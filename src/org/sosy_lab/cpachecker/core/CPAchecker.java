@@ -579,7 +579,6 @@ public class CPAchecker {
           }
         }
 
-        totalStats.lastResult = result;
         totalStats.lastMainStats = stats;
         mutationsResult = Result.DONE;
         logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
@@ -659,6 +658,9 @@ public class CPAchecker {
       } else if (result == Result.TRUE) {
         logger.log(Level.INFO, "TRUE. No property violation found by chosen configuration.");
 
+      } else if (result == Result.UNKNOWN) {
+        logger.log(Level.INFO, "UNKNOWN, incomplete analysis.");
+
       } else if (t == null) {
         throw new AssertionError();
       }
@@ -708,8 +710,7 @@ public class CPAchecker {
 
           case NOT_YET_STARTED:
           case UNKNOWN:
-            assert thrown != null;
-            if (pOriginal.thrown == null) {
+            if (thrown == null || pOriginal.thrown == null) {
               // there was no exception
               return DDResultOfARun.UNRESOLVED;
             }
@@ -735,7 +736,6 @@ public class CPAchecker {
 
     class MainCFAMutationStatistics implements Statistics {
       MainCPAStatistics lastMainStats = null;
-      Result lastResult;
       List<Statistics> subStats = new ArrayList<>();
 
       final StatTimer originalTime = new StatTimer("time for original analysis run");
@@ -747,21 +747,18 @@ public class CPAchecker {
       @Override
       public void printStatistics(
           PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
-        if (pResult != Result.DONE) {
-          lastResult = pResult;
-        }
 
         if (lastMainStats != null) {
           pOut.println("Last analysis statistics");
           pOut.println("========================");
-          lastMainStats.printStatistics(pOut, lastResult, pReached);
+          lastMainStats.printStatistics(pOut, pResult, pReached);
           pOut.println();
         }
 
         if (cfaCreationStats != null) {
           pOut.println("Original CFA creation statistics");
           pOut.println("--------------------------------");
-          cfaCreationStats.printStatistics(pOut, lastResult, pReached);
+          cfaCreationStats.printStatistics(pOut, pResult, pReached);
           pOut.println();
         }
 
@@ -786,10 +783,10 @@ public class CPAchecker {
       @Override
       public void writeOutputFiles(Result pResult, UnmodifiableReachedSet pReached) {
         if (lastMainStats != null) {
-          lastMainStats.writeOutputFiles(lastResult, pReached);
+          lastMainStats.writeOutputFiles(pResult, pReached);
         }
         if (cfaCreationStats != null) {
-          cfaCreationStats.writeOutputFiles(lastResult, pReached);
+          cfaCreationStats.writeOutputFiles(pResult, pReached);
         }
         subStats.forEach(s -> StatisticsUtils.writeOutputFiles(s, logger, pResult, pReached));
       }
