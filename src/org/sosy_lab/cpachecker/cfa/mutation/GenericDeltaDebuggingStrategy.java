@@ -95,7 +95,6 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     @Override
     public void printStatistics(PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
       if (passes.getValue() > 0) {
-        passes.inc(); // as counting pass after it was finished
         put(pOut, 1, passes);
       }
       put(pOut, 1, totalRounds);
