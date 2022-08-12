@@ -191,12 +191,7 @@ public class TestGoalToConditionConverterAlgorithm extends NestingAlgorithm {
    */
   private ReachedSet buildBackwardsReachedSet() throws InterruptedException {
     var reachedSet = new PartitionedReachedSet(backwardsCpa, TraversalMethod.DFS);
-    var initialLocations =
-        ImmutableSet.<CFANode>builder()
-            .addAll(
-                CFAUtils.getProgramSinks(
-                    cfa, cfa.getLoopStructure().orElseThrow(), cfa.getMainFunction()))
-            .build();
+    var initialLocations = CFAUtils.getProgramSinks(cfa);
 
     for (var loc : initialLocations) {
       var partition = StateSpacePartition.getDefaultPartition();

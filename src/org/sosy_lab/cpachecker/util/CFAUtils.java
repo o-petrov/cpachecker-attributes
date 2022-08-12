@@ -18,6 +18,7 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.UnmodifiableIterator;
@@ -101,6 +102,7 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.CFATerminationNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionCallEdge;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
+import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionSummaryEdge;
 import org.sosy_lab.cpachecker.cfa.types.c.CEnumType.CEnumerator;
 import org.sosy_lab.cpachecker.exceptions.NoException;
@@ -328,16 +330,30 @@ public class CFAUtils {
     return loopHeads;
   }
 
-  public static Collection<CFANode> getProgramSinks(
-      final CFA pCfa, final LoopStructure pLoopStructure, final FunctionEntryNode pCfaEntryNode) {
-    Set<CFANode> sinks = new HashSet<>();
-    CFANode cfaExitNode = pCfaEntryNode.getExitNode();
+  public static ImmutableSet<CFANode> getProgramSinks(final CFA pCfa) {
+    Builder<CFANode> sinks = ImmutableSet.<CFANode>builder();
+
+    CFANode cfaExitNode = pCfa.getMainFunction().getExitNode();
     if (pCfa.getAllNodes().contains(cfaExitNode)) {
       sinks.add(cfaExitNode);
     }
 
-    sinks.addAll(getEndlessLoopHeads(pLoopStructure));
-    return sinks;
+    sinks.addAll(getEndlessLoopHeads(pCfa.getLoopStructure().orElseThrow()));
+    return sinks.build();
+  }
+
+  public static ImmutableSet<CFANode> getFunctionSinks(final CFA pCfa) {
+    Builder<CFANode> sinks = ImmutableSet.<CFANode>builder();
+
+    for (FunctionEntryNode node : pCfa.getAllFunctionHeads()) {
+      FunctionExitNode exitNode = node.getExitNode();
+      if (pCfa.getAllNodes().contains(exitNode)) {
+        sinks.add(exitNode);
+      }
+    }
+
+    sinks.addAll(getEndlessLoopHeads(pCfa.getLoopStructure().orElseThrow()));
+    return sinks.build();
   }
 
   public static Map<Integer, CFANode> getMappingFromNodeIDsToCFANodes(CFA pCfa) {

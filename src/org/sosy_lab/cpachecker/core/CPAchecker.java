@@ -29,9 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -55,7 +53,6 @@ import org.sosy_lab.cpachecker.cfa.CFACheck;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
-import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.cfa.mutation.DDResultOfARun;
 import org.sosy_lab.cpachecker.cmdline.CPAMain;
@@ -81,7 +78,6 @@ import org.sosy_lab.cpachecker.exceptions.ParserException;
 import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 import org.sosy_lab.cpachecker.util.CPAs;
-import org.sosy_lab.cpachecker.util.LoopStructure;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProvider;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProviderImpl;
 import org.sosy_lab.cpachecker.util.globalinfo.GlobalInfo;
@@ -994,19 +990,10 @@ public class CPAchecker {
           initialLocations = ImmutableSet.copyOf(pCfa.getAllFunctionHeads());
           break;
         case FUNCTION_SINKS:
-          initialLocations =
-              ImmutableSet.<CFANode>builder()
-                  .addAll(getAllEndlessLoopHeads(pCfa.getLoopStructure().orElseThrow()))
-                  .addAll(getAllFunctionExitNodes(pCfa))
-                  .build();
+          initialLocations = CFAUtils.getFunctionSinks(pCfa);
           break;
         case PROGRAM_SINKS:
-          initialLocations =
-              ImmutableSet.<CFANode>builder()
-                  .addAll(
-                      CFAUtils.getProgramSinks(
-                          pCfa, pCfa.getLoopStructure().orElseThrow(), pAnalysisEntryFunction))
-                  .build();
+          initialLocations = CFAUtils.getProgramSinks(pCfa);
 
           break;
         case TARGET:
@@ -1035,21 +1022,5 @@ public class CPAchecker {
           "Initial reached set has a waitlist of %d states.",
           pReached.getWaitlist().size());
     }
-  }
-
-  private Set<CFANode> getAllFunctionExitNodes(CFA cfa) {
-    Set<CFANode> functionExitNodes = new HashSet<>();
-
-    for (FunctionEntryNode node : cfa.getAllFunctionHeads()) {
-      FunctionExitNode exitNode = node.getExitNode();
-      if (cfa.getAllNodes().contains(exitNode)) {
-        functionExitNodes.add(exitNode);
-      }
-    }
-    return functionExitNodes;
-  }
-
-  private Collection<CFANode> getAllEndlessLoopHeads(LoopStructure structure) {
-    return CFAUtils.getEndlessLoopHeads(structure);
   }
 }
