@@ -95,6 +95,6 @@ class GlobalDeclarationRemover
   protected void restoreObject(
       FunctionCFAsWithMetadata pCfa, Triple<Integer, ADeclaration, String> pRemoved) {
     pCfa.getGlobalDeclarations()
-        .set(pRemoved.getFirst(), Pair.of(pRemoved.getSecond(), pRemoved.getThird()));
+        .add(pRemoved.getFirst(), Pair.of(pRemoved.getSecond(), pRemoved.getThird()));
   }
 }
