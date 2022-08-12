@@ -63,8 +63,10 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
               new SimpleBranchingRemover(pLogger, 1),
               new SimpleBranchingRemover(pLogger, 0),
               new StatementChainRemover(pLogger),
-              new EmptyBranchPruner(pLogger),
-              new StatementEdgeRemover(pLogger));
+              new StatementEdgeRemover(pLogger),
+              new ExpressionRemover(pLogger),
+              new DeclarationEdgeRemover(pLogger),
+              new GlobalDeclarationRemover(pLogger));
     } else {
       subs = new ArrayList<>(order.length());
       for (int i = 0; i < order.length(); i++) {
@@ -77,6 +79,12 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
           subs.add(new StatementChainRemover(pLogger));
         } else if (order.charAt(i) == 's') {
           subs.add(new StatementEdgeRemover(pLogger));
+        } else if (order.charAt(i) == 'e') {
+          subs.add(new ExpressionRemover(pLogger));
+        } else if (order.charAt(i) == 'd') {
+          subs.add(new DeclarationEdgeRemover(pLogger));
+        } else if (order.charAt(i) == 'g') {
+          subs.add(new GlobalDeclarationRemover(pLogger));
         } else {
           throw new AssertionError("wrong strategy code");
         }
