@@ -52,7 +52,7 @@ class CFAMutatorStatistics extends MultiStatistics {
     }
   }
 
-  private StatCounter totalRounds = new StatCounter("mutation rounds");
+  private StatCounter totalRounds = new StatCounter("total count of mutation rounds");
   private StatCounter failRounds = new StatCounter("successful mutations (sought-for error)");
   private StatCounter passRounds = new StatCounter("unsuccessfull mutations (no error)");
   private StatCounter unresRounds = new StatCounter("unsuccessfull mutations (other problems)");

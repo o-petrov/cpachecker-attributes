@@ -10,12 +10,10 @@ package org.sosy_lab.cpachecker.core;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.FluentIterable.from;
-import static org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutdown;
+import static  org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutdown;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.StandardSystemProperty;
-import com.google.common.base.Verify;
-import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -23,15 +21,12 @@ import com.google.common.io.Resources;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
-import java.io.PrintStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.logging.Level;
@@ -53,8 +48,6 @@ import org.sosy_lab.cpachecker.cfa.CFACheck;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
-import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
-import org.sosy_lab.cpachecker.cfa.mutation.DDResultOfARun;
 import org.sosy_lab.cpachecker.cmdline.CPAMain;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
@@ -70,7 +63,6 @@ import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.core.reachedset.AggregatedReachedSets;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.ResultProviderReachedSet;
-import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.core.specification.Specification;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
@@ -81,9 +73,6 @@ import org.sosy_lab.cpachecker.util.CPAs;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProvider;
 import org.sosy_lab.cpachecker.util.automaton.TargetLocationProviderImpl;
 import org.sosy_lab.cpachecker.util.globalinfo.GlobalInfo;
-import org.sosy_lab.cpachecker.util.statistics.StatTimer;
-import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
-import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
 @Options
 public class CPAchecker {
@@ -186,7 +175,8 @@ public class CPAchecker {
           "if this option is used, the CFA will be loaded from the given file "
               + "instead of parsed from sourcefile.")
   @FileOption(FileOption.Type.OPTIONAL_INPUT_FILE)
-  private @Nullable Path serializedCfaFile = null;
+  @Nullable
+  protected Path serializedCfaFile = null;
 
   @Option(
       secure = true,
@@ -200,30 +190,11 @@ public class CPAchecker {
       description = "Maximum number of counterexamples to be created.")
   private int cexLimit = 0;
 
-  @Option(
-      secure = true,
-      name = "cfaMutation",
-      description =
-          "Try to make CFA of the input program smaller. The goal is to make a small test "
-              + "for a case when CPAchecker analysis crashes.")
-  private boolean minimizeCfaForException = false;
-
-  @Option(
-      secure = true,
-      name = "cfaMutation.checkAfterRollbacks",
-      description =
-          "If a mutation round is unsuccessfull (i.e. hids the bug), the mutation "
-              + "is rollbacked. Check that rollbacked CFA produces the sought-for "
-              + "bug. (Increases amount of analysis runs.)")
-  private boolean checkAfterRollbacks = true;
-
-  private final LogManager logger;
-  private final Configuration config;
+  protected final LogManager logger;
+  protected final Configuration config;
   private final ShutdownManager shutdownManager;
-  private final ShutdownNotifier shutdownNotifier;
+  protected final ShutdownNotifier shutdownNotifier;
   private final CoreComponentsFactory factory;
-
-  private Statistics cfaCreationStats;
 
   // The content of this String is read from a file that is created by the
   // ant task "init".
@@ -318,485 +289,190 @@ public class CPAchecker {
     logger = pLogManager;
     shutdownManager = pShutdownManager;
     shutdownNotifier = pShutdownManager.getNotifier();
+    interruptThreadOnShutdown = interruptCurrentThreadOnShutdown();
+    shutdownNotifier.register(interruptThreadOnShutdown);
 
-    config.inject(this);
+    config.inject(this, CPAchecker.class);
     factory =
         new CoreComponentsFactory(
             pConfiguration, pLogManager, shutdownNotifier, AggregatedReachedSets.empty());
   }
 
-  public CPAcheckerResult run(List<String> programDenotation) {
-    if (!minimizeCfaForException) {
-      logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
-      return new Analyzer(programDenotation).setupAndRunAnalysis();
+  protected CPAcheckerResult produceResult() {
+    return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+  }
+
+  protected CPAcheckerResult produceResult(Result pResult, Statistics pStats) {
+    return new CPAcheckerResult(pResult, targetDescription, reached, cfa, pStats);
+  }
+
+  protected void closeCPAsIfPossible() {
+    CPAs.closeIfPossible(algorithm, logger);
+  }
+
+  protected MainCPAStatistics getStats() {
+    return stats;
+  }
+
+  protected void resetMainStats() throws InvalidConfigurationException {
+    stats = new MainCPAStatistics(config, logger, shutdownNotifier);
+  }
+
+  protected CFA getCfa() {
+    return cfa;
+  }
+
+  protected void setCfa(CFA pCfa) {
+    cfa = pCfa;
+  }
+
+  private MainCPAStatistics stats = null;
+  private Algorithm algorithm = null;
+  private ReachedSet reached = null;
+  private CFA cfa = null;
+  private Result result = Result.NOT_YET_STARTED;
+  private String targetDescription = "";
+  private Specification specification = null;
+  private final ShutdownRequestListener interruptThreadOnShutdown;
+
+  protected void setupAnalysis()
+      throws InvalidConfigurationException, InterruptedException, CPAException {
+    // Reset fields which are part of CPAcheckerResult, so they are correct if setup is
+    // interrupted. Other fields do not need to be reset, as they are reset when needed
+    // and are not accessible outside.
+    reached = null;
+    targetDescription = "";
+
+    // create reached set, cpa, algorithm
+    // XXX track more creation times (for spec, algorithm, reach)?
+    stats.setCFA(cfa);
+    GlobalInfo.getInstance().storeCFA(cfa);
+    shutdownNotifier.shutdownIfNecessary();
+
+    ConfigurableProgramAnalysis cpa;
+    stats.cpaCreationTime.start();
+    try {
+      specification =
+          Specification.fromFiles(specificationFiles, cfa, config, logger, shutdownNotifier);
+      cpa = factory.createCPA(cfa, specification);
+    } finally {
+      stats.cpaCreationTime.stop();
+    }
+    stats.setCPA(cpa);
+
+    if (cpa instanceof StatisticsProvider) {
+      ((StatisticsProvider) cpa).collectStatistics(stats.getSubStatistics());
+    }
+
+    GlobalInfo.getInstance().setUpInfoFromCPA(cpa);
+
+    algorithm = factory.createAlgorithm(cpa, cfa, specification);
+
+    if (algorithm instanceof MPVAlgorithm && !stopAfterError) {
+      // sanity check
+      throw new InvalidConfigurationException(
+          "Cannot use option 'analysis.stopAfterError' along with "
+              + "multi-property verification algorithm. "
+              + "Please use option 'mpv.findAllViolations' instead");
+    }
+
+    if (algorithm instanceof StatisticsProvider) {
+      ((StatisticsProvider) algorithm).collectStatistics(stats.getSubStatistics());
+    }
+
+    reached = factory.createReachedSet(cpa);
+    if (algorithm instanceof ImpactAlgorithm) {
+      ImpactAlgorithm mcmillan = (ImpactAlgorithm) algorithm;
+      reached.add(
+          mcmillan.getInitialState(cfa.getMainFunction()),
+          mcmillan.getInitialPrecision(cfa.getMainFunction()));
     } else {
-      logger.logf(
-          Level.INFO, "%s / CFA mutation (%s) started", getVersion(config), getJavaInformation());
-      return new Mutator(programDenotation).minimizeForException();
+      initializeReachedSet(reached, cpa, cfa.getMainFunction(), cfa);
     }
   }
 
-  private class Analyzer {
-    protected MainCPAStatistics stats = null;
-    protected Algorithm algorithm = null;
-    protected ReachedSet reached = null;
-    protected CFA cfa = null;
-    protected Result result = Result.NOT_YET_STARTED;
-    protected String targetDescription = "";
-    protected Specification specification = null;
-    protected final ShutdownRequestListener interruptThreadOnShutdown;
-    protected ImmutableList<String> programDenotation;
+  protected void runAnalysis() throws CPAException, InterruptedException {
 
-    protected Analyzer(List<String> pProgramDenotation) {
-      checkArgument(!pProgramDenotation.isEmpty());
-      programDenotation = ImmutableList.copyOf(pProgramDenotation);
+    shutdownNotifier.shutdownIfNecessary();
+    // now everything necessary has been instantiated: run analysis
+    // set to unknown so that the result is correct in case of exception
+    result = Result.UNKNOWN;
 
-      interruptThreadOnShutdown = interruptCurrentThreadOnShutdown();
-      shutdownNotifier.register(interruptThreadOnShutdown);
-    }
+    AlgorithmStatus status = runAlgorithm();
 
-    protected void setupAnalysis()
-        throws InvalidConfigurationException, InterruptedException, CPAException {
-      // Reset fields which are part of CPAcheckerResult, so they are correct if setup is
-      // interrupted. Other fields do not need to be reset, as they are reset when needed
-      // and are not accessible outside.
-      reached = null;
-      targetDescription = "";
+    if (status.wasPropertyChecked()) {
+      stats.resultAnalysisTime.start();
+      if (reached.wasTargetReached()) {
+        targetDescription = Joiner.on(", ").join(reached.getTargetInformation());
 
-      // create reached set, cpa, algorithm
-      // XXX track more creation times (for spec, algorithm, reach)?
-      stats.setCFA(cfa);
-      GlobalInfo.getInstance().storeCFA(cfa);
-      shutdownNotifier.shutdownIfNecessary();
-
-      ConfigurableProgramAnalysis cpa;
-      stats.cpaCreationTime.start();
-      try {
-        specification =
-            Specification.fromFiles(specificationFiles, cfa, config, logger, shutdownNotifier);
-        cpa = factory.createCPA(cfa, specification);
-      } finally {
-        stats.cpaCreationTime.stop();
-      }
-      stats.setCPA(cpa);
-
-      if (cpa instanceof StatisticsProvider) {
-        ((StatisticsProvider) cpa).collectStatistics(stats.getSubStatistics());
-      }
-
-      GlobalInfo.getInstance().setUpInfoFromCPA(cpa);
-
-      algorithm = factory.createAlgorithm(cpa, cfa, specification);
-
-      if (algorithm instanceof MPVAlgorithm && !stopAfterError) {
-        // sanity check
-        throw new InvalidConfigurationException(
-            "Cannot use option 'analysis.stopAfterError' along with "
-                + "multi-property verification algorithm. "
-                + "Please use option 'mpv.findAllViolations' instead");
-      }
-
-      if (algorithm instanceof StatisticsProvider) {
-        ((StatisticsProvider) algorithm).collectStatistics(stats.getSubStatistics());
-      }
-
-      reached = factory.createReachedSet(cpa);
-      if (algorithm instanceof ImpactAlgorithm) {
-        ImpactAlgorithm mcmillan = (ImpactAlgorithm) algorithm;
-        reached.add(
-            mcmillan.getInitialState(cfa.getMainFunction()),
-            mcmillan.getInitialPrecision(cfa.getMainFunction()));
-      } else {
-        initializeReachedSet(reached, cpa, cfa.getMainFunction(), cfa);
-      }
-    }
-
-    protected void runAnalysis() throws CPAException, InterruptedException {
-
-      shutdownNotifier.shutdownIfNecessary();
-      // now everything necessary has been instantiated: run analysis
-      // set to unknown so that the result is correct in case of exception
-      result = Result.UNKNOWN;
-
-      AlgorithmStatus status = runAlgorithm(algorithm, reached, stats);
-
-      if (status.wasPropertyChecked()) {
-        stats.resultAnalysisTime.start();
-        if (reached.wasTargetReached()) {
-          targetDescription = Joiner.on(", ").join(reached.getTargetInformation());
-
-          if (!status.isPrecise()) {
-            result = Result.UNKNOWN;
-          } else {
-            result = Result.FALSE;
-          }
+        if (!status.isPrecise()) {
+          result = Result.UNKNOWN;
         } else {
-          result = analyzeResult(reached, status.isSound());
-          if (unknownAsTrue && result == Result.UNKNOWN) {
-            result = Result.TRUE;
-          }
+          result = Result.FALSE;
         }
-        stats.resultAnalysisTime.stop();
       } else {
-        result = Result.DONE;
-      }
-    }
-
-    public CPAcheckerResult setupAndRunAnalysis() {
-
-      try {
-        stats = new MainCPAStatistics(config, logger, shutdownNotifier);
-        stats.creationTime.start();
-        if (serializedCfaFile == null) {
-          cfa = parse(new CFACreator(config, logger, shutdownNotifier), programDenotation);
-        } else {
-          cfa = loadCFA();
+        result = analyzeResult(status.isSound());
+        if (unknownAsTrue && result == Result.UNKNOWN) {
+          result = Result.TRUE;
         }
-
-        if (cfa != null) {
-          try {
-            stats.setCFACreatorStatistics(cfaCreationStats);
-            setupAnalysis();
-          } finally {
-            stats.creationTime.stop();
-          }
-          printConfigurationWarnings();
-          runAnalysis();
-        }
-
-      } catch (InvalidConfigurationException e) {
-        logger.logUserException(Level.SEVERE, e, "Invalid configuration");
-
-      } catch (InterruptedException e) {
-        // CPAchecker must exit because it was asked to
-        // we return normally instead of propagating the exception
-        // so we can return the partial result we have so far
-        logger.logUserException(Level.WARNING, e, "Analysis interrupted");
-
-      } catch (CPAException e) {
-        logger.logUserException(Level.SEVERE, e, null);
-
-      } finally {
-        CPAs.closeIfPossible(algorithm, logger);
-        shutdownNotifier.unregister(interruptThreadOnShutdown);
       }
-
-      return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
+      stats.resultAnalysisTime.stop();
+    } else {
+      result = Result.DONE;
     }
   }
 
-  private class Mutator extends Analyzer {
+  public CPAcheckerResult run(List<String> programDenotation) {
+    checkArgument(!programDenotation.isEmpty());
+    logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
 
-    protected Mutator(List<String> pProgramDenotation) {
-      super(pProgramDenotation);
-    }
+    try {
+      stats = new MainCPAStatistics(config, logger, shutdownNotifier);
+      stats.creationTime.start();
+      if (serializedCfaFile == null) {
+        CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
+        parse(cfaCreator, programDenotation);
+        stats.setCFACreatorStatistics(cfaCreator.getStatistics());
 
-    public CPAcheckerResult minimizeForException() {
-      Result mutationsResult = Result.NOT_YET_STARTED;
-
-      MainCFAMutationStatistics totalStats = new MainCFAMutationStatistics();
-      CFAMutator cfaMutator = null;
-
-      try {
-        if (serializedCfaFile != null) {
-          throw new InvalidConfigurationException(
-              "CFA mutation needs source files to be parsed into CFA. "
-                  + "Either specify 'cfaMutation=true' or specify "
-                  + "loading CFA with 'analysis.serializedCfaFile'.");
-        }
-
-        // XXX other way?
-        @SuppressWarnings("deprecation")
-        String withAcsl = config.getProperty("parser.collectACSLAnnotations");
-        if ("true".equals(withAcsl)) {
-          throw new InvalidConfigurationException(
-              "CFA mutation can not handle ACSL annotations. Do not specify "
-                  + "'cfaMutation=true' and 'parser.collectACSLAnnotations=true' simultaneously");
-        }
-
-        cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
-        cfa = parse(cfaMutator, programDenotation);
-        if (cfa == null) {
-          // invalid input files
-          return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
-        }
-
-        // To use Delta Debugging algorithm we need to define PASS, FAIL, and UNRESOLVED outcome of
-        // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
-        // input program. Assume verdicts TRUE and FALSE are correct, let it be PASS then.
-        // Any other exceptions, and verdicts NOT_YET_STARTED and UNKNOWN are UNRESOLVED.
-        totalStats.originalTime.start();
-        AnalysisResult originalResult = analysisRound();
-        totalStats.originalTime.stop();
-        if (originalResult.verdict == Result.TRUE) {
-          // TRUE verdicts are assumed to be correct,
-          // and there is no simple way to differ one from
-          // another, so do not deal with wrong one.
-          logger.log(
-              Level.SEVERE,
-              "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
-          cfaMutator.collectStatistics(totalStats.subStats);
-          return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
-        } else if (originalResult.verdict == Result.FALSE) {
-          // FALSE verdicts are assumed to be correct, unless given original incorrect one.
-          logger.log(
-              Level.WARNING,
-              "Analysis finished correctly. Mutated CFA may be meaningless for given FALSE verdict.");
-        }
-
-        // TODO -setprop console log level=NONE for following analysis
-
-        cfaMutator.setup();
-        // CFAMutator stores needed info from #parse,
-        // so no need to pass CFA as argument in next calls
-        for (int round = 1; cfaMutator.canMutate(); round++) {
-          logger.log(Level.INFO, "Mutation round", round);
-          shutdownNotifier.shutdownIfNecessary();
-
-          cfa = cfaMutator.mutate();
-          totalStats.afterMutations.start();
-          AnalysisResult newResult = analysisRound();
-          totalStats.afterMutations.stop();
-          // TODO export intermediate results
-          // XXX it is incorrect to save intermediate stats, as reached is updated?
-
-          DDResultOfARun ddRunResult = newResult.toDDResult(originalResult);
-          logger.log(Level.INFO, ddRunResult);
-          CFA rollback = cfaMutator.setResult(ddRunResult);
-          if (rollback != null) {
-            cfa = rollback;
-            if (checkAfterRollbacks) {
-              logger.log(Level.INFO, "Running analysis after mutation rollback");
-              totalStats.afterRollbacks.start();
-              newResult = analysisRound();
-              totalStats.afterRollbacks.stop();
-              Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
-            }
-          }
-        }
-
-        totalStats.lastMainStats = stats;
-        mutationsResult = Result.DONE;
-        logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
-
-      } catch (InvalidConfigurationException e) {
-        logger.logUserException(Level.SEVERE, e, "Invalid configuration");
-        // XXX move to #analysisRound?
-        // but for first round should catch here?
-
-      } catch (InterruptedException e) {
-        // CPAchecker must exit because it was asked to
-        // we return normally instead of propagating the exception
-        // so we can return the partial result we have so far
-        logger.logUserException(Level.WARNING, e, "CFA mutation interrupted");
-
-      } catch (ParserException e) {
-        logger.logUserException(Level.SEVERE, e, "Parser error");
-        // XXX is it possible?
-        // TODO export previous CFA then?
-
-      } finally {
-        if (cfaMutator != null) {
-          cfaMutator.collectStatistics(totalStats.subStats);
-        }
+      } else {
+        loadCFA();
       }
 
-      return new CPAcheckerResult(mutationsResult, "", reached, cfa, totalStats);
-    }
-
-    // run analysis, but for already stored CFA, and catch its errors
-    private AnalysisResult analysisRound()
-        throws InterruptedException, InvalidConfigurationException {
-      Throwable t = null;
-
-      try {
-        stats = new MainCPAStatistics(config, logger, shutdownNotifier);
-        stats.creationTime.start();
+      if (cfa != null) {
         try {
           setupAnalysis();
         } finally {
           stats.creationTime.stop();
         }
+        printConfigurationWarnings();
         runAnalysis();
-
-      } catch (AssertionError
-          | IllegalArgumentException
-          | IllegalStateException
-          | IndexOutOfBoundsException
-          | ClassCastException
-          | NullPointerException
-          | NoSuchElementException
-          | VerifyException
-          | CPAException e) {
-        // Expect exceptions as bugs of CPAchecker, and remember them to reproduce on a smaller CFA.
-        // TODO which types exactly
-        if (e.getStackTrace().length == 0) {
-          // too many same exceptions were thrown, its JVM optimization
-          logger.log(Level.WARNING, "Recurring error:", e.getClass(), "(no stack trace)");
-        } else {
-          logger.logUserException(Level.WARNING, e, null);
-        }
-        t = e;
-
-      } finally {
-        CPAs.closeIfPossible(algorithm, logger);
       }
 
-      if (result == Result.FALSE) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("FALSE. Property violation");
-        if (!targetDescription.isEmpty()) {
-          sb.append(" (").append(targetDescription).append(")");
-        }
-        sb.append(" found by chosen configuration.");
-        logger.log(Level.INFO, sb);
+    } catch (InvalidConfigurationException e) {
+      logger.logUserException(Level.SEVERE, e, "Invalid configuration");
 
-      } else if (result == Result.TRUE) {
-        logger.log(Level.INFO, "TRUE. No property violation found by chosen configuration.");
+    } catch (InterruptedException e) {
+      // CPAchecker must exit because it was asked to
+      // we return normally instead of propagating the exception
+      // so we can return the partial result we have so far
+      logger.logUserException(Level.WARNING, e, "Analysis interrupted");
 
-      } else if (result == Result.UNKNOWN) {
-        logger.log(Level.INFO, "UNKNOWN, incomplete analysis.");
+    } catch (CPAException e) {
+      logger.logUserException(Level.SEVERE, e, null);
 
-      } else if (t == null) {
-        throw new AssertionError();
-      }
-
-      return new AnalysisResult(result, targetDescription, t);
+    } finally {
+      closeCPAsIfPossible();
+      shutdownNotifier.unregister(interruptThreadOnShutdown);
     }
 
-    // no need to check for reached, cfa, or stats change,
-    // so keep only verdict and description, plus thrown error
-    class AnalysisResult {
-      private final Result verdict;
-      private final String description;
-      private final @Nullable Throwable thrown;
-
-      public AnalysisResult(Result pResult, String pTarget, @Nullable Throwable pThrown) {
-        checkArgument(
-            pResult == Result.FALSE || pTarget.isEmpty(),
-            "Target description must be empty when result is not FALSE. %s: %s",
-            pResult,
-            pTarget);
-        checkArgument(
-            pResult == Result.NOT_YET_STARTED || pResult == Result.UNKNOWN || pThrown == null,
-            "Exception or error must be null when result is not NOT_YET_STARTED or UNKNOWN. %s: %s (%s)",
-            pResult,
-            pThrown == null ? "Null" : pThrown.getClass(),
-            pThrown == null ? "null" : pThrown.getMessage());
-        verdict = pResult;
-        description = pTarget;
-        thrown = pThrown;
-      }
-
-      public DDResultOfARun toDDResult(AnalysisResult pOriginal) {
-        switch (verdict) {
-          case TRUE:
-            // assume TRUE is always correct
-            return DDResultOfARun.PASS;
-
-          case FALSE:
-            // FALSE verdicts are assumed to be correct, unless given original incorrect one.
-            if (pOriginal.verdict != Result.FALSE) {
-              return DDResultOfARun.PASS;
-            }
-            // XXX FALSE are UNRESOLVED unless same description
-            return description.equals(pOriginal.description)
-                ? DDResultOfARun.FAIL
-                : DDResultOfARun.UNRESOLVED;
-
-          case NOT_YET_STARTED:
-          case UNKNOWN:
-            if (thrown == null || pOriginal.thrown == null) {
-              // there was no exception
-              return DDResultOfARun.UNRESOLVED;
-            }
-            // if equal, then same fail, else some other problem, i.e. unresolved
-            return pOriginal.thrown.getClass().equals(thrown.getClass())
-                    && (thrown.getStackTrace().length == 0 // optimized by JVM
-                        || pOriginal.thrown.getStackTrace()[0].equals(thrown.getStackTrace()[0]))
-                ? DDResultOfARun.FAIL
-                : DDResultOfARun.UNRESOLVED;
-
-          default:
-            throw new AssertionError();
-        }
-      }
-
-      @Override
-      public int hashCode() {
-        return verdict.hashCode() * 31
-            + description.hashCode() * 37
-            + (thrown == null ? 0 : thrown.hashCode());
-      }
-    }
-
-    class MainCFAMutationStatistics implements Statistics {
-      MainCPAStatistics lastMainStats = null;
-      List<Statistics> subStats = new ArrayList<>();
-
-      final StatTimer originalTime = new StatTimer("time for original analysis run");
-      final StatTimerWithMoreOutput afterMutations =
-          new StatTimerWithMoreOutput("total time for analysis after mutations");
-      final StatTimerWithMoreOutput afterRollbacks =
-          new StatTimerWithMoreOutput("total time for analysis after rollbacks");
-
-      @Override
-      public void printStatistics(
-          PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
-
-        if (lastMainStats != null) {
-          pOut.println("Last analysis statistics");
-          pOut.println("========================");
-          lastMainStats.printStatistics(pOut, pResult, pReached);
-          pOut.println();
-        }
-
-        if (cfaCreationStats != null) {
-          pOut.println("Original CFA creation statistics");
-          pOut.println("--------------------------------");
-          cfaCreationStats.printStatistics(pOut, pResult, pReached);
-          pOut.println();
-        }
-
-        pOut.println("CFA mutation statistics");
-        pOut.println("=======================");
-        pOut.println("Time for analysis");
-        pOut.println("-----------------");
-        put(pOut, 1, originalTime);
-        put(pOut, 1, afterMutations);
-        if (afterRollbacks.getUpdateCount() > 0) {
-          put(pOut, 1, afterRollbacks);
-        }
-
-        subStats.forEach(s -> StatisticsUtils.printStatistics(s, pOut, logger, pResult, pReached));
-      }
-
-      @Override
-      public @Nullable String getName() {
-        return "CFA mutation";
-      }
-
-      @Override
-      public void writeOutputFiles(Result pResult, UnmodifiableReachedSet pReached) {
-        if (lastMainStats != null) {
-          lastMainStats.writeOutputFiles(pResult, pReached);
-        }
-        if (cfaCreationStats != null) {
-          cfaCreationStats.writeOutputFiles(pResult, pReached);
-        }
-        subStats.forEach(s -> StatisticsUtils.writeOutputFiles(s, logger, pResult, pReached));
-      }
-    }
+    return produceResult();
   }
 
-  private CFA parse(CFACreator pCfaCreator, List<String> fileNames) {
-    assert serializedCfaFile == null;
+  protected void parse(CFACreator pCfaCreator, List<String> fileNames) {
     logger.logf(Level.INFO, "Parsing CFA from file(s) \"%s\"", Joiner.on(", ").join(fileNames));
 
     try {
-      CFA cfa = pCfaCreator.parseFileAndCreateCFA(fileNames);
-      cfaCreationStats = pCfaCreator.getStatistics();
-      return cfa;
+      cfa = pCfaCreator.parseFileAndCreateCFA(fileNames);
 
     } catch (InvalidConfigurationException e) {
       logger.logUserException(Level.SEVERE, e, "Invalid configuration");
@@ -834,15 +510,10 @@ public class CPAchecker {
       // so we can return the partial result we have so far
       logger.logUserException(Level.WARNING, e, "Analysis interrupted");
     }
-
-    return null;
   }
 
   // load CFA from serialization file
-  private CFA loadCFA() {
-    assert serializedCfaFile != null;
-
-    CFA cfa = null;
+  private void loadCFA() {
     logger.logf(Level.INFO, "Reading CFA from file \"%s\"", serializedCfaFile);
 
     try (InputStream inputStream = Files.newInputStream(serializedCfaFile);
@@ -861,8 +532,6 @@ public class CPAchecker {
     if (cfa != null) {
       assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
     }
-
-    return cfa;
   }
 
   private void printConfigurationWarnings() {
@@ -884,9 +553,7 @@ public class CPAchecker {
     }
   }
 
-  private AlgorithmStatus runAlgorithm(
-      final Algorithm algorithm, final ReachedSet reached, final MainCPAStatistics stats)
-      throws CPAException, InterruptedException {
+  private AlgorithmStatus runAlgorithm() throws CPAException, InterruptedException {
 
     logger.log(Level.INFO, "Starting analysis ...");
 
@@ -929,7 +596,7 @@ public class CPAchecker {
     }
   }
 
-  private Result analyzeResult(final ReachedSet reached, boolean isSound) {
+  private Result analyzeResult(boolean isSound) {
     if (reached instanceof ResultProviderReachedSet) {
       return ((ResultProviderReachedSet) reached).getOverallResult();
     }
