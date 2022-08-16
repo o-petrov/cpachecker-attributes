@@ -80,6 +80,10 @@ public class SimpleBranchingRemover
     side = pSide;
   }
 
+  public SimpleBranchingRemover(LogManager pLogger) {
+    this(pLogger, 1);
+  }
+
   @Override
   protected List<RollbackInfo> getAllObjects(FunctionCFAsWithMetadata pCfa) {
     List<RollbackInfo> result = new ArrayList<>();

@@ -891,8 +891,15 @@ cfaMutation = false
 # (Increases amount of analysis runs.)
 cfaMutation.checkAfterRollbacks = true
 
-# for debug
-cfaMutation.order = no default value
+# which strategies to use subsequently to mutate CFA
+cfaMutation.strategies = [
+          FunctionBodyRemover.class,
+          SimpleBranchingRemover.class,
+          StatementChainRemover.class,
+          StatementEdgeRemover.class,
+          ExpressionRemover.class,
+          DeclarationEdgeRemover.class,
+          GlobalDeclarationRemover.class]
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
