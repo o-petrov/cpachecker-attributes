@@ -698,7 +698,7 @@ public class CFACreator {
 
     // check the super CFA starting at the main function
     stats.checkTime.start();
-    assert CFACheck.check(mainFunction, null, machineModel);
+    assert CFACheck.checkFull(immutableCFA);
     stats.checkTime.stop();
 
     if (exportToDot
