@@ -12,6 +12,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.base.Verify;
 import com.google.common.base.VerifyException;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,11 +21,13 @@ import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.ShutdownManager;
+import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.cfa.mutation.DDResultOfARun;
@@ -32,6 +36,9 @@ import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
+import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
+import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
+import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
@@ -47,6 +54,8 @@ public class CPAcheckerMutator extends CPAchecker {
               + "is rollbacked. Check that rollbacked CFA produces the sought-for "
               + "bug. (Increases amount of analysis runs.)")
   private boolean checkAfterRollbacks = true;
+
+  private ResourceLimitsFactory limitsFactory = () -> ImmutableList.of();
 
   public CPAcheckerMutator(
       Configuration pConfiguration, LogManager pLogManager, ShutdownManager pShutdownManager)
@@ -93,7 +102,7 @@ public class CPAcheckerMutator extends CPAchecker {
       // input program. Assume verdicts TRUE and FALSE are correct, let it be PASS then.
       // Any other exceptions, and verdicts NOT_YET_STARTED and UNKNOWN are UNRESOLVED.
       totalStats.originalTime.start();
-      AnalysisResult originalResult = analysisRound();
+      AnalysisResult originalResult = analysisRound(getCfa());
       totalStats.originalTime.stop();
       if (originalResult.verdict == Result.TRUE) {
         // TRUE verdicts are assumed to be correct,
@@ -103,7 +112,7 @@ public class CPAcheckerMutator extends CPAchecker {
             Level.SEVERE,
             "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
         cfaMutator.collectStatistics(totalStats.subStats);
-        totalStats.lastMainStats = getStats();
+        totalStats.lastMainStats = originalResult.getStats();
         return produceResult(Result.NOT_YET_STARTED, totalStats);
       } else if (originalResult.verdict == Result.FALSE) {
         // FALSE verdicts are assumed to be correct, unless given original incorrect one.
@@ -112,31 +121,61 @@ public class CPAcheckerMutator extends CPAchecker {
             "Analysis finished correctly. Mutated CFA may be meaningless for given FALSE verdict.");
       }
 
-      // TODO -setprop console log level=NONE for following analysis
-
       cfaMutator.setup();
+      // set walltime limit for every single round
+      limitsFactory =
+          () ->
+              ImmutableList.of(
+                  WalltimeLimit.fromNowOn(
+                      TimeSpan.sum(
+                          TimeSpan.ofSeconds(10),
+                          totalStats.originalTime.getConsumedTime().multiply(2))));
+
       // CFAMutator stores needed info from #parse,
       // so no need to pass CFA as argument in next calls
       for (int round = 1; cfaMutator.canMutate(); round++) {
-        logger.log(Level.INFO, "Mutation round", round);
-        shutdownNotifier.shutdownIfNecessary();
 
-        setCfa(cfaMutator.mutate());
+        if (shutdownNotifier.shouldShutdown()) {
+          logger.logf(
+              Level.INFO,
+              "CFA mutation interrupted between rounds (%s)",
+              shutdownNotifier.getReason());
+          totalStats.lastMainStats = getStats();
+          return produceResult(Result.DONE, totalStats);
+        }
+
+        logger.log(Level.INFO, "Mutation round", round);
+
+        CFA mutated = cfaMutator.mutate();
+        TimeSpan before = totalStats.afterMutations.getConsumedTime();
         totalStats.afterMutations.start();
-        AnalysisResult newResult = analysisRound();
+        AnalysisResult newResult = analysisRound(mutated);
         totalStats.afterMutations.stop();
+        logger.log(
+            Level.INFO,
+            "Used",
+            TimeSpan.difference(totalStats.afterMutations.getConsumedTime(), before));
         // TODO export intermediate results
         // XXX it is incorrect to save intermediate stats, as reached is updated?
 
         DDResultOfARun ddRunResult = newResult.toDDResult(originalResult);
         logger.log(Level.INFO, ddRunResult);
-        CFA rollback = cfaMutator.setResult(ddRunResult);
-        if (rollback != null) {
-          setCfa(rollback);
+        CFA rollbacked = cfaMutator.setResult(ddRunResult);
+        if (rollbacked != null) {
+
+          if (shutdownNotifier.shouldShutdown()) {
+            logger.logf(
+                Level.INFO,
+                "CFA mutation interrupted after rollback (%s)",
+                shutdownNotifier.getReason());
+            totalStats.lastMainStats = getStats();
+            return produceResult(Result.DONE, totalStats);
+          }
+
           if (checkAfterRollbacks) {
             logger.log(Level.INFO, "Running analysis after mutation rollback");
             totalStats.afterRollbacks.start();
-            newResult = analysisRound();
+            newResult = analysisRound(rollbacked);
             totalStats.afterRollbacks.stop();
             Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
           }
@@ -172,20 +211,49 @@ public class CPAcheckerMutator extends CPAchecker {
     return produceResult(Result.NOT_YET_STARTED, totalStats);
   }
 
+  private interface ResourceLimitsFactory {
+    public List<ResourceLimit> create();
+  }
+
   // run analysis, but for already stored CFA, and catch its errors
-  private AnalysisResult analysisRound()
-      throws InterruptedException, InvalidConfigurationException {
+  private AnalysisResult analysisRound(CFA pCfa) throws InvalidConfigurationException {
     Throwable t = null;
+    ShutdownNotifier parentNotifier = shutdownNotifier;
+    ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
+    ResourceLimitChecker limits =
+        new ResourceLimitChecker(roundShutdownManager, limitsFactory.create());
+    if (limits.getResourceLimits().isEmpty()) {
+      logger.log(Level.INFO, "No resource limits for round specified");
+    } else {
+      logger.log(
+          Level.INFO,
+          "Using",
+          Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName));
+    }
+    limits.start();
+
+    // TODO log to file
+    CPAchecker cpachecker =
+        new CPAchecker(config, LogManager.createNullLogManager(), roundShutdownManager);
 
     try {
-      resetMainStats();
-      getStats().creationTime.start();
+      cpachecker.setupMainStats();
+      cpachecker.setCfa(pCfa);
       try {
-        setupAnalysis();
+        cpachecker.setupAnalysis();
       } finally {
-        getStats().creationTime.stop();
+        cpachecker.stopMainStatsCreationTimer();
       }
-      runAnalysis();
+      cpachecker.runAnalysis();
+
+    } catch (InterruptedException e) {
+      assert cpachecker.shutdownNotifier.shouldShutdown();
+      // this round was too long
+      t = e;
+      logger.logf(
+          Level.WARNING,
+          "Analysis round interrupted (%s)",
+          cpachecker.shutdownNotifier.getReason());
 
     } catch (AssertionError
         | IllegalArgumentException
@@ -207,17 +275,18 @@ public class CPAcheckerMutator extends CPAchecker {
       t = e;
 
     } finally {
-      closeCPAsIfPossible();
+      limits.cancel();
+      cpachecker.closeCPAsIfPossible();
     }
 
-    CPAcheckerResult cur = produceResult();
+    CPAcheckerResult cur = cpachecker.produceResult();
     if (t == null) {
       logger.log(Level.INFO, cur.getResultString());
     } else {
       // exception was already logged
     }
 
-    return AnalysisResult.from(cur, t);
+    return AnalysisResult.from(cur, t, cpachecker.getStats());
   }
 
   // no need to check for reached, cfa, or stats change,
@@ -226,13 +295,15 @@ public class CPAcheckerMutator extends CPAchecker {
     private final Result verdict;
     private final String description;
     private final @Nullable Throwable thrown;
+    private final MainCPAStatistics stats;
 
-    static AnalysisResult from(CPAcheckerResult r, @Nullable Throwable t) {
+    static AnalysisResult from(CPAcheckerResult r, @Nullable Throwable t, MainCPAStatistics s) {
       String d = r.getResult() == Result.FALSE ? r.getTargetDescription() : "";
-      return new AnalysisResult(r.getResult(), d, t);
+      return new AnalysisResult(r.getResult(), d, t, s);
     }
 
-    private AnalysisResult(Result pResult, String pTarget, @Nullable Throwable pThrown) {
+    private AnalysisResult(
+        Result pResult, String pTarget, @Nullable Throwable pThrown, MainCPAStatistics pStats) {
       checkArgument(
           pResult == Result.FALSE || pTarget.isEmpty(),
           "Target description must be empty when result is not FALSE. %s: %s",
@@ -247,6 +318,7 @@ public class CPAcheckerMutator extends CPAchecker {
       verdict = pResult;
       description = pTarget;
       thrown = pThrown;
+      stats = pStats;
     }
 
     public DDResultOfARun toDDResult(AnalysisResult pOriginal) {
@@ -281,6 +353,10 @@ public class CPAcheckerMutator extends CPAchecker {
         default:
           throw new AssertionError();
       }
+    }
+
+    public MainCPAStatistics getStats() {
+      return stats;
     }
 
     @Override

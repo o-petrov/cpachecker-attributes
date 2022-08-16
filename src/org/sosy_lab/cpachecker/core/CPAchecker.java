@@ -10,7 +10,7 @@ package org.sosy_lab.cpachecker.core;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.FluentIterable.from;
-import static  org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutdown;
+import static org.sosy_lab.common.ShutdownNotifier.interruptCurrentThreadOnShutdown;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.StandardSystemProperty;
@@ -303,7 +303,11 @@ public class CPAchecker {
   }
 
   protected CPAcheckerResult produceResult(Result pResult, Statistics pStats) {
-    return new CPAcheckerResult(pResult, targetDescription, reached, cfa, pStats);
+    String desc = "";
+    if (pResult == Result.FALSE || pResult == Result.UNKNOWN) {
+      desc = targetDescription;
+    }
+    return new CPAcheckerResult(pResult, desc, reached, cfa, pStats);
   }
 
   protected void closeCPAsIfPossible() {
@@ -312,10 +316,6 @@ public class CPAchecker {
 
   protected MainCPAStatistics getStats() {
     return stats;
-  }
-
-  protected void resetMainStats() throws InvalidConfigurationException {
-    stats = new MainCPAStatistics(config, logger, shutdownNotifier);
   }
 
   protected CFA getCfa() {
@@ -340,6 +340,7 @@ public class CPAchecker {
     // Reset fields which are part of CPAcheckerResult, so they are correct if setup is
     // interrupted. Other fields do not need to be reset, as they are reset when needed
     // and are not accessible outside.
+    result = Result.NOT_YET_STARTED;
     reached = null;
     targetDescription = "";
 
@@ -427,8 +428,7 @@ public class CPAchecker {
     logger.logf(Level.INFO, "%s (%s) started", getVersion(config), getJavaInformation());
 
     try {
-      stats = new MainCPAStatistics(config, logger, shutdownNotifier);
-      stats.creationTime.start();
+      setupMainStats();
       if (serializedCfaFile == null) {
         CFACreator cfaCreator = new CFACreator(config, logger, shutdownNotifier);
         parse(cfaCreator, programDenotation);
@@ -442,7 +442,7 @@ public class CPAchecker {
         try {
           setupAnalysis();
         } finally {
-          stats.creationTime.stop();
+          stopMainStatsCreationTimer();
         }
         printConfigurationWarnings();
         runAnalysis();
@@ -466,6 +466,15 @@ public class CPAchecker {
     }
 
     return produceResult();
+  }
+
+  protected void stopMainStatsCreationTimer() {
+    stats.creationTime.stop();
+  }
+
+  protected void setupMainStats() throws InvalidConfigurationException {
+    stats = new MainCPAStatistics(config, logger, shutdownNotifier);
+    stats.creationTime.start();
   }
 
   protected void parse(CFACreator pCfaCreator, List<String> fileNames) {
