@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import org.sosy_lab.cpachecker.cfa.ast.AExpression;
@@ -17,17 +18,27 @@ import org.sosy_lab.cpachecker.cfa.ast.AInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.ALeftHandSide;
 import org.sosy_lab.cpachecker.cfa.ast.ALiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
+import org.sosy_lab.cpachecker.cfa.ast.c.CDesignatedInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerList;
 import org.sosy_lab.cpachecker.cfa.ast.java.JExpression;
+import org.sosy_lab.cpachecker.cfa.ast.java.JInitializer;
 import org.sosy_lab.cpachecker.cfa.types.Type;
 import org.sosy_lab.cpachecker.cfa.types.c.CDefaults;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.util.Pair;
 
+/**
+ * Replaces expression or initializer with some 'default' expression of same {@link Type}. (E.g. for
+ * simple integers it's likely {@code 0} literal.)
+ *
+ * <p>For assignments, the right side is replaced. For function calls and function call assignments,
+ * every argument is substituted.
+ */
 class ToDefaultsExpressionSubstitutor extends AbstractExpressionSubstitutor {
   private CExpression toDefault(AExpression pExpr) {
     CInitializer init =
@@ -56,8 +67,37 @@ class ToDefaultsExpressionSubstitutor extends AbstractExpressionSubstitutor {
 
   @Override
   protected AInitializer substituteInitializer(AInitializer pInit) {
-    // TODO Auto-generated method stub
-    return null;
+    if (pInit == null) {
+      return null;
+    }
+    final FileLocation loc = pInit.getFileLocation();
+
+    if (pInit instanceof CInitializer) {
+
+      if (pInit instanceof CDesignatedInitializer) {
+        // XXX should work?
+        return new CInitializerList(loc, ImmutableList.of());
+
+      } else if (pInit instanceof CInitializerList) {
+        if (((CInitializerList) pInit).getInitializers().isEmpty()) {
+          return null;
+        }
+        return new CInitializerList(loc, ImmutableList.of());
+
+      } else if (pInit instanceof CInitializerExpression) {
+        CExpression pExpr = ((CInitializerExpression) pInit).getExpression();
+        return CDefaults.forType(pExpr.getExpressionType(), pExpr.getFileLocation());
+
+      } else {
+        throw new AssertionError();
+      }
+
+    } else if (pInit instanceof JInitializer) {
+      return null;
+
+    } else {
+      throw new AssertionError();
+    }
   }
 
   @Override
@@ -105,7 +145,7 @@ class ToDefaultsExpressionSubstitutor extends AbstractExpressionSubstitutor {
   @Override
   protected Pair<ALeftHandSide, AFunctionCallExpression> substituteAssignmentCall(
       ALeftHandSide pLeftHandSide, AFunctionCallExpression pRightHandSide) {
-    // TODO Auto-generated method stub
-    return null;
+    AFunctionCallExpression rhs = substituteCall(pRightHandSide);
+    return Pair.of(pLeftHandSide, rhs);
   }
 }

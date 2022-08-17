@@ -18,7 +18,6 @@ import org.sosy_lab.cpachecker.cfa.ast.AFunctionCallAssignmentStatement;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionCallStatement;
 import org.sosy_lab.cpachecker.cfa.ast.AInitializer;
-import org.sosy_lab.cpachecker.cfa.ast.AInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.ALeftHandSide;
 import org.sosy_lab.cpachecker.cfa.ast.AReturnStatement;
 import org.sosy_lab.cpachecker.cfa.ast.AStatement;
@@ -33,7 +32,6 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallAssignmentStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializer;
-import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CLeftHandSide;
 import org.sosy_lab.cpachecker.cfa.ast.c.CReturnStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
@@ -45,7 +43,6 @@ import org.sosy_lab.cpachecker.cfa.ast.java.JExpressionAssignmentStatement;
 import org.sosy_lab.cpachecker.cfa.ast.java.JExpressionStatement;
 import org.sosy_lab.cpachecker.cfa.ast.java.JFieldDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.java.JInitializer;
-import org.sosy_lab.cpachecker.cfa.ast.java.JInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.java.JLeftHandSide;
 import org.sosy_lab.cpachecker.cfa.ast.java.JMethodInvocationAssignmentStatement;
 import org.sosy_lab.cpachecker.cfa.ast.java.JMethodInvocationExpression;
@@ -76,6 +73,15 @@ import org.sosy_lab.cpachecker.cfa.types.java.JClassType;
 import org.sosy_lab.cpachecker.cfa.types.java.JType;
 import org.sosy_lab.cpachecker.util.Pair;
 
+/**
+ * Replaces expressions (assignments, calls, and initializers too) on any given {@link CFAEdge}.
+ *
+ * <p>What will be substituted is defined by abstract methods, which get what to substitute. These
+ * methods return {@code null} if they can not substitute given expression.
+ *
+ * <p>In case nothing on the given edge is changed, {@link #substitute(CFAEdge)} returns {@code
+ * null}.
+ */
 abstract class AbstractExpressionSubstitutor {
 
   protected abstract AExpression substituteExpression(AExpression pExpr);
@@ -296,7 +302,7 @@ abstract class AbstractExpressionSubstitutor {
     }
 
     AInitializer init = ((AVariableDeclaration) pDecl).getInitializer();
-    init = substitute(init);
+    init = substituteInitializer(init);
     if (init == null) {
       return null;
     }
@@ -328,30 +334,6 @@ abstract class AbstractExpressionSubstitutor {
       return new JVariableDeclaration(
           loc, (JType) type, name, orig, qual, (JInitializer) init, isF);
 
-    } else {
-      throw new AssertionError();
-    }
-  }
-
-  private AInitializer substitute(AInitializer pInit) {
-    if (pInit == null) {
-      return null;
-    }
-
-    if (!(pInit instanceof AInitializerExpression)) {
-      return substituteInitializer(pInit);
-    }
-
-    FileLocation loc = pInit.getFileLocation();
-    AExpression expr = substituteExpression(((AInitializerExpression) pInit).getExpression());
-    if (expr == null) {
-      return null;
-    }
-
-    if (pInit instanceof CInitializerExpression) {
-      return new CInitializerExpression(loc, (CExpression) expr);
-    } else if (pInit instanceof JInitializerExpression) {
-      return new JInitializerExpression(loc, (JExpression) expr);
     } else {
       throw new AssertionError();
     }
