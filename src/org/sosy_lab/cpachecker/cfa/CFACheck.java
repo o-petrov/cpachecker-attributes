@@ -24,6 +24,8 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.logging.Level;
+import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.ADeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.AStatement;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
@@ -467,13 +469,17 @@ public class CFACheck {
     }
   }
 
-  public static boolean checkFull(CFA pCfa) {
+  public static boolean checkFull(CFA pCfa, LogManager pLogger) {
     for (String name : pCfa.getAllFunctionNames()) {
       ImmutableSet<CFANode> functionNodes =
           FluentIterable.from(pCfa.getAllNodes())
               .filter(n -> n.getFunctionName().equals(name))
               .toSet();
-      assert check(pCfa.getFunctionHead(name), functionNodes, pCfa.getMachineModel());
+      try {
+        assert check(pCfa.getFunctionHead(name), functionNodes, pCfa.getMachineModel());
+      } catch (VerifyException e) {
+        pLogger.logfUserException(Level.WARNING, e, "Inconsistent full CFA");
+      }
     }
     return true;
   }
