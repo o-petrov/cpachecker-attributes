@@ -17,9 +17,9 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
 /** Removes branching when one of assume edges leaves to a node that has other entering edges */
-public class SimpleBranchingRemover
+public class AssumeEdgesRemover
     extends GenericDeltaDebuggingStrategy<
-        SimpleBranchingRemover.RollbackInfo, SimpleBranchingRemover.RollbackInfo> {
+        AssumeEdgesRemover.RollbackInfo, AssumeEdgesRemover.RollbackInfo> {
   static class RollbackInfo {
     CFANode branchingNode;
     int whichRemoved;
@@ -70,18 +70,28 @@ public class SimpleBranchingRemover
     }
   }
 
-  private final int side;
+  private int side;
 
-  public SimpleBranchingRemover(LogManager pLogger, int pSide) {
+  public AssumeEdgesRemover(LogManager pLogger) {
     super(
-        pLogger.withComponentName(SimpleBranchingRemover.class.getSimpleName() + "-side" + pSide),
-        "branching nodes");
-    assert pSide == 0 || pSide == 1;
-    side = pSide;
+        pLogger.withComponentName(AssumeEdgesRemover.class.getSimpleName()), "branching nodes");
+    side = 1;
   }
 
-  public SimpleBranchingRemover(LogManager pLogger) {
-    this(pLogger, 1);
+  @Override
+  public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
+    if (super.canMutate(pCfa)) {
+      return true;
+    }
+
+    if (side == 0) {
+      // already removed side 1 and side 0
+      return false;
+    }
+
+    reset();
+    side = 0;
+    return super.canMutate(pCfa);
   }
 
   @Override

@@ -44,7 +44,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   private List<Class<? extends CFAMutationStrategy>> strategyClasses =
       ImmutableList.of(
           FunctionBodyRemover.class,
-          SimpleBranchingRemover.class,
+          AssumeEdgesRemover.class,
           StatementChainRemover.class,
           StatementEdgeRemover.class,
           ExpressionRemover.class,

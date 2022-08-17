@@ -894,7 +894,7 @@ cfaMutation.checkAfterRollbacks = true
 # which strategies to use subsequently to mutate CFA
 cfaMutation.strategies = [
           FunctionBodyRemover.class,
-          SimpleBranchingRemover.class,
+          AssumeEdgesRemover.class,
           StatementChainRemover.class,
           StatementEdgeRemover.class,
           ExpressionRemover.class,
