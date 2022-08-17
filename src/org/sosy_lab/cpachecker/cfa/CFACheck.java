@@ -20,8 +20,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Level;
@@ -111,13 +113,38 @@ public class CFACheck {
       }
     }
 
-    verify(
-        visitedNodes.equals(pNodes),
-        "\n"
-            + "Nodes in CFA but not reachable through traversal: %s\n"
-            + "Nodes reached that are not in CFA: %s",
-        Iterables.transform(Sets.difference(pNodes, visitedNodes), CFACheck::debugFormat),
-        Iterables.transform(Sets.difference(visitedNodes, pNodes), CFACheck::debugFormat));
+    if (!visitedNodes.equals(pNodes)) {
+      var expVis = Sets.difference(pNodes, visitedNodes);
+      var visExp = Sets.difference(visitedNodes, pNodes);
+      List<Object> msgBits = new ArrayList<>();
+
+      if (expVis.size() == 1) {
+        msgBits.add("Node in");
+        msgBits.add(pEntry.getFunctionName());
+        msgBits.add("CFA but not reachable through traversal:");
+        msgBits.add(debugFormat(Iterables.getOnlyElement(expVis)));
+      } else {
+        msgBits.add(String.valueOf(expVis.size()));
+        msgBits.add("nodes in");
+        msgBits.add(pEntry.getFunctionName());
+        msgBits.add("CFA but not reachable through traversal");
+      }
+
+      if (visExp.size() == 1) {
+        msgBits.add("\nNode reachable through traversal but not in");
+        msgBits.add(pEntry.getFunctionName());
+        msgBits.add("CFA:");
+        msgBits.add(debugFormat(Iterables.getOnlyElement(visExp)));
+      } else {
+        msgBits.add('\n' + String.valueOf(visExp.size()));
+        msgBits.add("nodes reachable through traversal but not in");
+        msgBits.add(pEntry.getFunctionName());
+        msgBits.add("CFA");
+      }
+
+      throw new VerifyException('\n' + Joiner.on(' ').join(msgBits));
+    }
+
     return true;
   }
 
@@ -136,15 +163,21 @@ public class CFACheck {
         } else if (node.getNumLeavingEdges() > 0) {
           location = node.getLeavingEdge(0).getFileLocation();
         }
-        return node.getFunctionName()
-            + ":"
-            + node
-            + " ("
-            + location
-            + ") with edges\n"
-            + Joiner.on('\n').join(CFAUtils.allEnteringEdges(node).transform(CFAEdge::toString))
-            + "\n"
-            + Joiner.on('\n').join(CFAUtils.allLeavingEdges(node).transform(CFAEdge::toString));
+
+        String enteringEdges = CFAUtils.allEnteringEdges(node).join(Joiner.on("\n\t"));
+        String leavingEdges = CFAUtils.allLeavingEdges(node).join(Joiner.on("\n\t"));
+        String edges = null;
+        if (enteringEdges.isEmpty() && leavingEdges.isEmpty()) {
+          edges = "with no edges";
+        } else if (enteringEdges.isEmpty()) {
+          edges = "with leaving edges: [\n\t" + leavingEdges + "\n]";
+        } else if (leavingEdges.isEmpty()) {
+          edges = "with entering edges: [\n\t" + enteringEdges + "\n]";
+        } else {
+          edges = "with edges: [\n\t" + enteringEdges + "\n\t" + leavingEdges + "\n]";
+        }
+
+        return String.format("%s:%s (%s) %s", node.getFunctionName(), node, location, edges);
       }
     };
   }
@@ -478,7 +511,7 @@ public class CFACheck {
       try {
         assert check(pCfa.getFunctionHead(name), functionNodes, pCfa.getMachineModel());
       } catch (VerifyException e) {
-        pLogger.logfUserException(Level.WARNING, e, "Inconsistent full CFA");
+        pLogger.logfUserException(Level.WARNING, e, "Inconsistent function %s in full CFA", name);
       }
     }
     return true;
