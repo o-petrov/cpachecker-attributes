@@ -28,6 +28,7 @@ import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.time.TimeSpan;
+import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.cfa.mutation.DDResultOfARun;
@@ -55,6 +56,10 @@ public class CPAcheckerMutator extends CPAchecker {
               + "bug. (Increases amount of analysis runs.)")
   private boolean checkAfterRollbacks = true;
 
+  private interface ResourceLimitsFactory {
+    public List<ResourceLimit> create();
+  }
+
   private ResourceLimitsFactory limitsFactory = () -> ImmutableList.of();
 
   public CPAcheckerMutator(
@@ -71,6 +76,7 @@ public class CPAcheckerMutator extends CPAchecker {
         Level.INFO, "%s / CFA mutation (%s) started", getVersion(config), getJavaInformation());
     MainCFAMutationStatistics totalStats = new MainCFAMutationStatistics();
     CFAMutator cfaMutator = null;
+    AnalysisResult lastResult = null;
 
     try {
       if (serializedCfaFile != null) {
@@ -101,20 +107,17 @@ public class CPAcheckerMutator extends CPAchecker {
       // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
       // input program. Assume verdicts TRUE and FALSE are correct, let it be PASS then.
       // Any other exceptions, and verdicts NOT_YET_STARTED and UNKNOWN are UNRESOLVED.
-      totalStats.originalTime.start();
-      AnalysisResult originalResult = analysisRound(getCfa());
-      totalStats.originalTime.stop();
-      if (originalResult.verdict == Result.TRUE) {
+      AnalysisResult originalResult = lastResult = analysisRound(getCfa(), totalStats.originalTime);
+      if (originalResult.getVerdict() == Result.TRUE) {
         // TRUE verdicts are assumed to be correct,
         // and there is no simple way to differ one from
         // another, so do not deal with wrong one.
         logger.log(
             Level.SEVERE,
             "Analysis finished correctly. Can not minimize CFA for given TRUE verdict.");
-        cfaMutator.collectStatistics(totalStats.subStats);
-        totalStats.lastMainStats = originalResult.getStats();
-        return produceResult(Result.NOT_YET_STARTED, totalStats);
-      } else if (originalResult.verdict == Result.FALSE) {
+        return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
+
+      } else if (originalResult.getVerdict() == Result.FALSE) {
         // FALSE verdicts are assumed to be correct, unless given original incorrect one.
         logger.log(
             Level.WARNING,
@@ -131,60 +134,54 @@ public class CPAcheckerMutator extends CPAchecker {
                           TimeSpan.ofSeconds(10),
                           totalStats.originalTime.getConsumedTime().multiply(2))));
 
+      if (shutdownNotifier.shouldShutdown()) {
+        logger.logf(
+            Level.INFO,
+            "CFA mutation interrupted before it started to mutate the CFA (%s)",
+            shutdownNotifier.getReason());
+        return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
+      }
+
       // CFAMutator stores needed info from #parse,
       // so no need to pass CFA as argument in next calls
       for (int round = 1; cfaMutator.canMutate(); round++) {
+        logger.log(Level.INFO, "Mutation round", round);
+
+        lastResult = analysisRound(cfaMutator.mutate(), totalStats.afterMutations);
+        // TODO export intermediate results
+        // XXX it is incorrect to save intermediate stats, as reached is updated?
+
+        DDResultOfARun ddRunResult = lastResult.toDDResult(originalResult);
+        logger.log(Level.INFO, ddRunResult);
+        CFA rollbacked = cfaMutator.setResult(ddRunResult);
 
         if (shutdownNotifier.shouldShutdown()) {
           logger.logf(
               Level.INFO,
-              "CFA mutation interrupted between rounds (%s)",
+              "CFA mutation interrupted after %s. analysis round (%s)",
+              round,
               shutdownNotifier.getReason());
-          totalStats.lastMainStats = getStats();
-          return produceResult(Result.DONE, totalStats);
+          return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
         }
 
-        logger.log(Level.INFO, "Mutation round", round);
-
-        CFA mutated = cfaMutator.mutate();
-        TimeSpan before = totalStats.afterMutations.getConsumedTime();
-        totalStats.afterMutations.start();
-        AnalysisResult newResult = analysisRound(mutated);
-        totalStats.afterMutations.stop();
-        logger.log(
-            Level.INFO,
-            "Used",
-            TimeSpan.difference(totalStats.afterMutations.getConsumedTime(), before));
-        // TODO export intermediate results
-        // XXX it is incorrect to save intermediate stats, as reached is updated?
-
-        DDResultOfARun ddRunResult = newResult.toDDResult(originalResult);
-        logger.log(Level.INFO, ddRunResult);
-        CFA rollbacked = cfaMutator.setResult(ddRunResult);
-        if (rollbacked != null) {
+        if (rollbacked != null && checkAfterRollbacks) {
+          logger.log(Level.INFO, "Running analysis after mutation rollback");
+          lastResult = analysisRound(rollbacked, totalStats.afterRollbacks);
+          Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
 
           if (shutdownNotifier.shouldShutdown()) {
             logger.logf(
                 Level.INFO,
-                "CFA mutation interrupted after rollback (%s)",
+                "CFA mutation interrupted after rollback after %s. analysis round (%s)",
+                round,
                 shutdownNotifier.getReason());
-            totalStats.lastMainStats = getStats();
-            return produceResult(Result.DONE, totalStats);
-          }
-
-          if (checkAfterRollbacks) {
-            logger.log(Level.INFO, "Running analysis after mutation rollback");
-            totalStats.afterRollbacks.start();
-            newResult = analysisRound(rollbacked);
-            totalStats.afterRollbacks.stop();
-            Verify.verify(newResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
+            return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
           }
         }
       }
 
       logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
-      totalStats.lastMainStats = getStats();
-      return produceResult(Result.DONE, totalStats);
+      return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
 
     } catch (InvalidConfigurationException e) {
       logger.logUserException(Level.SEVERE, e, "Invalid configuration");
@@ -202,21 +199,20 @@ public class CPAcheckerMutator extends CPAchecker {
       // XXX is it possible?
       // TODO export previous CFA then?
 
-    } finally {
-      if (cfaMutator != null) {
-        cfaMutator.collectStatistics(totalStats.subStats);
-      }
     }
 
-    return produceResult(Result.NOT_YET_STARTED, totalStats);
-  }
-
-  private interface ResourceLimitsFactory {
-    public List<ResourceLimit> create();
+    if (lastResult == null) {
+      return new CPAcheckerResult(Result.NOT_YET_STARTED, "", null, null, null);
+    }
+    return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
   }
 
   // run analysis, but for already stored CFA, and catch its errors
-  private AnalysisResult analysisRound(CFA pCfa) throws InvalidConfigurationException {
+  private AnalysisResult analysisRound(CFA pCfa, StatTimer pTimer)
+      throws InvalidConfigurationException {
+    Timer timer = new Timer();
+    timer.start();
+
     Throwable t = null;
     ShutdownNotifier parentNotifier = shutdownNotifier;
     ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
@@ -231,6 +227,7 @@ public class CPAcheckerMutator extends CPAchecker {
           Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName));
     }
     limits.start();
+    pTimer.start();
 
     // TODO log to file
     CPAchecker cpachecker =
@@ -277,6 +274,8 @@ public class CPAcheckerMutator extends CPAchecker {
     } finally {
       limits.cancel();
       cpachecker.closeCPAsIfPossible();
+      pTimer.stop();
+      timer.stop();
     }
 
     CPAcheckerResult cur = cpachecker.produceResult();
@@ -285,55 +284,55 @@ public class CPAcheckerMutator extends CPAchecker {
     } else {
       // exception was already logged
     }
+    logger.log(Level.INFO, "Used", timer.getSumTime());
 
-    return AnalysisResult.from(cur, t, cpachecker.getStats());
+    return new AnalysisResult(cur, t);
   }
 
-  // no need to check for reached, cfa, or stats change,
-  // so keep only verdict and description, plus thrown error
+  // keep last result and thrown error
   private static class AnalysisResult {
-    private final Result verdict;
-    private final String description;
+    private final CPAcheckerResult result;
     private final @Nullable Throwable thrown;
-    private final MainCPAStatistics stats;
 
-    static AnalysisResult from(CPAcheckerResult r, @Nullable Throwable t, MainCPAStatistics s) {
-      String d = r.getResult() == Result.FALSE ? r.getTargetDescription() : "";
-      return new AnalysisResult(r.getResult(), d, t, s);
+    public AnalysisResult(CPAcheckerResult pResult, @Nullable Throwable pThrown) {
+      result = pResult;
+      thrown = pThrown;
     }
 
-    private AnalysisResult(
-        Result pResult, String pTarget, @Nullable Throwable pThrown, MainCPAStatistics pStats) {
-      checkArgument(
-          pResult == Result.FALSE || pTarget.isEmpty(),
-          "Target description must be empty when result is not FALSE. %s: %s",
-          pResult,
-          pTarget);
-      checkArgument(
-          pResult == Result.NOT_YET_STARTED || pResult == Result.UNKNOWN || pThrown == null,
-          "Exception or error must be null when result is not NOT_YET_STARTED or UNKNOWN. %s: %s (%s)",
-          pResult,
-          pThrown == null ? "Null" : pThrown.getClass(),
-          pThrown == null ? "null" : pThrown.getMessage());
-      verdict = pResult;
-      description = pTarget;
-      thrown = pThrown;
-      stats = pStats;
+    public CPAcheckerResult asMutatorResult(
+        Result pResult, CFAMutator pCfaMutator, MainCFAMutationStatistics pTotalStats) {
+      if (pTotalStats != null) {
+        if (pCfaMutator != null) {
+          pCfaMutator.collectStatistics(pTotalStats.subStats);
+        }
+        pTotalStats.lastMainStats = getStats();
+      }
+      String desc = getVerdict() == Result.FALSE ? result.getTargetDescription() : "";
+      return new CPAcheckerResult(pResult, desc, result.getReached(), result.getCfa(), pTotalStats);
+    }
+
+    public Result getVerdict() {
+      return result.getResult();
+    }
+
+    public MainCPAStatistics getStats() {
+      return (MainCPAStatistics) result.getStatistics();
     }
 
     public DDResultOfARun toDDResult(AnalysisResult pOriginal) {
-      switch (verdict) {
+      switch (getVerdict()) {
         case TRUE:
           // assume TRUE is always correct
           return DDResultOfARun.PASS;
 
         case FALSE:
           // FALSE verdicts are assumed to be correct, unless given original incorrect one.
-          if (pOriginal.verdict != Result.FALSE) {
+          if (pOriginal.getVerdict() != Result.FALSE) {
             return DDResultOfARun.PASS;
           }
           // XXX FALSE are UNRESOLVED unless same description
-          return description.equals(pOriginal.description)
+          return pOriginal.getVerdict() == Result.FALSE
+                  && result.getTargetDescription().equals(pOriginal.result.getTargetDescription())
               ? DDResultOfARun.FAIL
               : DDResultOfARun.UNRESOLVED;
 
@@ -355,15 +354,9 @@ public class CPAcheckerMutator extends CPAchecker {
       }
     }
 
-    public MainCPAStatistics getStats() {
-      return stats;
-    }
-
     @Override
     public int hashCode() {
-      return verdict.hashCode() * 31
-          + description.hashCode() * 37
-          + (thrown == null ? 0 : thrown.hashCode());
+      return result.hashCode() * 31 + (thrown == null ? 0 : thrown.hashCode());
     }
   }
 

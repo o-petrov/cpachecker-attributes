@@ -58,7 +58,6 @@ import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Precision;
 import org.sosy_lab.cpachecker.core.interfaces.StateSpacePartition;
-import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.core.reachedset.AggregatedReachedSets;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
@@ -300,14 +299,6 @@ public class CPAchecker {
 
   protected CPAcheckerResult produceResult() {
     return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
-  }
-
-  protected CPAcheckerResult produceResult(Result pResult, Statistics pStats) {
-    String desc = "";
-    if (pResult == Result.FALSE || pResult == Result.UNKNOWN) {
-      desc = targetDescription;
-    }
-    return new CPAcheckerResult(pResult, desc, reached, cfa, pStats);
   }
 
   protected void closeCPAsIfPossible() {
