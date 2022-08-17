@@ -61,12 +61,50 @@ public class CPAcheckerMutator extends CPAchecker {
   }
 
   private ResourceLimitsFactory limitsFactory = () -> ImmutableList.of();
+  private final ImmutableList<ResourceLimit> globalLimits;
+
+  @Option(
+      secure = true,
+      name = "cfaMutation.walltimeLimit.numerator",
+      description =
+          "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
+              + "CFA mutator needs to setup its own time limit for each round.\n"
+              + "It is walltime for original analysis run multiplied by numerator,\n"
+              + "divided by denominator (both are integer), plus additional bias.\n"
+              + "By default it is original run * 2 / 1 + 20s.")
+  private int timelimitNumerator = 2;
+
+  @Option(
+      secure = true,
+      name = "cfaMutation.walltimeLimit.denominator",
+      description =
+          "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
+              + "CFA mutator needs to setup its own time limit for each round.\n"
+              + "It is walltime for original analysis run multiplied by numerator,\n"
+              + "divided by denominator (both are integer), plus additional bias.\n"
+              + "By default it is original run * 2 / 1 + 20s.")
+  private int timelimitDenominator = 1;
+
+  @Option(
+      secure = true,
+      name = "cfaMutation.walltimeLimit.add",
+      description =
+          "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
+              + "CFA mutator needs to setup its own time limit for each round.\n"
+              + "It is walltime for original analysis run multiplied by numerator,\n"
+              + "divided by denominator (both are integer), plus additional bias.\n"
+              + "By default it is original run * 2 / 1 + 20s.")
+  private TimeSpan timelimitBias = TimeSpan.ofSeconds(20);
 
   public CPAcheckerMutator(
-      Configuration pConfiguration, LogManager pLogManager, ShutdownManager pShutdownManager)
+      Configuration pConfiguration,
+      LogManager pLogManager,
+      ShutdownManager pShutdownManager,
+      ResourceLimitChecker pLimits)
       throws InvalidConfigurationException {
     super(pConfiguration, pLogManager, pShutdownManager);
     config.inject(this, CPAcheckerMutator.class);
+    globalLimits = ImmutableList.copyOf(pLimits.getResourceLimits());
   }
 
   @Override
@@ -131,10 +169,14 @@ public class CPAcheckerMutator extends CPAchecker {
               ImmutableList.of(
                   WalltimeLimit.fromNowOn(
                       TimeSpan.sum(
-                          TimeSpan.ofSeconds(10),
-                          totalStats.originalTime.getConsumedTime().multiply(2))));
+                          timelimitBias,
+                          totalStats
+                              .originalTime
+                              .getConsumedTime()
+                              .multiply(timelimitNumerator)
+                              .divide(timelimitDenominator))));
 
-      if (shutdownNotifier.shouldShutdown()) {
+      if (shouldShutdown()) {
         logger.logf(
             Level.INFO,
             "CFA mutation interrupted before it started to mutate the CFA (%s)",
@@ -155,7 +197,7 @@ public class CPAcheckerMutator extends CPAchecker {
         logger.log(Level.INFO, ddRunResult);
         CFA rollbacked = cfaMutator.setResult(ddRunResult);
 
-        if (shutdownNotifier.shouldShutdown()) {
+        if (shouldShutdown()) {
           logger.logf(
               Level.INFO,
               "CFA mutation interrupted after %s. analysis round (%s)",
@@ -169,7 +211,7 @@ public class CPAcheckerMutator extends CPAchecker {
           lastResult = analysisRound(rollbacked, totalStats.afterRollbacks);
           Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
 
-          if (shutdownNotifier.shouldShutdown()) {
+          if (shouldShutdown()) {
             logger.logf(
                 Level.INFO,
                 "CFA mutation interrupted after rollback after %s. analysis round (%s)",
@@ -205,6 +247,26 @@ public class CPAcheckerMutator extends CPAchecker {
       return new CPAcheckerResult(Result.NOT_YET_STARTED, "", null, null, null);
     }
     return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
+  }
+
+  // check for requested shutdown and whether it is enough time for next analysis run
+  private boolean shouldShutdown() {
+    if (shutdownNotifier.shouldShutdown()) {
+      return true;
+    }
+
+    List<ResourceLimit> nextRunLimits = limitsFactory.create();
+    for (ResourceLimit localLimit : nextRunLimits) {
+      Class<? extends ResourceLimit> cls = localLimit.getClass();
+      long localTimeout = localLimit.nanoSecondsToNextCheck(localLimit.getCurrentValue());
+      for (ResourceLimit globalLimit : globalLimits) {
+        if (cls.isInstance(globalLimit) && globalLimit.isExceeded(localTimeout)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   // run analysis, but for already stored CFA, and catch its errors

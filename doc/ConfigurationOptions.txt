@@ -901,6 +901,16 @@ cfaMutation.strategies = [
           DeclarationEdgeRemover.class,
           GlobalDeclarationRemover.class]
 
+# Sometimes analysis run can be unpredictably long. To run many rounds
+# successfully,
+# CFA mutator needs to setup its own time limit for each round.
+# It is walltime for original analysis run multiplied by numerator,
+# divided by denominator (both are integer), plus additional bias.
+# By default it is original run * 2 / 1 + 20s.
+cfaMutation.walltimeLimit.add = 20s
+cfaMutation.walltimeLimit.denominator = 1
+cfaMutation.walltimeLimit.numerator = 2
+
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
 
