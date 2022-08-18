@@ -886,10 +886,15 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # test for a case when CPAchecker analysis crashes.
 cfaMutation = false
 
-# If a mutation round is unsuccessfull (i.e. hids the bug), the mutation is
-# rollbacked. Check that rollbacked CFA produces the sought-for bug.
-# (Increases amount of analysis runs.)
-cfaMutation.checkAfterRollbacks = true
+# If a mutation round is unsuccessfull (i.e. sought-for bug does not occur),
+# the mutation is rollbacked. If this count of rollbacks occur in row, check
+# that rollbacked CFA produces the sought-for bug.
+# If set to 0, do not check any rollbacks.
+# If set to 1, check that bug occurs after every rollback.
+# If set to 2, check every other one that occurs immediately after another
+# one, so if there occur 5 rollbacks in a row, 2nd and 4th will be checked.
+# And so on.
+cfaMutation.rollbacksInRowCheck = 5
 
 # which strategies to use subsequently to mutate CFA
 cfaMutation.strategies = [

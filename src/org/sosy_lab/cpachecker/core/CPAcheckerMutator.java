@@ -44,17 +44,22 @@ import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
-@Options
+@Options(prefix = "cfaMutation")
 public class CPAcheckerMutator extends CPAchecker {
 
   @Option(
       secure = true,
-      name = "cfaMutation.checkAfterRollbacks",
+      name = "rollbacksInRowCheck",
       description =
-          "If a mutation round is unsuccessfull (i.e. hids the bug), the mutation "
-              + "is rollbacked. Check that rollbacked CFA produces the sought-for "
-              + "bug. (Increases amount of analysis runs.)")
-  private boolean checkAfterRollbacks = true;
+          "If a mutation round is unsuccessfull (i.e. sought-for bug does not occur), "
+              + "the mutation is rollbacked. If this count of rollbacks occur in row, "
+              + "check that rollbacked CFA produces the sought-for bug.\n"
+              + "If set to 0, do not check any rollbacks.\n"
+              + "If set to 1, check that bug occurs after every rollback.\n"
+              + "If set to 2, check every other one that occurs immediately after "
+              + "another one, so if there occur 5 rollbacks in a row, 2nd and 4th "
+              + "will be checked. And so on.")
+  private int checkAfterRollbacks = 5;
 
   private interface ResourceLimitsFactory {
     public List<ResourceLimit> create();
@@ -65,7 +70,7 @@ public class CPAcheckerMutator extends CPAchecker {
 
   @Option(
       secure = true,
-      name = "cfaMutation.walltimeLimit.numerator",
+      name = "walltimeLimit.numerator",
       description =
           "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
               + "CFA mutator needs to setup its own time limit for each round.\n"
@@ -76,7 +81,7 @@ public class CPAcheckerMutator extends CPAchecker {
 
   @Option(
       secure = true,
-      name = "cfaMutation.walltimeLimit.denominator",
+      name = "walltimeLimit.denominator",
       description =
           "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
               + "CFA mutator needs to setup its own time limit for each round.\n"
@@ -87,7 +92,7 @@ public class CPAcheckerMutator extends CPAchecker {
 
   @Option(
       secure = true,
-      name = "cfaMutation.walltimeLimit.add",
+      name = "walltimeLimit.add",
       description =
           "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
               + "CFA mutator needs to setup its own time limit for each round.\n"
@@ -186,6 +191,8 @@ public class CPAcheckerMutator extends CPAchecker {
 
       // CFAMutator stores needed info from #parse,
       // so no need to pass CFA as argument in next calls
+
+      int rollbacksInRow = 0;
       for (int round = 1; cfaMutator.canMutate(); round++) {
         logger.log(Level.INFO, "Mutation round", round);
 
@@ -206,8 +213,12 @@ public class CPAcheckerMutator extends CPAchecker {
           return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
         }
 
-        if (rollbacked != null && checkAfterRollbacks) {
-          logger.log(Level.INFO, "Running analysis after mutation rollback");
+        if (rollbacked == null || checkAfterRollbacks == 0) {
+          // no need to check
+          rollbacksInRow = 0;
+        } else if (++rollbacksInRow % checkAfterRollbacks == 0) {
+          logger.log(
+              Level.INFO, "Running analysis after", rollbacksInRow, "mutation rollback in row");
           lastResult = analysisRound(rollbacked, totalStats.afterRollbacks);
           Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
 
