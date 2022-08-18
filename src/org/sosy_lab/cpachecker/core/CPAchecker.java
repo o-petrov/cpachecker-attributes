@@ -381,6 +381,8 @@ public class CPAchecker {
     } else {
       initializeReachedSet(reached, cpa, cfa.getMainFunction(), cfa);
     }
+
+    printConfigurationWarnings();
   }
 
   protected void runAnalysis() throws CPAException, InterruptedException {
@@ -435,7 +437,6 @@ public class CPAchecker {
         } finally {
           stopMainStatsCreationTimer();
         }
-        printConfigurationWarnings();
         runAnalysis();
       }
 

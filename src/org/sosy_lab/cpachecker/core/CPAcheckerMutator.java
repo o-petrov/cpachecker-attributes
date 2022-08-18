@@ -27,6 +27,7 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.common.log.LoggingOptions;
 import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
@@ -61,13 +62,6 @@ public class CPAcheckerMutator extends CPAchecker {
               + "will be checked. And so on.")
   private int checkAfterRollbacks = 5;
 
-  private interface ResourceLimitsFactory {
-    public List<ResourceLimit> create();
-  }
-
-  private ResourceLimitsFactory limitsFactory = () -> ImmutableList.of();
-  private final ImmutableList<ResourceLimit> globalLimits;
-
   @Option(
       secure = true,
       name = "walltimeLimit.numerator",
@@ -101,15 +95,25 @@ public class CPAcheckerMutator extends CPAchecker {
               + "By default it is original run * 2 / 1 + 20s.")
   private TimeSpan timelimitBias = TimeSpan.ofSeconds(20);
 
+  private interface ResourceLimitsFactory {
+    public List<ResourceLimit> create();
+  }
+
+  private ResourceLimitsFactory limitsFactory = () -> ImmutableList.of();
+  private final ImmutableList<ResourceLimit> globalLimits;
+  private final LoggingOptions logOptions;
+
   public CPAcheckerMutator(
       Configuration pConfiguration,
       LogManager pLogManager,
       ShutdownManager pShutdownManager,
-      ResourceLimitChecker pLimits)
+      ResourceLimitChecker pLimits,
+      LoggingOptions pLogOptions)
       throws InvalidConfigurationException {
     super(pConfiguration, pLogManager, pShutdownManager);
     config.inject(this, CPAcheckerMutator.class);
     globalLimits = ImmutableList.copyOf(pLimits.getResourceLimits());
+    logOptions = pLogOptions;
   }
 
   @Override
@@ -150,7 +154,8 @@ public class CPAcheckerMutator extends CPAchecker {
       // a 'test'. Here a test run is analysis run, and FAIL is same exception as in original
       // input program. Assume verdicts TRUE and FALSE are correct, let it be PASS then.
       // Any other exceptions, and verdicts NOT_YET_STARTED and UNKNOWN are UNRESOLVED.
-      AnalysisResult originalResult = lastResult = analysisRound(getCfa(), totalStats.originalTime);
+      AnalysisResult originalResult =
+          lastResult = analysisRound(getCfa(), logger, totalStats.originalTime);
       if (originalResult.getVerdict() == Result.TRUE) {
         // TRUE verdicts are assumed to be correct,
         // and there is no simple way to differ one from
@@ -196,7 +201,9 @@ public class CPAcheckerMutator extends CPAchecker {
       for (int round = 1; cfaMutator.canMutate(); round++) {
         logger.log(Level.INFO, "Mutation round", round);
 
-        lastResult = analysisRound(cfaMutator.mutate(), totalStats.afterMutations);
+        CFA mutated = cfaMutator.mutate();
+        LogManager roundLogger = cfaMutator.createRoundLogger(logOptions);
+        lastResult = analysisRound(mutated, roundLogger, totalStats.afterMutations);
         // TODO export intermediate results
         // XXX it is incorrect to save intermediate stats, as reached is updated?
 
@@ -216,10 +223,13 @@ public class CPAcheckerMutator extends CPAchecker {
         if (rollbacked == null || checkAfterRollbacks == 0) {
           // no need to check
           rollbacksInRow = 0;
+
         } else if (++rollbacksInRow % checkAfterRollbacks == 0) {
           logger.log(
               Level.INFO, "Running analysis after", rollbacksInRow, "mutation rollback in row");
-          lastResult = analysisRound(rollbacked, totalStats.afterRollbacks);
+
+          LogManager checkLogger = cfaMutator.createRoundLogger(logOptions);
+          lastResult = analysisRound(rollbacked, checkLogger, totalStats.afterRollbacks);
           Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
 
           if (shouldShutdown()) {
@@ -281,7 +291,7 @@ public class CPAcheckerMutator extends CPAchecker {
   }
 
   // run analysis, but for already stored CFA, and catch its errors
-  private AnalysisResult analysisRound(CFA pCfa, StatTimer pTimer)
+  private AnalysisResult analysisRound(CFA pCfa, LogManager pLogger, StatTimer pTimer)
       throws InvalidConfigurationException {
     Timer timer = new Timer();
     timer.start();
@@ -302,9 +312,7 @@ public class CPAcheckerMutator extends CPAchecker {
     limits.start();
     pTimer.start();
 
-    // TODO log to file
-    CPAchecker cpachecker =
-        new CPAchecker(config, LogManager.createNullLogManager(), roundShutdownManager);
+    CPAchecker cpachecker = new CPAchecker(config, pLogger, roundShutdownManager);
 
     try {
       cpachecker.setupMainStats();

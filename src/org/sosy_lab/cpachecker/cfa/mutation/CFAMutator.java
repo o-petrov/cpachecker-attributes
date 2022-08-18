@@ -10,16 +10,24 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
+import com.google.common.io.MoreFiles;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.FileHandler;
+import java.util.logging.Handler;
+import java.util.logging.Level;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.ClassOption;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
+import org.sosy_lab.common.log.BasicLogManager;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.common.log.LoggingOptions;
+import org.sosy_lab.common.log.TimestampedLogFormatter;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.ParseResult;
@@ -33,12 +41,12 @@ import org.sosy_lab.cpachecker.exceptions.ParserException;
  * FunctionCFAsWithMetadata}. All processings in {@link CFACreator#createCFA} are applied after this
  * to get proper CFA for analysis run.
  */
-@Options
+@Options(prefix = "cfaMutation")
 public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   @Option(
       secure = true,
-      name = "cfaMutation.strategies",
+      name = "strategies",
       description = "which strategies to use subsequently to mutate CFA")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
   private List<Class<? extends CFAMutationStrategy>> strategyClasses =
@@ -50,6 +58,14 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
           ExpressionRemover.class,
           DeclarationEdgeRemover.class,
           GlobalDeclarationRemover.class);
+
+  @Option(
+      secure = true,
+      name = "logFilesLevel",
+      description =
+          "Create log file for every round with this logging level.\n"
+              + "Use main file logging level if that is lower.")
+  private Level fileLogLevel = Level.FINE;
 
   /** local CFA of functions before processing */
   private FunctionCFAsWithMetadata localCfa = null;
@@ -191,5 +207,36 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   public void collectStatistics(Collection<Statistics> pStatsCollection) {
     pStatsCollection.add(mutatorStats);
     strategy.collectStatistics(pStatsCollection);
+  }
+
+  public LogManager createRoundLogger(LoggingOptions pLogOptions) {
+    LogManager result = LogManager.createNullLogManager();
+
+    Path logFile = pLogOptions.getOutputFile();
+    if (logFile == null || pLogOptions.getFileLevel() == Level.OFF) {
+      return result;
+    }
+    logFile = exportDirectory.resolve(logFile.getFileName());
+
+    // create logger to given file
+    Level fileLevel =
+        fileLogLevel.intValue() <= pLogOptions.getFileLevel().intValue()
+            ? fileLogLevel
+            : pLogOptions.getFileLevel();
+
+    try {
+      MoreFiles.createParentDirectories(logFile);
+      Handler outfileHandler = new FileHandler(logFile.toAbsolutePath().toString(), false);
+      outfileHandler.setFilter(null);
+      outfileHandler.setFormatter(TimestampedLogFormatter.withoutColors());
+      outfileHandler.setLevel(fileLevel);
+      result = BasicLogManager.createWithHandler(outfileHandler);
+
+    } catch (IOException e) {
+      // redirect log messages to console
+      logger.logUserException(Level.WARNING, e, "Can not log to file");
+    }
+
+    return result;
   }
 }

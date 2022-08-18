@@ -886,6 +886,10 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # test for a case when CPAchecker analysis crashes.
 cfaMutation = false
 
+# Create log file for every round with this logging level.
+# Use main file logging level if that is lower.
+cfaMutation.logFilesLevel = Level.FINE
+
 # If a mutation round is unsuccessfull (i.e. sought-for bug does not occur),
 # the mutation is rollbacked. If this count of rollbacks occur in row, check
 # that rollbacked CFA produces the sought-for bug.
