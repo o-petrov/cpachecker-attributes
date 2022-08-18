@@ -35,7 +35,7 @@ public class FunctionBodyRemover extends GenericDeltaDebuggingStrategy<String, P
   @Override
   protected Pair<FunctionEntryNode, SortedSet<CFANode>> removeObject(
       FunctionCFAsWithMetadata pCfa, String pChosen) {
-    logger.log(Level.INFO, "Removing function", pChosen);
+    logger.log(Level.FINE, "Removing function", pChosen);
     // remove function entry
     FunctionEntryNode entry = pCfa.getFunctions().remove(pChosen);
     // remove nodes
@@ -49,7 +49,7 @@ public class FunctionBodyRemover extends GenericDeltaDebuggingStrategy<String, P
   protected void restoreObject(
       FunctionCFAsWithMetadata pCfa, Pair<FunctionEntryNode, SortedSet<CFANode>> pRemoved) {
     String functionName = pRemoved.getFirst().getFunctionName();
-    logger.log(Level.INFO, "Restoring function", functionName);
+    logger.log(Level.FINE, "Restoring function", functionName);
     pCfa.getCFANodes().putAll(functionName, pRemoved.getSecond());
     pCfa.getFunctions().put(functionName, pRemoved.getFirst());
   }
