@@ -47,26 +47,81 @@ enum DeltaDebuggingStage {
  * <p>or <a href="https://www.youtube.com/watch?v=SzRqd4YeLlM">Learning from Code History</a>, a
  * video presentation at Google Tech Talk
  *
- * <p>ddmin algorithm for finding cause of analysis exception:
+ * <p>The strategy implements so called ddmin algorithm, that finds a minimal cause of a test fail.
+ * Here a test is input program in form of CFA, that consists of some generic objects. These objects
+ * should be independent, so they can be removed in any combinations or order. The ddmin algorithm
+ * divides this set of objects into so called deltas. A complement is all objects remaining in the
+ * CFA except for the corresponding delta.
  *
- * <ol>
- *   <li>Divide objects in CFA into parts, "deltas". A complement is all objects not included the
- *       corresponding delta.
- *   <li>Remove a complement, or to put it the other way, let one delta remain. If the bug remains,
- *       we have to divide remained objects next time in new deltas. If the bug disappears, restore
- *       the complement and remove another one.
- *   <li>After trying all complements, try deltas the same way.
- *   <li>After trying all complements and all deltas divide the remaining in smaller deltas and
- *       repeat the algorithm.
- * </ol>
+ * <p>Every time a part is removed from program (i.e. CFA is mutated), the analysis is run.
  *
- * Algorithm ends when there are no unresolved objects. Every tried delta consisting of one object
- * is part of the cause.
+ * <p>If it results in same error as analysis on full program (In terms of DD, result of a test run
+ * is {@link DDResultOfARun#FAIL}), then the cause of the error remains in program, and removed part
+ * is not returned (mutation is not rollbacked). ddmin continues to minimize cause on remaining
+ * objects.
  *
- * <p>Algorithm minimizes the cause, but CFA minimization for exception should minimize safe part
- * too (TODO).
+ * <p>If it results in TRUE or FALSE verdict ({@link DDResultOfARun#PASS} in terms of DD), the cause
+ * is inside removed objects, and remained objects are marked as safe. Mutation is rollbacked and
+ * ddmin continues to minimize cause on returned objects.
+ *
+ * <p>If it results in some problem other than sought-for error, e.g. TIMEOUT, UNKNOWN, or other
+ * exception ({@link DDResultOfARun#UNRESOLVED} in terms of DD), mutation is rollbacked. ddmin can
+ * not reduce potential cause set.
+ *
+ * <p>The steps of the implemented algorithm are as follows:
+ *
+ * <p>1. All objects are considered as one delta and are removed. If analysis run results in FAIL, a
+ * minimal cause is somewhere else, and the algorithm stops.
+ *
+ * <p>2. Otherwise, the delta is divided in two halves. One half is removed. If analysis run results
+ * in FAIL, the other half contains a minimal cause. If result is PASS, the remaining half is safe
+ * by itself[1], so a minimal cause is inside removed half. If result is UNRESOLVED, the other half
+ * is checked the same way.
+ *
+ * <p>3. If one half remains, or one half is decided to contain a minimal cause, that half is
+ * divided in halves (new deltas) and steps 2–3 are repeated.
+ *
+ * <p>4. Otherwise both halves contain some part of a minimal cause, so divide each in two halves.
+ * First, all complements are checked one by one.
+ *
+ * <p>5. If a complement is removed, and analysis results in a FAIL, a minimal cause is in single
+ * remaining delta. this delta is halved, goto step 2. If analysis result in a PASS, the remaining
+ * delta is marked as safe. It is not removed from CFA, but it is not considered by ddmin algorithm
+ * anymore. If analysis results in PASS or UNRESOLVED, the complement is returned to the CFA.
+ *
+ * <p>6. Now every complement is checked, and none of them is removed. If only one of remaining
+ * deltas is not marked as safe, it is halved, goto step 2. Otherwise, try to remove these deltas
+ * one by one.
+ *
+ * <p>7. If FAIL, delta is marked as safe. (It seems the complement has both cause and something
+ * neccessary for a correct analysis run.) If PASS, the delta has a minimal cause. (It seems the
+ * complement has something neccessary to resolve a run.) If PASS or UNRESOLVED, the delta is
+ * returned.
+ *
+ * <p>8. Now every delta is checked. If only one of remaining deltas is not marked as safe, it is
+ * halved, goto step 2. Otherwise all deltas that are not marked as safe are divided in two parts,
+ * goto step 5.
+ *
+ * <p>If a delta can not be divided in two halves, i.e. it consists of one object, it is definitely
+ * part of the found minimal cause.
+ *
+ * <p>ddmin ends when every object is either removed, or marked as safe (is in a safe part), or
+ * decided to be part of the found minimal cause.
+ *
+ * <p>As the goal of the CFAMutator is to minimize not the cause, but the whole CFA, it then tries
+ * to remove objects that are marked as safe.
+ *
+ * <p>[1] It is possible, that some objects are actually part of the cause, i.e. without them the
+ * sought-for bug does not occur. E.g. the bug needs all of the cause objects to be present, so if
+ * any are removed, the analysis runs correctly, and all remaining objects are marked as safe. In
+ * such case only one of the cause objects is decided to be a minimal cause.
+ *
+ * <p>As the PASS result means the remaining part is safe by itself, and we can not use this
+ * information on this stage, the PASS is actually the same as UNRESOLVED, so there is no more
+ * benefit of removing a complement to get a PASS. Because of this, the implemented algorithm tries
+ * to remove 'safe' objects as deltas only.
  */
-// TODO better documentation, choose terms and use them consistently
+// TODO better documentation, choose terms and use them consistently througout the class
 // (remove delta from CFA vs. from unresolved objects)
 abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     implements CFAMutationStrategy {
