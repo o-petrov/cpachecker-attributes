@@ -186,11 +186,12 @@ public class CPAcheckerMutator extends CPAchecker {
                               .multiply(timelimitNumerator)
                               .divide(timelimitDenominator))));
 
-      if (shouldShutdown()) {
+      String shutdownReason = shouldShutdown();
+      if (shutdownReason != null) {
         logger.logf(
             Level.INFO,
             "CFA mutation interrupted before it started to mutate the CFA (%s)",
-            shutdownNotifier.getReason());
+            shutdownReason);
         return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
       }
 
@@ -211,12 +212,13 @@ public class CPAcheckerMutator extends CPAchecker {
         logger.log(Level.INFO, ddRunResult);
         CFA rollbacked = cfaMutator.setResult(ddRunResult);
 
-        if (shouldShutdown()) {
+        shutdownReason = shouldShutdown();
+        if (shutdownReason != null) {
           logger.logf(
               Level.INFO,
               "CFA mutation interrupted after %s. analysis round (%s)",
               round,
-              shutdownNotifier.getReason());
+              shutdownReason);
           return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
         }
 
@@ -232,12 +234,13 @@ public class CPAcheckerMutator extends CPAchecker {
           lastResult = analysisRound(rollbacked, checkLogger, totalStats.afterRollbacks);
           Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
 
-          if (shouldShutdown()) {
+          shutdownReason = shouldShutdown();
+          if (shutdownReason != null) {
             logger.logf(
                 Level.INFO,
                 "CFA mutation interrupted after rollback after %s. analysis round (%s)",
                 round,
-                shutdownNotifier.getReason());
+                shutdownReason);
             return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
           }
         }
@@ -271,9 +274,9 @@ public class CPAcheckerMutator extends CPAchecker {
   }
 
   // check for requested shutdown and whether it is enough time for next analysis run
-  private boolean shouldShutdown() {
+  private @Nullable String shouldShutdown() {
     if (shutdownNotifier.shouldShutdown()) {
-      return true;
+      return shutdownNotifier.getReason();
     }
 
     List<ResourceLimit> nextRunLimits = limitsFactory.create();
@@ -282,12 +285,12 @@ public class CPAcheckerMutator extends CPAchecker {
       long localTimeout = localLimit.nanoSecondsToNextCheck(localLimit.getCurrentValue());
       for (ResourceLimit globalLimit : globalLimits) {
         if (cls.isInstance(globalLimit) && globalLimit.isExceeded(localTimeout)) {
-          return true;
+          return globalLimit.getName() + " will exceed during next analysis run";
         }
       }
     }
 
-    return false;
+    return null;
   }
 
   // run analysis, but for already stored CFA, and catch its errors
