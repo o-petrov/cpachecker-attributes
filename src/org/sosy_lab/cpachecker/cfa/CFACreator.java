@@ -182,9 +182,9 @@ public class CFACreator {
   @Option(
       secure = true,
       name = "cfa.export.directory",
-      description = "directory to export all CFA-related files to")
+      description = "subdirectory in main output directory to export all CFA-related files to")
   @FileOption(FileOption.Type.OUTPUT_DIRECTORY)
-  protected Path exportDirectory = Path.of("control-flow-automaton");
+  protected Path exportDirectory = Path.of(".");
 
   @Option(secure = true, name = "cfa.export", description = "export program as CFA in .dot format")
   private boolean exportToDot = true;
@@ -201,8 +201,9 @@ public class CFACreator {
   @Option(
       secure = true,
       name = "cfa.exportPerFunction.directory",
-      description = "export individual CFAs for function as .dot files in given subdirectory")
-  private Path exportFunctionsSubdir = Path.of("function-cfas");
+      description =
+          "subdirectory in cfa export subdirectory to export individual CFAs for function as .dot files")
+  private Path exportFunctionsSubdir = Path.of("cfa");
 
   @Option(
       secure = true,
@@ -1197,7 +1198,7 @@ public class CFACreator {
       try {
         new DOTBuilder2(cfa).writeGraphs(exportDirectory.resolve(exportFunctionsSubdir));
       } catch (IOException e) {
-        logger.logUserException(Level.WARNING, e, "Could not write CFA to dot files");
+        logger.logUserException(Level.WARNING, e, "Could not write function CFAs to dot files");
         // continue with analysis
       }
     }

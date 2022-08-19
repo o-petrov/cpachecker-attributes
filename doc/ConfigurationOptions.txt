@@ -790,12 +790,15 @@ cfa.expandFunctionPointerArrayAssignments = false
 # export program as CFA in .dot format
 cfa.export = true
 
-# directory to export all CFA-related files to
-cfa.export.directory = "control-flow-automaton"
+# subdirectory in main output directory to export all CFA-related files to
+cfa.export.directory = "."
 
 # export individual CFAs for function as .dot files in given subdirectory
 cfa.exportPerFunction = true
-cfa.exportPerFunction.directory = "function-cfas"
+
+# subdirectory in cfa export subdirectory to export individual CFAs for
+# function as .dot files
+cfa.exportPerFunction.directory = "cfa"
 
 # export program CFA as C source file
 cfa.exportToC = false
