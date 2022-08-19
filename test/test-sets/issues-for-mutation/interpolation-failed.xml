@@ -14,7 +14,7 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 -->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
-<benchmark walltimelimit="1000s" tool="cpachecker">
+<benchmark walltimelimit="1100s" tool="cpachecker">
     <option name="-setprop">cfaMutation=true</option>
     <option name="-setprop">limits.time.wall=1000s</option>
     <option name="-setprop">limits.time.cpu=-1ns</option>
