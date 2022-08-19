@@ -14,15 +14,47 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 -->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
-<benchmark hardtimelimit="1000" timelimit="900" tool="cpachecker">
+<benchmark walltimelimit="1000s" tool="cpachecker">
     <option name="-setprop">cfaMutation=true</option>
-    <option name="-setprop">cfaMutation.checkAfterRollback=true</option>
+    <option name="-setprop">limits.time.wall=1000s</option>
+    <option name="-setprop">limits.time.cpu=-1ns</option>
 
+	<option name="-setprop">output.disable=false</option>
     <option name="-setprop">cfa.export.toDot=true</option>
     <option name="-setprop">cfa.export.toDot.perFunction=true</option>
     <option name="-setprop">cfa.export.toC=true</option>
     <option name="-setprop">cfa.serialize=true</option>
 
+	<columns>
+		<column title="m.rounds total">total count of mutation rounds</column>
+		<column title="m.rounds w/same error">successful mutations (sought-for error)</column>
+		<column title="m.rounds w/no error">unsuccessfull mutations (no error)</column>
+		<column title="m.rounds w/other problem">unsuccessfull mutations (other problems)</column>
+
+		<column title="local nodes before">count of nodes in function CFAs before mutations</column>
+		<column title="local nodes after">count of nodes in function CFAs after mutations</column>
+		<column title="local edges before">count of edges in function CFAs before mutations</column>
+		<column title="local edges after">count of edges in function CFAs after mutations</column>
+		<column title="global decls before">count of global declarations before mutations</column>
+		<column title="global decls after">count of global declarations after mutations</column>
+		<column title="local functions before">count of functions in function CFAs before mutations</column>
+		<column title="local functions after">count of functions in function CFAs after mutations</column>
+		<column title="CFAs CC sum before">cyclomatic complexity of function CFAs before mutations</column>
+		<column title="CFAs CC sum after">cyclomatic complexity of function CFAs after mutations</column>
+
+		<column title="full nodes before">count of nodes in full CFA before mutations</column>
+		<column title="full nodes after">count of nodes in full CFA after mutations</column>
+		<column title="full edges before">count of edges in full CFA before mutations</column>
+		<column title="full edges after">count of edges in full CFA after mutations</column>
+		<column title="full functions before">count of functions in full CFA before mutations</column>
+		<column title="full functions after">count of functions in full CFA after mutations</column>
+		<column title="CC of full CFA before">cyclomatic complexity of full CFA before mutations</column>
+		<column title="CC of full CFA after">cyclomatic complexity of full CFA after mutations</column>
+
+		<column title="original time">time for original analysis run</column>
+		<column title="time after mutations">time for analysis after mutations</column>
+		<column title="time after rollbacks">time for analysis after rollback</column>
+	</columns>
 
 	<rundefinition name="IMC">
 		<option name="-setprop">cpa.predicate.memoryAllocationsAlwaysSucceed=true</option>

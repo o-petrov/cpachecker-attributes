@@ -15,42 +15,24 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- termination related -->
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
-<benchmark hardtimelimit="1000" timelimit="900" tool="cpachecker">
+<benchmark walltimelimit="1000s" tool="cpachecker">
     <option name="-setprop">cfaMutation=true</option>
-    <option name="-setprop">cfaMutation.checkAfterRollback=true</option>
 
+	<option name="-setprop">cfaMutation=true</option>
+    <option name="-setprop">limits.time.wall=1000s</option>
+    <option name="-setprop">limits.time.cpu=-1ns</option>
+
+	<option name="-setprop">output.disable=false</option>
     <option name="-setprop">cfa.export.toDot=true</option>
     <option name="-setprop">cfa.export.toDot.perFunction=true</option>
     <option name="-setprop">cfa.export.toC=true</option>
     <option name="-setprop">cfa.serialize=true</option>
 
-	<rundefinition name="Function-AE-Chain-Statement">
-        <option name="-setprop">cfaMutation.order=fbcs</option>
-	</rundefinition>
-	<rundefinition name="Function">
-        <option name="-setprop">cfaMutation.order=f</option>
-	</rundefinition>
-	<rundefinition name="Chain">
-        <option name="-setprop">cfaMutation.order=c</option>
-	</rundefinition>
-	<rundefinition name="Statement">
-        <option name="-setprop">cfaMutation.order=s</option>
-	</rundefinition>
-	<rundefinition name="Chain-Statement">
-        <option name="-setprop">cfaMutation.order=cs</option>
-	</rundefinition>
-	<rundefinition name="Chain-Function">
-        <option name="-setprop">cfaMutation.order=cf</option>
-	</rundefinition>
-	<rundefinition name="Function-Chain">
-        <option name="-setprop">cfaMutation.order=fc</option>
-	</rundefinition>
-
 	<columns>
-		<column title="rounds">mutation rounds</column>
-		<column title="same error">successful mutations (sought-for error)</column>
-		<column title="no error">unsuccessfull mutations (no error)</column>
-		<column title="other problem">unsuccessfull mutations (other problems)</column>
+		<column title="total rounds">total count of mutation rounds</column>
+		<column title="rounds with same error">successful mutations (sought-for error)</column>
+		<column title="rounds with no error">unsuccessfull mutations (no error)</column>
+		<column title="rounds with other problem">unsuccessfull mutations (other problems)</column>
 
 		<column title="local nodes before">count of nodes in function CFAs before mutations</column>
 		<column title="local nodes after">count of nodes in function CFAs after mutations</column>
@@ -77,6 +59,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 		<column title="time after rollbacks">time for analysis after rollback</column>
 	</columns>
 
+	<rundefinition name="Function-AE-Chain-Statement-Expression-Declaration-Global"/>
+
+	<rundefinition name="Expression-Declaration-Global">
+        <option name="-setprop">cfaMutation.strategies=ExpressionRemover,DeclarationEdgeRemover,GlobalDeclarationRemover</option>
+	</rundefinition>
+	<rundefinition name="AE-Chain-Statement-Expression-Declaration-Global">
+        <option name="-setprop">cfaMutation.strategies=AssumeEdgesRemover,StatementChainRemover,StatementEdgeRemover,ExpressionRemover,DeclarationEdgeRemover,GlobalDeclarationRemover</option>
+	</rundefinition>
+	<rundefinition name="Function">
+        <option name="-setprop">cfaMutation.strategies=FunctionBodyRemover</option>
+	</rundefinition>
+	<rundefinition name="Chain">
+        <option name="-setprop">cfaMutation.strategies=StatementChainRemover</option>
+	</rundefinition>
+
 	<tasks name="issue-939">
 		<option name="-terminationAnalysis"/>
 		<option name="-setprop">cpa.predicate.memoryAllocationsAlwaysSucceed=true</option>
@@ -88,16 +85,6 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 		<option name="-terminationAnalysis"/>
 		<include>../../programs/benchmarks/uthash-2.0.2/uthash_BER_test6-1.i</include>
 		<include>../../programs/benchmarks/uthash-2.0.2/uthash_BER_test6-2.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_FNV_test6-1.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_FNV_test6-2.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_JEN_test6-1.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_JEN_test6-2.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_OAT_test6-1.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_OAT_test6-2.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_SAX_test6-1.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_SAX_test6-2.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_SFH_test6-1.i</include>
-		<include>../../programs/benchmarks/uthash-2.0.2/uthash_SFH_test6-2.i</include>
 		<propertyfile>../../programs/benchmarks/properties/termination.prp</propertyfile>
 	</tasks>
 </benchmark>

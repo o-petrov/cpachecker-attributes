@@ -14,20 +14,28 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 -->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
-<benchmark walltimelimit="1000s" tool="cpachecker">
+<benchmark tool="cpachecker" walltimelimit="1000s">
+
     <option name="-setprop">cpa.callstack.unsupportedFunctions=__VERIFIER_nonexisting_dummy_function</option>
     <option name="-setprop">cpa.predicate.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
+    <option name="-setprop">cpa.value.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
     <option name="-setprop">counterexample.export.extendedWitnessFile=witness.%d.graphml</option>
     <option name="-setprop">counterexample.export.exportExtendedWitness=true</option>
     <option name="-setprop">counterexample.export.compressWitness=false</option>
     <option name="-setprop">cpa.arg.witness.removeInsufficientEdges=false</option>
+    <option name="-setprop">counterexample.export.exportCounterexampleCoverage=true</option>
+    <option name="-setprop">counterexample.export.prefixAdditionalCoverageFile=Counterexample.%d.additionalCoverage.info</option>
+    <option name="-setprop">additionalCoverage.file=additionalCoverage.info</option>
+    <option name="-setprop">shutdown.timeout=100</option>
     <option name="-heap">4000m</option>
     <option name="-64"/>
     <option name="-smg-ldv"/>
     <option name="-setprop">CompositeCPA.cpas=cpa.location.LocationCPA,cpa.callstack.CallstackCPA,cpa.smg.SMGCPA</option>
     <option name="-setprop">parser.readLineDirectives=false</option>
+    <option name="-setprop">cpa.smg.memcpyFunctions=__VERIFIER_memcpy</option>
+    <option name="-setprop">cpa.smg.memsetFunctions=__VERIFIER_memset</option>
 
-	<option name="-setprop">cfaMutation=true</option>
+    <option name="-setprop">cfaMutation=true</option>
     <option name="-setprop">limits.time.wall=1000s</option>
     <option name="-setprop">limits.time.cpu=-1ns</option>
 
@@ -83,22 +91,13 @@ These programs are used to test CFA mutator when it tries to make minimal failin
         <option name="-setprop">cfaMutation.strategies=StatementChainRemover</option>
 	</rundefinition>
 
-    <!-- timeout
-    <tasks name="issue-779">
-        <include>../../programs/issues-for-mutation/issue-779.cil.i</include>
-        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
-    </tasks> -->
-
-    <tasks name="issue-778">
-        <!-- parsing error <include>../../programs/issues-for-mutation/issue-778a.cil.i</include> -->
-        <include>../../programs/issues-for-mutation/issue-778b.cil.i</include>
-        <include>../../programs/issues-for-mutation/issue-778c.cil.i</include>
-        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+    <tasks>
+        <include>../../programs/issues-for-mutation/drivers|hwmon|asus-ec-sensors.ko.i</include>
+        <include>../../programs/issues-for-mutation/drivers|media|i2c|adp1653.ko.i</include>
+        <include>../../programs/issues-for-mutation/drivers|mtd|nand|raw|oxnas_nand.ko.i</include>
+        <include>../../programs/issues-for-mutation/drivers|platform|x86|amd_hsmp.ko.i</include>
+        <include>../../programs/issues-for-mutation/drivers|platform|x86|sony-laptop.ko.i</include>
+        <!-- timeout <include>../../programs/issues-for-mutation/drivers|video|fbdev|udlfb.ko.i</include> -->
     </tasks>
-
-    <tasks name="issue-777">
-        <include>../../programs/issues-for-mutation/issue-777.cil.i</include>
-        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
-    </tasks>
-
+    <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
 </benchmark>
