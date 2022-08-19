@@ -186,45 +186,39 @@ public class CFACreator {
   @FileOption(FileOption.Type.OUTPUT_DIRECTORY)
   protected Path exportDirectory = Path.of("control-flow-automaton");
 
-  @Option(
-      secure = true,
-      name = "cfa.export.toDot",
-      description = "export program as CFA in .dot format")
+  @Option(secure = true, name = "cfa.export", description = "export program as CFA in .dot format")
   private boolean exportToDot = true;
 
-  @Option(
-      secure = true,
-      name = "cfa.export.toDot.file",
-      description = "export program as CFA in .dot format")
+  @Option(secure = true, name = "cfa.file", description = "export program as CFA in .dot format")
   private Path exportDotFile = Path.of("cfa.dot");
 
   @Option(
       secure = true,
-      name = "cfa.export.toDot.perFunction",
+      name = "cfa.exportPerFunction",
       description = "export individual CFAs for function as .dot files in given subdirectory")
   private boolean exportDotPerFunction = true;
 
   @Option(
       secure = true,
-      name = "cfa.export.toDot.perFunction.dir",
+      name = "cfa.exportPerFunction.directory",
       description = "export individual CFAs for function as .dot files in given subdirectory")
   private Path exportFunctionsSubdir = Path.of("function-cfas");
 
   @Option(
       secure = true,
-      name = "cfa.export.toC",
+      name = "cfa.exportToC",
       description = "export program CFA as C source file")
   private boolean exportToC = false;
 
   @Option(
       secure = true,
-      name = "cfa.export.toC.file",
+      name = "cfa.exportToC.file",
       description = "export program CFA as C source file")
   private Path exportCFile = Path.of("cfa.c");
 
   @Option(
       secure = true,
-      name = "cfa.export.toC.stayCloserToInput",
+      name = "cfa.exportToC.stayCloserToInput",
       description =
           "produce C programs more similar to the input program"
               + "\n(only possible for a single input file)")
@@ -232,19 +226,19 @@ public class CFACreator {
 
   @Option(
       secure = true,
-      name = "cfa.export.callgraph",
+      name = "cfa.callgraph.export",
       description = "dump graphs of all function calls and used functions calls in .dot format")
   private boolean exportFunctionCalls = true;
 
   @Option(
       secure = true,
-      name = "cfa.export.callgraph.all.file",
+      name = "cfa.callgraph.file",
       description = "dump graphs of all function calls and used functions calls in .dot format")
   private Path exportFunctionCallsFile = Path.of("function-calls.dot");
 
   @Option(
       secure = true,
-      name = "cfa.export.callgraph.used.file",
+      name = "cfa.callgraph.fileUsed",
       description = "dump graphs of all function calls and used functions calls in .dot format")
   private Path exportFunctionCallsUsedFile = Path.of("function-calls-used.dot");
 
@@ -256,13 +250,13 @@ public class CFACreator {
 
   @Option(
       secure = true,
-      name = "cfa.serialize.file",
+      name = "cfa.serializeFile",
       description = "export CFA as .ser file (dump Java objects)")
   private Path serializeCfaFile = Path.of("cfa.ser.gz");
 
   @Option(
       secure = true,
-      name = "cfa.export.toPixelGraphic",
+      name = "cfa.pixelGraphic",
       description =
           "Export CFA as pixel graphic to the given file name. The suffix is added"
               + " corresponding to the value of option pixelgraphic.export.format")
@@ -270,7 +264,7 @@ public class CFACreator {
 
   @Option(
       secure = true,
-      name = "cfa.export.toPixelGraphic.file",
+      name = "cfa.pixelGraphicFile",
       description =
           "Export CFA as pixel graphic to the given file name. The suffix is added"
               + " corresponding to the value of option pixelgraphic.export.format")
