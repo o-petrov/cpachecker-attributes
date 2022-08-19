@@ -14,6 +14,13 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 
+/**
+ * Replace expression on an edge with expression chosen by {@link ToDefaultsExpressionSubstitutor}.
+ *
+ * <p>E.g. integer literals are not replaced, but other integer expressions are most likely replaced
+ * with {@code 0} literal. Only right part is replaced in assignments, only arguments are replaced
+ * in function calls.
+ */
 class ExpressionRemover extends GenericDeltaDebuggingStrategy<CFAEdge, CFAEdge> {
   private AbstractExpressionSubstitutor expressionSubstitutor;
 

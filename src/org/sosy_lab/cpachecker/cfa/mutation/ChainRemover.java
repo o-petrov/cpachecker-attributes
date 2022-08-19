@@ -20,7 +20,7 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 
 /**
- * Replaces chain of edges with one blank edge. A chain of edges starts at a node with one leaving
+ * Replace a chain of edges with one blank edge. A chain of edges starts at a node with one leaving
  * edge and includes its successors with one leaving edge. Subchains inside other chains are chains,
  * but they are not considered. One node can be a chain too.
  */

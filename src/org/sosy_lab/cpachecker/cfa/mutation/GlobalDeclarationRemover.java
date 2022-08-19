@@ -21,6 +21,7 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.Pair;
 import org.sosy_lab.cpachecker.util.Triple;
 
+/** Remove a global declaration (of a variable or a type) if it is not used. */
 class GlobalDeclarationRemover
     extends GenericDeltaDebuggingStrategy<
         Pair<ADeclaration, String>, Triple<Integer, ADeclaration, String>> {

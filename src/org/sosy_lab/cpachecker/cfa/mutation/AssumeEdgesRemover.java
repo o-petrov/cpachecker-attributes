@@ -16,7 +16,11 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
-/** Removes branching when one of assume edges leaves to a node that has other entering edges */
+/**
+ * Remove assume edge if it leaves to a node that has other entering edges. Remove the complement
+ * assume edge and branching node too, connect branching node entering edges to the complement edge
+ * successor.
+ */
 public class AssumeEdgesRemover
     extends GenericDeltaDebuggingStrategy<
         AssumeEdgesRemover.RollbackInfo, AssumeEdgesRemover.RollbackInfo> {

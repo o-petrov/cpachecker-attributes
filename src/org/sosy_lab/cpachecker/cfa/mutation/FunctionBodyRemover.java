@@ -17,7 +17,10 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.util.Pair;
 
-public class FunctionBodyRemover extends GenericDeltaDebuggingStrategy<String, Pair<FunctionEntryNode, SortedSet<CFANode>>> {
+/** Remove a function CFA completely. */
+// TODO replace main with {@code return 0;}
+public class FunctionBodyRemover
+    extends GenericDeltaDebuggingStrategy<String, Pair<FunctionEntryNode, SortedSet<CFANode>>> {
 
   public FunctionBodyRemover(LogManager pLogger) {
     super(pLogger.withComponentName(FunctionBodyRemover.class.getSimpleName()), "functions");

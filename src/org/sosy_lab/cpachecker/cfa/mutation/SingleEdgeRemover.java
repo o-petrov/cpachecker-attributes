@@ -16,8 +16,8 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.util.Pair;
 
 /**
- * Remove an edge with a predecessor from a CFA. If this can not be done, replace edge with a blank
- * one. Predecessor has to have single leaving edge.
+ * Contract an edge (remove an edge with a predecessor from a CFA). Predecessor has to have single
+ * leaving edge.
  */
 public class SingleEdgeRemover
     extends GenericDeltaDebuggingStrategy<CFANode, Pair<Integer, CFANode>> {

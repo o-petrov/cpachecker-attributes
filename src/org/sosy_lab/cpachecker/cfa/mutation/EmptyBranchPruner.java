@@ -28,9 +28,10 @@ import org.sosy_lab.cpachecker.util.CFATraversal.DefaultCFAVisitor;
 import org.sosy_lab.cpachecker.util.CFATraversal.TraversalProcess;
 
 /**
- * Removes node with assume edges if one of them leads to empty branch, i.e. that consists only of
+ * Remove node with assume edges if one of them leads to empty branch, i.e. that consists only of
  * one blank edge. If both branches are empty and have same successor, remove both of them.
  */
+// TODO better branch detection -- dominators/basic blocks
 class EmptyBranchPruner
     extends GenericDeltaDebuggingStrategy<
         EmptyBranchPruner.RollbackInfo, EmptyBranchPruner.RollbackInfo> {

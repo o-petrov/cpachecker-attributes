@@ -14,6 +14,7 @@ import org.sosy_lab.cpachecker.cfa.ast.AVariableDeclaration;
 import org.sosy_lab.cpachecker.cfa.model.ADeclarationEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 
+/** Remove an edge with unused local decalration. */
 class DeclarationEdgeRemover extends SingleEdgeRemover {
   private DeclarationCollector dc = new DeclarationCollector();
   private boolean firstRun = true;

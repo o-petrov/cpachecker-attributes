@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 
+/** Remove a blank edge or an edge with a statement. */
 public class StatementEdgeRemover extends SingleEdgeRemover {
 
   public StatementEdgeRemover(LogManager pLogger) {

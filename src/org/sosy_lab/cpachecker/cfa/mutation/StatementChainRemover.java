@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 
+/** Replace a chain of statement or blank edges with single blank edge. */
 class StatementChainRemover extends ChainRemover {
 
   public StatementChainRemover(LogManager pLogger) {
