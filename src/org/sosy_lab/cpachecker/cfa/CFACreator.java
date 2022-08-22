@@ -202,7 +202,7 @@ public class CFACreator {
       secure = true,
       name = "cfa.exportPerFunction.directory",
       description =
-          "subdirectory in cfa export subdirectory to export individual CFAs for function as .dot files")
+          "subdirectory in CFA export subdirectory to export individual CFAs for function as .dot files")
   private Path exportFunctionsSubdir = Path.of("cfa");
 
   @Option(
@@ -235,13 +235,13 @@ public class CFACreator {
       secure = true,
       name = "cfa.callgraph.file",
       description = "dump graphs of all function calls and used functions calls in .dot format")
-  private Path exportFunctionCallsFile = Path.of("function-calls.dot");
+  private Path exportFunctionCallsFile = Path.of("functionCalls.dot");
 
   @Option(
       secure = true,
       name = "cfa.callgraph.fileUsed",
       description = "dump graphs of all function calls and used functions calls in .dot format")
-  private Path exportFunctionCallsUsedFile = Path.of("function-calls-used.dot");
+  private Path exportFunctionCallsUsedFile = Path.of("functionCallsUsed.dot");
 
   @Option(
       secure = true,
@@ -269,7 +269,7 @@ public class CFACreator {
       description =
           "Export CFA as pixel graphic to the given file name. The suffix is added"
               + " corresponding to the value of option pixelgraphic.export.format")
-  private Path exportPixelGraphicFile = Path.of("cfa-pixel-graphic");
+  private Path exportPixelGraphicFile = Path.of("cfaPixel");
 
   @Option(
       secure = true,
@@ -696,12 +696,13 @@ public class CFACreator {
     assert CFACheck.checkFull(immutableCFA, logger);
     stats.checkTime.stop();
 
-    if (exportToDot
-        || exportDotPerFunction
-        || exportFunctionCalls
-        || serializeCfa
-        || exportToPixelGraphic
-        || exportToC) {
+    if (exportDirectory != null
+        && (exportToDot
+            || exportDotPerFunction
+            || exportFunctionCalls
+            || serializeCfa
+            || exportToPixelGraphic
+            || exportToC)) {
       exportCFAAsync(immutableCFA);
     }
 
