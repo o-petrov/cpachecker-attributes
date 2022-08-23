@@ -764,12 +764,6 @@ cegar.refiner = no default value
 # whether or not to use refinement selection to decide which domain to refine
 cegar.useRefinementSelection = false
 
-# Add a unique label for each basic block
-cfa.addLabels.atBlocks = no default value
-
-# Add a unique label before each program exit
-cfa.addLabels.atProgramExit = no default value
-
 # Which functions should be interpreted as encoding assumptions
 cfa.assumeFunctions = {"__VERIFIER_assume"}
 
@@ -2112,9 +2106,6 @@ cpa.predicate.addRangeConstraintsForNondet = false
 # can produce wrong results.
 cpa.predicate.allowedUnsupportedFunctions = {}
 
-# apply only if state is not true (relevant)
-cpa.predicate.applyOptimization = no default value
-
 # Check satisfiability for plain conjunction of edge and assumptions.
 cpa.predicate.assumptionStrengtheningSatCheck = false
 
@@ -2202,9 +2193,6 @@ cpa.predicate.deferUntypedAllocations = true
 cpa.predicate.direction = FORWARD
   enum:     [FORWARD, BACKWARD]
 
-# do not consider abstraction from inference objects
-cpa.predicate.emptyAbstraction = no default value
-
 # Enable the possibility to precompute explicit abstraction locations.
 cpa.predicate.enableBlockreducer = false
 
@@ -2263,9 +2251,6 @@ cpa.predicate.handlePointerAliasing = true
 # of the char array with the contents of the string literal instead of just
 # assigning a fresh non-det address to it
 cpa.predicate.handleStringLiteralInitializers = false
-
-# reset shared variables values
-cpa.predicate.havocAbstraction2 = no default value
 
 # Allows to ignore Concat and Extract Calls when Bitvector theory was
 # replaced with Integer or Rational.
@@ -2732,9 +2717,6 @@ cpa.predicate.useParameterVariablesForGlobals = false
 # that is capable of quantifiers (e.g. Z3 or PRINCESS).
 cpa.predicate.useQuantifiersOnArrays = false
 
-# Use undefined assignments (havoc abstraction)
-cpa.predicate.useUndefFunctions = no default value
-
 # Do not follow states which can not syntactically lead to a target location
 cpa.property_reachability.noFollowBackwardsUnreachable = true
 
@@ -2747,40 +2729,6 @@ cpa.propertychecker.className = org.sosy_lab.cpachecker.pcc.propertychecker.Defa
 # respective constructor. Every parameter value is finished with ",". The
 # empty string represents an empty parameter list.
 cpa.propertychecker.parameters = ""
-
-# Name of a function responsible for assignment to RCU pointers
-cpa.rcucpa.assign = no default value
-
-# Name of a function responsible for dereferences of RCU pointers
-cpa.rcucpa.deref = no default value
-
-# Name of a function marking a call to a fictional read lock of RCU pointer
-cpa.rcucpa.fictReadLock = no default value
-
-# Name of a function marking a call to a fictional read unlock of RCU pointer
-cpa.rcucpa.fictReadUnlock = no default value
-
-# Name of a function marking a call to a fictional write lock of RCU pointer
-cpa.rcucpa.fictWriteLock = no default value
-
-# Name of a function marking a call to a fictional write unlock of RCU
-# pointer
-cpa.rcucpa.fictWriteUnlock = no default value
-
-# Name of a file containing RCU pointers
-cpa.rcucpa.rcuPointersFile = no default value
-
-# Name of a function responsible for acquiring the RCU read lock
-cpa.rcucpa.readLock = no default value
-
-# Name of a function responsible for releasing the RCU read lock
-cpa.rcucpa.readUnlock = no default value
-
-# Name of a function responsible for the handling of a grace period
-cpa.rcucpa.sync = no default value
-
-# name of a file to hold information about RCU pointers and their aliases
-cpa.rcusearch.output = no default value
 
 # Whether to consider constraints on program variables (e.g., x > 10) as
 # definitions)
@@ -3194,14 +3142,6 @@ cpa.threading.useClonedFunctions = true
 # only reads and writes its own variables.
 cpa.threading.useLocalAccessLocks = true
 
-# Instead of updating precision and arg we say that the refinement was not
-# successful after N times of refining. A real error state is not necessary
-# to be found. Use 0 for unlimited refinements (default).
-cpa.threadmodular.refinement.stopAfterNRefinements = no default value
-
-# apply projections only if the state is relevant
-cpa.threadmodular.relevanceOptimization = no default value
-
 # The max amount of refinements for the trace abstraction algorithm. Setting
 # it to 0 leads to an analysis of the ARG without executing any refinements.
 # This is used for debugging purposes.
@@ -3220,12 +3160,6 @@ cpa.uninitvars.stop = "sep"
 
 # functions, which stops analysis
 cpa.usage.abortfunctions = {}
-
-# functions, which perform atomic read access
-cpa.usage.atomicReadFunctions = no default value
-
-# functions, which perform atomic write access
-cpa.usage.atomicWriteFunctions = no default value
 
 # functions, which are used to bind variables (like list elements are binded
 # to list variable)
