@@ -174,4 +174,10 @@ class CFAMutationUtils {
       CFAMutationUtils.removeFromSuccessor(newEdge);
     }
   }
+
+  public static void removeAllEnteringEdges(CFANode pNode) {
+    for (int i = pNode.getNumEnteringEdges() - 1; i >= 0; i--) {
+      pNode.removeEnteringEdge(pNode.getEnteringEdge(i));
+    }
+  }
 }

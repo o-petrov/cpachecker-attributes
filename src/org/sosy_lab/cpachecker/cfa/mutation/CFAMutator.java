@@ -93,7 +93,11 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     Builder<CFAMutationStrategy> strategiesList = ImmutableList.builder();
     for (Class<? extends CFAMutationStrategy> cls : strategyClasses) {
       try {
-        strategiesList.add(cls.getConstructor(LogManager.class).newInstance(pLogger));
+        if (cls == FunctionBodyRemover.class) {
+          strategiesList.add(new FunctionBodyRemover(pConfig, pLogger));
+        } else {
+          strategiesList.add(cls.getConstructor(LogManager.class).newInstance(pLogger));
+        }
       } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
         throw new InvalidConfigurationException(
             "Can not generate CFA mutation strategies list from option", e);
