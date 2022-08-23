@@ -10,6 +10,7 @@ package org.sosy_lab.cpachecker.core;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Verify;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableList;
@@ -185,6 +186,11 @@ public class CPAcheckerMutator extends CPAchecker {
                               .getConsumedTime()
                               .multiply(timelimitNumerator)
                               .divide(timelimitDenominator))));
+      logger.log(
+          Level.INFO,
+          "Using",
+          Joiner.on(", ").join(Iterables.transform(limitsFactory.create(), ResourceLimit::getName)),
+          "for the following rounds");
 
       String shutdownReason = shouldShutdown();
       if (shutdownReason != null) {
@@ -305,12 +311,13 @@ public class CPAcheckerMutator extends CPAchecker {
     ResourceLimitChecker limits =
         new ResourceLimitChecker(roundShutdownManager, limitsFactory.create());
     if (limits.getResourceLimits().isEmpty()) {
-      logger.log(Level.INFO, "No resource limits for round specified");
+      pLogger.log(Level.INFO, "No resource limits for round specified");
     } else {
-      logger.log(
+      pLogger.log(
           Level.INFO,
           "Using",
-          Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName));
+          Joiner.on(", ")
+              .join(Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName)));
     }
     limits.start();
     pTimer.start();
@@ -368,7 +375,7 @@ public class CPAcheckerMutator extends CPAchecker {
     } else {
       // exception was already logged
     }
-    logger.log(Level.INFO, "Used", timer.getSumTime());
+    pLogger.log(Level.INFO, "Used", timer.getSumTime());
 
     return new AnalysisResult(cur, t);
   }
