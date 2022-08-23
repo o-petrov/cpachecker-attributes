@@ -24,7 +24,7 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 	<option name="-setprop">output.disable=false</option>
     <option name="-setprop">cfa.export=true</option>
-    <option name="-setprop">cfa.perFunction=true</option>
+    <option name="-setprop">cfa.exportPerFunction=true</option>
     <option name="-setprop">cfa.exportToC=true</option>
     <option name="-setprop">cfa.serialize=true</option>
 
