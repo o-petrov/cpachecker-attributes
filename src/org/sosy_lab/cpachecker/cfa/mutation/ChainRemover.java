@@ -49,6 +49,11 @@ class ChainRemover extends GenericDeltaDebuggingStrategy<CFANode, CFAEdge> {
     List<CFANode> chainHeads = new ArrayList<>();
     for (CFANode n : pCfa.getCFANodes().values()) {
       if (isChainHead(n)) {
+        CFAEdge ledge = n.getLeavingEdge(0);
+        if (ledge instanceof BlankEdge && !isInsideChain(ledge.getSuccessor())) {
+          // do not replace a chain of single blank edge
+          continue;
+        }
         chainHeads.add(n);
       }
     }

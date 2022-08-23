@@ -22,18 +22,26 @@ class StatementChainRemover extends ChainRemover {
 
   @Override
   protected boolean isChainHead(CFANode pNode) {
-    return pNode.getNumLeavingEdges() == 1
-        && CFAMutationUtils.isStatementOrBlank(pNode.getLeavingEdge(0))
-        && (pNode.getNumEnteringEdges() != 1
-            || pNode.getEnteringEdge(0).getPredecessor().getNumLeavingEdges() > 1
-            || !CFAMutationUtils.isStatementOrBlank(pNode.getEnteringEdge(0)));
+    if (pNode.getNumLeavingEdges() != 1) {
+      return false;
+    }
+    if (pNode.getNumEnteringEdges() == 1
+        && pNode.getEnteringEdge(0).getPredecessor().getNumLeavingEdges() == 1
+        && CFAMutationUtils.isStatementOrBlank(pNode.getEnteringEdge(0))) {
+      return false;
+    }
+    // else it has multiple or 0 entering edges,
+    // or it is after branching node,
+    // or it is after not blank-or-statement edge
+
+    return CFAMutationUtils.isStatementOrBlank(pNode.getLeavingEdge(0));
   }
 
   @Override
   protected boolean isInsideChain(CFANode pNode) {
     return pNode.getNumLeavingEdges() == 1
         && CFAMutationUtils.isStatementOrBlank(pNode.getLeavingEdge(0))
-        && (pNode.getNumEnteringEdges() == 1
-            && CFAMutationUtils.isStatementOrBlank(pNode.getEnteringEdge(0)));
+        && pNode.getNumEnteringEdges() == 1
+        && CFAMutationUtils.isStatementOrBlank(pNode.getEnteringEdge(0));
   }
 }
