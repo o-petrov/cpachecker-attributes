@@ -125,13 +125,23 @@ class ToDefaultsExpressionSubstitutor extends AbstractExpressionSubstitutor {
 
     if (pFunctionCallExpression instanceof CFunctionCallExpression) {
       // replace arguments
+      boolean replaced = false;
       List<CExpression> args = new ArrayList<>();
       for (AExpression arg : pFunctionCallExpression.getParameterExpressions()) {
         CExpression arg2 = (CExpression) substituteExpression(arg);
         if (arg2 == null) {
+          // cant replace this arg, use given
           arg2 = (CExpression) arg;
+        } else {
+          // replaced this arg
+          replaced = true;
         }
         args.add(arg2);
+      }
+
+      if (!replaced) {
+        // no arguments were actually replaced
+        return null;
       }
 
       return new CFunctionCallExpression(
