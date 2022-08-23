@@ -531,7 +531,7 @@ public class CPAchecker {
     }
 
     if (cfa != null) {
-      assert CFACheck.check(cfa.getMainFunction(), null, cfa.getMachineModel());
+      assert CFACheck.checkFull(cfa, logger);
     }
   }
 
