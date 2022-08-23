@@ -82,6 +82,14 @@ public class ThreadCreateTransformer {
       description = "A name of thread_join_N function")
   private String threadJoinN = "pthread_join_N";
 
+  public boolean isThreadOperation(CFunctionCallExpression pCallExpr) {
+    String fName = pCallExpr.getFunctionNameExpression().toString();
+    return threadCreate.contains(fName)
+        || fName.equals(threadCreateN)
+        || fName.equals(threadJoin)
+        || fName.equals(threadJoinN);
+  }
+
   public class ThreadFinder implements CFATraversal.CFAVisitor {
 
     private final Map<CFAEdge, CFunctionCallExpression> threadCreates = new HashMap<>();

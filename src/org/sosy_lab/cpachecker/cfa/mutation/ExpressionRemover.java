@@ -10,6 +10,8 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
@@ -24,9 +26,10 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 class ExpressionRemover extends GenericDeltaDebuggingStrategy<CFAEdge, CFAEdge> {
   private AbstractExpressionSubstitutor expressionSubstitutor;
 
-  public ExpressionRemover(LogManager pLogger) {
+  public ExpressionRemover(Configuration pConfig, LogManager pLogger)
+      throws InvalidConfigurationException {
     super(pLogger, "expressions");
-    expressionSubstitutor = new ToDefaultsExpressionSubstitutor();
+    expressionSubstitutor = new ToDefaultsExpressionSubstitutor(pConfig, pLogger);
   }
 
   @Override

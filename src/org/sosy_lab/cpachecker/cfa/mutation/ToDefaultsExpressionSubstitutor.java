@@ -11,6 +11,9 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.AExpression;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionDeclaration;
@@ -27,6 +30,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerList;
 import org.sosy_lab.cpachecker.cfa.ast.java.JExpression;
 import org.sosy_lab.cpachecker.cfa.ast.java.JInitializer;
+import org.sosy_lab.cpachecker.cfa.postprocessing.function.ThreadCreateTransformer;
 import org.sosy_lab.cpachecker.cfa.types.Type;
 import org.sosy_lab.cpachecker.cfa.types.c.CDefaults;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
@@ -40,6 +44,13 @@ import org.sosy_lab.cpachecker.util.Pair;
  * every argument is substituted.
  */
 class ToDefaultsExpressionSubstitutor extends AbstractExpressionSubstitutor {
+  private final ThreadCreateTransformer threadCreateTransformer;
+
+  public ToDefaultsExpressionSubstitutor(Configuration pConfig, LogManager pLogger)
+      throws InvalidConfigurationException {
+    threadCreateTransformer = new ThreadCreateTransformer(pLogger, pConfig);
+  }
+
   private CExpression toDefault(AExpression pExpr) {
     CInitializer init =
         CDefaults.forType((CType) pExpr.getExpressionType(), pExpr.getFileLocation());
@@ -124,6 +135,12 @@ class ToDefaultsExpressionSubstitutor extends AbstractExpressionSubstitutor {
     AFunctionDeclaration decl = pFunctionCallExpression.getDeclaration();
 
     if (pFunctionCallExpression instanceof CFunctionCallExpression) {
+      if (threadCreateTransformer.isThreadOperation(
+          (CFunctionCallExpression) pFunctionCallExpression)) {
+        // do not mutate
+        return null;
+      }
+
       // replace arguments
       boolean replaced = false;
       List<CExpression> args = new ArrayList<>();

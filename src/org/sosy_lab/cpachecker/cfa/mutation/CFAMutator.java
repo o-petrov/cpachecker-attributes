@@ -95,6 +95,8 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       try {
         if (cls == FunctionBodyRemover.class) {
           strategiesList.add(new FunctionBodyRemover(pConfig, pLogger));
+        } else if (cls == ExpressionRemover.class) {
+          strategiesList.add(new ExpressionRemover(pConfig, pLogger));
         } else {
           strategiesList.add(cls.getConstructor(LogManager.class).newInstance(pLogger));
         }
