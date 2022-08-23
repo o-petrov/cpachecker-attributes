@@ -74,23 +74,23 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 	</rundefinition>
 
 	<tasks name="issue-992">
-<!--		<include>../../programs/benchmarks/array-industry-pattern/array_shadowinit.i</include>-->
-<!--		<include>../../programs/benchmarks/array-tiling/mbpr2.c</include>-->
-<!--		<include>../../programs/benchmarks/array-multidimensional/init-non-constant-2-n-u.c</include>-->
-<!--		<include>../../programs/benchmarks/array-patterns/array1_pattern.c</include>-->
-<!--		<include>../../programs/benchmarks/array-cav19/array_init_var_plus_ind.c</include>-->
-<!--		<include>../../programs/benchmarks/array-fpi/eqn1.c</include>-->
+		<include>../../programs/benchmarks/array-industry-pattern/array_shadowinit.i</include>
+		<include>../../programs/benchmarks/array-tiling/mbpr2.c</include>
+		<include>../../programs/benchmarks/array-multidimensional/init-non-constant-2-n-u.c</include>
+		<include>../../programs/benchmarks/array-patterns/array1_pattern.c</include>
+		<include>../../programs/benchmarks/array-cav19/array_init_var_plus_ind.c</include>
+		<include>../../programs/benchmarks/array-fpi/eqn1.c</include>
 		<include>../../programs/benchmarks/openssl/s3_clnt.blast.01.i.cil-1.c</include>
-<!--		<include>../../programs/benchmarks/floats-cbmc-regression/float18.i</include>-->
-<!--		<include>../../programs/benchmarks/float-benchs/Muller_Kahan.c</include>-->
-<!--		<include>../../programs/benchmarks/float-benchs/Muller_Kahan.c.p+cfa-reducer.c</include>-->
-<!--		<include>../../programs/benchmarks/float-benchs/sqrt_Householder_constant.c.p+cfa-reducer.c</include>-->
-<!--		<include>../../programs/benchmarks/floats-esbmc-regression/digits_bad_for.c</include>-->
-<!--		<include>../../programs/benchmarks/loop-floats-scientific-comp/loop1-1.c</include>-->
-<!--		<include>../../programs/benchmarks/list-properties/alternating_list-1.i</include>-->
-<!--		<include>../../programs/benchmarks/forester-heap/dll-rb-cnstr_1-1.i</include>-->
-<!--		<include>../../programs/benchmarks/loops/eureka_01-1.c</include>-->
-<!--		<include>../../programs/benchmarks/nla-digbench-scaling/freire1_valuebound10.c</include>-->
+		<include>../../programs/benchmarks/floats-cbmc-regression/float18.i</include>
+		<include>../../programs/benchmarks/float-benchs/Muller_Kahan.c</include>
+		<include>../../programs/benchmarks/float-benchs/Muller_Kahan.c.p+cfa-reducer.c</include>
+		<include>../../programs/benchmarks/float-benchs/sqrt_Householder_constant.c.p+cfa-reducer.c</include>
+		<include>../../programs/benchmarks/floats-esbmc-regression/digits_bad_for.c</include>
+		<include>../../programs/benchmarks/loop-floats-scientific-comp/loop1-1.c</include>
+		<include>../../programs/benchmarks/list-properties/alternating_list-1.i</include>
+		<include>../../programs/benchmarks/forester-heap/dll-rb-cnstr_1-1.i</include>
+		<include>../../programs/benchmarks/loops/eureka_01-1.c</include>
+		<include>../../programs/benchmarks/nla-digbench-scaling/freire1_valuebound10.c</include>
 		<propertyfile>../../programs/benchmarks/properties/unreach-call.prp</propertyfile>
 	</tasks>
 
