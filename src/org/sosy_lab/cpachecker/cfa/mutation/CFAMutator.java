@@ -9,7 +9,6 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.io.MoreFiles;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -46,10 +45,24 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   @Option(
       secure = true,
-      name = "strategies",
+      name = "ddKind",
+      description = "which DD algorithm implementation to use to mutate CFA")
+  @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
+  private Class<? extends CFAMutationStrategy> ddClass;
+
+  @Option(
+      secure = true,
+      name = "manipulator",
+      description = "which elements to remove from CFA (one manipulator class)")
+  @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
+  private Class<? extends CFAElementManipulator<?>> manipulatorClass;
+
+  @Option(
+      secure = true,
+      name = "oldStrategies",
       description = "which strategies to use subsequently to mutate CFA")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
-  private List<Class<? extends CFAMutationStrategy>> strategyClasses =
+  private List<Class<? extends CFAMutationStrategy>> oldStrategies =
       ImmutableList.of(
           FunctionBodyRemover.class,
           AssumeEdgesRemover.class,
@@ -86,30 +99,55 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     }
     cfaExportDirectory = exportDirectory;
 
-    if (strategyClasses.isEmpty()) {
-      throw new InvalidConfigurationException("No CFA mutation strategies were specified");
-    }
+    if (ddClass == null) {
+      // use previous impl
+      if (oldStrategies.isEmpty()) {
+        throw new InvalidConfigurationException("No CFA mutation strategies were specified");
+      }
 
-    Builder<CFAMutationStrategy> strategiesList = ImmutableList.builder();
-    for (Class<? extends CFAMutationStrategy> cls : strategyClasses) {
-      try {
-        if (cls == FunctionBodyRemover.class) {
-          strategiesList.add(new FunctionBodyRemover(pConfig, pLogger));
-        } else if (cls == ExpressionRemover.class) {
-          strategiesList.add(new ExpressionRemover(pConfig, pLogger));
-        } else {
-          strategiesList.add(cls.getConstructor(LogManager.class).newInstance(pLogger));
+      ImmutableList.Builder<CFAMutationStrategy> strategiesList = ImmutableList.builder();
+      for (Class<? extends CFAMutationStrategy> cls : oldStrategies) {
+        try {
+          if (cls == FunctionBodyRemover.class) {
+            strategiesList.add(new FunctionBodyRemover(pConfig, pLogger));
+          } else if (cls == ExpressionRemover.class) {
+            strategiesList.add(new ExpressionRemover(pConfig, pLogger));
+          } else {
+            strategiesList.add(cls.getConstructor(LogManager.class).newInstance(pLogger));
+          }
+        } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
+          throw new InvalidConfigurationException(
+              "Can not generate CFA mutation strategies list from option", e);
         }
+      }
+
+      if (oldStrategies.size() == 1) {
+        strategy = strategiesList.build().get(0);
+      } else {
+        strategy = new CompositeCFAMutationStrategy(pLogger, strategiesList.build());
+      }
+
+    } else {
+      // use experimental impl
+      CFAElementManipulator<?> elementManipulator;
+      try {
+        elementManipulator =
+            manipulatorClass
+                .getConstructor(Configuration.class, LogManager.class)
+                .newInstance(config, logger);
+      } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
+        throw new InvalidConfigurationException("Can not generate CFA manipulator from option", e);
+      }
+
+      try {
+        strategy =
+            ddClass
+                .getConstructor(LogManager.class, CFAElementManipulator.class)
+                .newInstance(logger, elementManipulator);
       } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
         throw new InvalidConfigurationException(
-            "Can not generate CFA mutation strategies list from option", e);
+            "Can not generate DD CFA mutation strategy from option", e);
       }
-    }
-
-    if (strategyClasses.size() == 1) {
-      strategy = strategiesList.build().get(0);
-    } else {
-      strategy = new CompositeCFAMutationStrategy(pLogger, strategiesList.build());
     }
 
     mutatorStats = new CFAMutatorStatistics(pLogger);
