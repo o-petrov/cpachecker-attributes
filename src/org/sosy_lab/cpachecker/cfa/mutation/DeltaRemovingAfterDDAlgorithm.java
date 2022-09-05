@@ -19,7 +19,8 @@ import org.sosy_lab.cpachecker.core.interfaces.Statistics;
  * remaining 'safe' part by removing only deltas (usually DD tries to remove complements too).
  */
 class DeltaRemovingAfterDDAlgorithm<Element> implements CFAMutationStrategy {
-  private AbstractDeltaDebuggingAlgorithm<Element> delegate = null;
+  private DDAlgorithm<Element> delegate1 = null;
+  private DDMinAlgorithm<Element> delegate2 = null;
   private final LogManager logger;
   private final CFAElementManipulator<Element> elementManipulator;
   private List<Element> unresolvedElements = null;
@@ -39,40 +40,40 @@ class DeltaRemovingAfterDDAlgorithm<Element> implements CFAMutationStrategy {
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
-    if (delegate == null) {
+    if (delegate1 == null) {
       unresolvedElements = new ArrayList<>(elementManipulator.getAllElements(pCfa).nodes());
-      delegate =
-          new DDAlgorithm<>(
-              logger, elementManipulator, unresolvedElements);
+      delegate1 = new DDAlgorithm<>(logger, elementManipulator, unresolvedElements);
     }
-    if (!delegate.canMutate(pCfa)) {
-      // found cause
-      causeElements.addAll(delegate.getCauseElements());
-      unresolvedElements.retainAll(delegate.getSafeElements());
-      delegate.collectStatistics(stats);
+
+    if (delegate2 == null) {
+      if (delegate1.canMutate(pCfa)) {
+        return true;
+      }
+
+      // else found cause
+      causeElements.addAll(delegate1.getCauseElements());
+      unresolvedElements.retainAll(delegate1.getSafeElements());
+      delegate1.collectStatistics(stats);
 
       if (unresolvedElements.isEmpty()) {
         return false;
       }
 
-      // we should reach here only once
-      assert delegate instanceof DDAlgorithm;
-      delegate =
+      delegate2 =
           new DDMinAlgorithm<>(
               logger, elementManipulator, unresolvedElements, PartsToRemove.ONLY_DELTAS);
-      boolean result = delegate.canMutate(pCfa);
-      assert result;
     }
-    return true;
+
+    return delegate2.canMutate(pCfa);
   }
 
   @Override
   public void mutate(FunctionCFAsWithMetadata pCfa) {
-    delegate.mutate(pCfa);
+    (delegate2 == null ? delegate1 : delegate2).mutate(pCfa);
   }
 
   @Override
   public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
-    delegate.setResult(pCfa, pResult);
+    (delegate2 == null ? delegate1 : delegate2).setResult(pCfa, pResult);
   }
 }
