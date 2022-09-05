@@ -171,7 +171,7 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
 
     resetDeltaListWithOneDelta(ImmutableList.copyOf(unresolvedElements));
     if (mode == PartsToRemove.ONLY_COMPLEMENTS) {
-      resetDeltaListWithHalvesOfCurrentDelta();
+      halveDeltas();
       stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
     } else {
       stage = DeltaDebuggingStage.REMOVE_DELTA;
@@ -201,13 +201,6 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
           if (mode != PartsToRemove.ONLY_DELTAS) {
             stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
           }
-          logger.log(
-              Level.INFO,
-              "Halving remained",
-              deltaList.size(),
-              "deltas with total",
-              unresolvedElements.size(),
-              elementManipulator.getElementTitle());
           halveDeltas();
         }
         break;
@@ -335,6 +328,13 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   }
 
   protected void halveDeltas() {
+    logger.log(
+        Level.INFO,
+        "Halving remained",
+        deltaList.size(),
+        "deltas with total",
+        unresolvedElements.size(),
+        elementManipulator.getElementTitle());
     List<ImmutableList<Element>> result = new ArrayList<>(deltaList.size() * 2);
 
     for (var delta : deltaList) {
@@ -375,11 +375,6 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
       stage = DeltaDebuggingStage.REMOVE_DELTA;
     }
     resetDeltaListWithOneDelta(currentDelta);
-    logger.log(
-        Level.INFO,
-        "halving single delta of",
-        deltaList.get(0).size(),
-        elementManipulator.getElementTitle());
     halveDeltas();
   }
 
