@@ -61,56 +61,56 @@ public class DDMinAlgorithm<Element>
   }
 
   @Override
-  protected void failsWithoutDelta() {
-    // delta is safe, complement has the cause
-    logger.log(Level.INFO, "The removed delta is safe");
-    // remove delta from list
+  protected void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
     markRemovedElementsAsResolved();
-    deltaIter.remove();
+
+    switch (pStage) {
+      case REMOVE_COMPLEMENT:
+        // delta has the cause, complement is safe
+        logger.log(
+            Level.INFO,
+            "The remaining delta is a fail-inducing test. The removed complement is not restored.");
+        // remove complement from list, i.e. make list of one delta, and then split it.
+        resetDeltaListWithHalvesOfCurrentDelta();
+
+        break;
+      case REMOVE_DELTA:
+        // delta is safe, complement has the cause
+        logger.log(
+            Level.INFO,
+            "The remaining complement is a fail-inducing test. The removed delta is not restored.");
+        // remove delta from list
+        deltaIter.remove();
+
+        break;
+      default:
+        throw new AssertionError();
+    }
   }
 
   @Override
-  protected void failsWithoutComplement() {
-    // delta has the cause, complement is safe
-    logger.log(Level.INFO, "The removed complement is safe");
-    // remove complement from list, i.e. make list of one delta, and then split it.
-    markRemovedElementsAsResolved();
-    resetDeltaListWithHalvesOfCurrentDelta();
-  }
+  protected void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
+    switch (pStage) {
+      case REMOVE_COMPLEMENT:
+        logger.log(
+            Level.INFO,
+            "The removed complement contains a part of a minimal failing test. "
+                + "Nothing is resolved. Mutation is rollbacked.");
+        deltaIter.remove();
+        break;
 
-  @Override
-  protected void passesWithoutDelta() {
-    logger.log(
-        Level.INFO,
-        "The removed delta contains part of a minimal failing test. No",
-        elementManipulator.getElementTitle(),
-        "are resolved");
-  }
+      case REMOVE_DELTA:
+        logger.log(
+            Level.INFO,
+            "The removed delta contains a part of a minimal failing test. "
+                + "Nothing is resolved. Mutation is rollbacked.");
+        resetDeltaListWithHalvesOfCurrentDelta();
+        break;
 
-  @Override
-  protected void passesWithoutComplement() {
-    logger.log(
-        Level.INFO,
-        "The removed complement contains part of a minimal failing test. No",
-        elementManipulator.getElementTitle(),
-        "are resolved");
-  }
+      default:
+        throw new AssertionError();
+    }
 
-  @Override
-  protected void unresWithoutDelta() {
-    logger.log(
-        Level.INFO,
-        "Something in the removed delta is needed for a test run to be resolved. No",
-        elementManipulator.getElementTitle(),
-        "are resolved");
-  }
-
-  @Override
-  protected void unresWithoutComplement() {
-    logger.log(
-        Level.INFO,
-        "Something in the removed complement is needed for a test run to be resolved. No",
-        elementManipulator.getElementTitle(),
-        "are resolved");
+    rollback(pCfa);
   }
 }

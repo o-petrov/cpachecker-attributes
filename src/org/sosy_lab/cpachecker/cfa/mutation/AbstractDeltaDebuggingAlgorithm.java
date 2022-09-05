@@ -40,7 +40,7 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private ImmutableList<Element> currentMutation = null;
 
   /** Save stage of DD algorithm between calls to {@link #mutate} */
-  protected DeltaDebuggingStage stage = null;
+  private DeltaDebuggingStage stage = null;
   private final PartsToRemove mode;
 
   protected List<ImmutableList<Element>> deltaList = null;
@@ -53,17 +53,32 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
 
   protected abstract void logFinish();
 
-  protected abstract void failsWithoutDelta();
+  protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage stage);
 
-  protected abstract void failsWithoutComplement();
+  protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage stage);
 
-  protected abstract void passesWithoutDelta();
+  protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
+    switch (pStage) {
+      case REMOVE_COMPLEMENT:
+        logger.log(
+            Level.INFO,
+            "Something in the removed complement is needed for a test run to be resolved. "
+                + "Nothing is resolved. Mutation is rollbacked.");
+        break;
 
-  protected abstract void passesWithoutComplement();
+      case REMOVE_DELTA:
+        logger.log(
+            Level.INFO,
+            "Something in the removed delta is needed for a test run to be resolved. "
+                + "Nothing is resolved. Mutation is rollbacked.");
+        break;
 
-  protected abstract void unresWithoutDelta();
+      default:
+        throw new AssertionError();
+    }
 
-  protected abstract void unresWithoutComplement();
+    rollback(pCfa);
+  }
 
   public AbstractDeltaDebuggingAlgorithm(
       LogManager pLogger,
@@ -214,46 +229,17 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     switch (pResult) {
       case FAIL:
         stats.incFail();
-        switch (stage) {
-          case REMOVE_COMPLEMENT:
-            failsWithoutComplement();
-            break;
-          case REMOVE_DELTA:
-            failsWithoutDelta();
-            break;
-          default:
-            throw new AssertionError("fails on wrong stage" + stage);
-        }
+        testFailed(pCfa, stage);
         break;
 
       case PASS:
         stats.incPass();
-        switch (stage) {
-          case REMOVE_COMPLEMENT:
-            passesWithoutComplement();
-            break;
-          case REMOVE_DELTA:
-            passesWithoutDelta();
-          break;
-          default:
-            throw new AssertionError("passes on wrong stage" + stage);
-        }
-        rollback(pCfa);
+        testPassed(pCfa, stage);
         break;
 
       case UNRESOLVED:
         stats.incUnres();
-        switch (stage) {
-          case REMOVE_COMPLEMENT:
-            unresWithoutComplement();
-            break;
-          case REMOVE_DELTA:
-            unresWithoutDelta();
-            break;
-          default:
-            throw new AssertionError("unresolved on wrong stage" + stage);
-        }
-        rollback(pCfa);
+        testUnresolved(pCfa, stage);
         break;
 
       default:

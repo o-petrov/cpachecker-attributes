@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
-class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
+class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
-  public DDAlgorithm(
+  public DDMaxAlgorithm(
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
       List<Element> pElements) {
@@ -24,21 +24,6 @@ class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   @Override
   protected void logFinish() {
-    String causeSize =
-        getCauseElements().size() > 0 ? String.valueOf(getCauseElements().size()) : "no";
-    String causeList =
-        getCauseElements().size() > 4
-            ? Joiner.on(", ")
-                .join(
-                    getCauseElements().get(0),
-                    getCauseElements().get(1),
-                    getCauseElements().get(2),
-                    "...")
-            : Joiner.on(", ").join(getCauseElements());
-    if (!causeList.isEmpty()) {
-      causeList = '(' + causeList + ')';
-    }
-
     String safeSize =
         getSafeElements().size() > 0 ? String.valueOf(getSafeElements().size()) : "no";
     String safeList =
@@ -58,43 +43,33 @@ class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
         Level.INFO,
         "All",
         elementManipulator.getElementTitle(),
-        "are resolved, minimal fail-inducing difference of",
-        causeSize,
-        elementManipulator.getElementTitle(),
-        causeList,
-        "found,",
+        "are resolved,",
         safeSize,
         elementManipulator.getElementTitle(),
-        "also remain",
+        "remain in a maximal passing test",
         safeList);
   }
 
   @Override
   protected void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    markRemovedElementsAsResolved();
-
     switch (pStage) {
       case REMOVE_COMPLEMENT:
-        // delta has the cause, complement is safe
         logger.log(
             Level.INFO,
-            "The remaining delta is a fail-inducing test. The removed complement is not restored.");
-        // remove complement from list, i.e. make list of one delta, and then split it.
-        resetDeltaListWithHalvesOfCurrentDelta();
+            "The remaining delta is a failing test. Nothing is resolved. The removed complement is restored.");
 
         break;
       case REMOVE_DELTA:
-        // delta is safe, complement has the cause
         logger.log(
             Level.INFO,
-            "The remaining complement is a fail-inducing test. The removed delta is not restored.");
-        // remove delta from list
-        deltaIter.remove();
+            "The remaining complement is a failing test. Nothing is resolved. The removed delta is restored.");
 
         break;
       default:
         throw new AssertionError();
     }
+
+    rollback(pCfa);
   }
 
   @Override
