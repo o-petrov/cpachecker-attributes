@@ -65,7 +65,7 @@ public class DDMinAlgorithm<Element>
     // delta is safe, complement has the cause
     logger.log(Level.INFO, "The removed delta is safe");
     // remove delta from list
-    updateUnresElements();
+    markRemovedElementsAsResolved();
     deltaIter.remove();
   }
 
@@ -74,7 +74,7 @@ public class DDMinAlgorithm<Element>
     // delta has the cause, complement is safe
     logger.log(Level.INFO, "The removed complement is safe");
     // remove complement from list, i.e. make list of one delta, and then split it.
-    updateUnresElements();
+    markRemovedElementsAsResolved();
     resetDeltaListWithHalvesOfCurrentDelta();
   }
 

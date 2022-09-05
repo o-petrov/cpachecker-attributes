@@ -78,7 +78,7 @@ class DDAlgorithm<Element>
         elementsNotRemovedCurrently(),
         elementManipulator.getElementTitle(),
         "is safe by itself.");
-    updateSafeElements();
+    markRemainingElementsAsSafe();
     resetDeltaListWithHalvesOfCurrentDelta();
   }
 
@@ -90,7 +90,7 @@ class DDAlgorithm<Element>
         elementsNotRemovedCurrently(),
         elementManipulator.getElementTitle(),
         "is safe by itself.");
-    updateSafeElements();
+    markRemainingElementsAsSafe();
     deltaIter.remove();
   }
 }

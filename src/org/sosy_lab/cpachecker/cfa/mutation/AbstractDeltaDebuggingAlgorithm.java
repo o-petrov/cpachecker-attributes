@@ -354,14 +354,14 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     return unresolvedElements.size() - currentMutation.size();
   }
 
-  protected void updateSafeElements() {
+  protected void markRemainingElementsAsSafe() {
     safeElements.addAll(unresolvedElements);
     safeElements.removeAll(currentMutation);
     stats.elementsResolvedToSafe(unresolvedElements.size() - currentMutation.size());
     unresolvedElements.retainAll(currentMutation);
   }
 
-  protected void updateUnresElements() {
+  protected void markRemovedElementsAsResolved() {
     stats.elementsRemoved(currentMutation.size());
     unresolvedElements.removeAll(currentMutation);
   }
