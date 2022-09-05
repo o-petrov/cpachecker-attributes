@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,7 +30,6 @@ class DDStarAlgorithm<Element> implements CFAMutationStrategy {
   private DDAlgorithm<Element> delegate = null;
   private final LogManager logger;
   private final CFAElementManipulator<Element> elementManipulator;
-  private List<Element> unresolvedElements = null;
   private List<Element> causeElements = new ArrayList<>();
 
   private final MultiStatistics stats;
@@ -39,7 +39,8 @@ class DDStarAlgorithm<Element> implements CFAMutationStrategy {
       LogManager pLogger, CFAElementManipulator<Element> pElementManipulator) {
     logger = Preconditions.checkNotNull(pLogger);
     elementManipulator = Preconditions.checkNotNull(pElementManipulator);
-
+    delegate = new DDAlgorithm<>(logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
+    passes.inc();
     stats =
         new MultiStatistics(logger) {
           @Override
@@ -64,27 +65,18 @@ class DDStarAlgorithm<Element> implements CFAMutationStrategy {
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
-    if (unresolvedElements == null) {
-      unresolvedElements = new ArrayList<>(elementManipulator.getAllElements(pCfa).nodes());
-      passes.inc();
-      delegate =
-          new DDAlgorithm<>(
-              logger, elementManipulator, unresolvedElements);
-    }
     if (!delegate.canMutate(pCfa)) {
       // found cause
       causeElements.addAll(delegate.getCauseElements());
-      unresolvedElements.retainAll(delegate.getSafeElements());
+      ImmutableList<Element> remaining = delegate.getSafeElements();
       delegate.collectStatistics(stats.getSubStatistics());
 
-      if (unresolvedElements.isEmpty()) {
+      if (remaining.isEmpty()) {
         return false;
       }
 
       passes.inc();
-      delegate =
-          new DDAlgorithm<>(
-              logger, elementManipulator, unresolvedElements);
+      delegate.workOn(remaining);
       boolean result = delegate.canMutate(pCfa);
       assert result;
     }

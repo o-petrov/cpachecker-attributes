@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -19,11 +20,18 @@ import org.sosy_lab.cpachecker.core.interfaces.Statistics;
  * remaining 'safe' part by removing only deltas (usually DD tries to remove complements too).
  */
 class DeltaRemovingAfterDDAlgorithm<Element> implements CFAMutationStrategy {
-  private DDAlgorithm<Element> delegate1 = null;
-  private DDMinAlgorithm<Element> delegate2 = null;
+
+  private enum Stage {
+    ISOLATE_CAUSE,
+    REMOVE_DELTAS,
+    DONE
+  }
+
+  private Stage stage = Stage.ISOLATE_CAUSE;
+  private final DDAlgorithm<Element> delegate1;
+  private final DDMinAlgorithm<Element> delegate2;
   private final LogManager logger;
   private final CFAElementManipulator<Element> elementManipulator;
-  private List<Element> unresolvedElements = null;
   private List<Element> causeElements = new ArrayList<>();
   private List<Statistics> stats = new ArrayList<>(2);
 
@@ -31,6 +39,8 @@ class DeltaRemovingAfterDDAlgorithm<Element> implements CFAMutationStrategy {
       LogManager pLogger, CFAElementManipulator<Element> pElementManipulator) {
     logger = pLogger;
     elementManipulator = pElementManipulator;
+    delegate1 = new DDAlgorithm<>(logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
+    delegate2 = new DDMinAlgorithm<>(logger, elementManipulator, PartsToRemove.ONLY_DELTAS);
   }
 
   @Override
@@ -40,40 +50,57 @@ class DeltaRemovingAfterDDAlgorithm<Element> implements CFAMutationStrategy {
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
-    if (delegate1 == null) {
-      unresolvedElements = new ArrayList<>(elementManipulator.getAllElements(pCfa).nodes());
-      delegate1 = new DDAlgorithm<>(logger, elementManipulator, unresolvedElements);
-    }
 
-    if (delegate2 == null) {
-      if (delegate1.canMutate(pCfa)) {
+    switch (stage) {
+      case ISOLATE_CAUSE:
+        if (delegate1.canMutate(pCfa)) {
+          return true;
+        }
+        // else d1 is done
+        // collect results from d1
+        causeElements.addAll(delegate1.getCauseElements());
+        ImmutableList<Element> remaining = delegate1.getSafeElements();
+        delegate1.collectStatistics(stats);
+
+        if (remaining.isEmpty()) {
+          stage = Stage.DONE;
+          return false;
+        }
+
+        // setup d2
+        stage = Stage.REMOVE_DELTAS;
+        delegate2.workOn(remaining);
+        boolean result = delegate2.canMutate(pCfa);
+        assert result;
         return true;
-      }
 
-      // else found cause
-      causeElements.addAll(delegate1.getCauseElements());
-      unresolvedElements.retainAll(delegate1.getSafeElements());
-      delegate1.collectStatistics(stats);
-
-      if (unresolvedElements.isEmpty()) {
+      case REMOVE_DELTAS:
+        if (delegate2.canMutate(pCfa)) {
+          return true;
+        }
+        // else d2 is done
+        // collect results from d2
+        causeElements.addAll(delegate2.getCauseElements());
+        delegate2.collectStatistics(stats);
+        stage = Stage.DONE;
         return false;
-      }
 
-      delegate2 =
-          new DDMinAlgorithm<>(
-              logger, elementManipulator, unresolvedElements, PartsToRemove.ONLY_DELTAS);
+      case DONE:
+        return false;
+
+      default:
+        throw new AssertionError();
     }
 
-    return delegate2.canMutate(pCfa);
   }
 
   @Override
   public void mutate(FunctionCFAsWithMetadata pCfa) {
-    (delegate2 == null ? delegate1 : delegate2).mutate(pCfa);
+    (stage == Stage.ISOLATE_CAUSE ? delegate1 : delegate2).mutate(pCfa);
   }
 
   @Override
   public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
-    (delegate2 == null ? delegate1 : delegate2).setResult(pCfa, pResult);
+    (stage == Stage.ISOLATE_CAUSE ? delegate1 : delegate2).setResult(pCfa, pResult);
   }
 }

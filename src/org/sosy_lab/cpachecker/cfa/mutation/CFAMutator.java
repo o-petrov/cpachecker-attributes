@@ -48,14 +48,14 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       name = "ddKind",
       description = "which DD algorithm implementation to use to mutate CFA")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
-  private Class<? extends CFAMutationStrategy> ddClass;
+  private Class<? extends CFAMutationStrategy> ddClass = null;
 
   @Option(
       secure = true,
       name = "manipulator",
       description = "which elements to remove from CFA (one manipulator class)")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
-  private Class<? extends CFAElementManipulator<?>> manipulatorClass;
+  private Class<? extends CFAElementManipulator<?>> manipulatorClass = null;
 
   @Option(
       secure = true,

@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
@@ -16,10 +15,8 @@ import org.sosy_lab.common.log.LogManager;
 class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   public DDMaxAlgorithm(
-      LogManager pLogger,
-      CFAElementManipulator<Element> pElementManipulator,
-      List<Element> pElements) {
-    super(pLogger, pElementManipulator, pElements);
+      LogManager pLogger, CFAElementManipulator<Element> pElementManipulator, PartsToRemove pMode) {
+    super(pLogger, pElementManipulator, pMode);
   }
 
   @Override

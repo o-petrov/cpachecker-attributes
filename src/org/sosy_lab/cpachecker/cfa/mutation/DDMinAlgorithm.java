@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
@@ -18,16 +17,8 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
   public DDMinAlgorithm(
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
-      List<Element> pElements) {
-    super(pLogger, pElementManipulator, pElements);
-  }
-
-  public DDMinAlgorithm(
-      LogManager pLogger,
-      CFAElementManipulator<Element> pElementManipulator,
-      List<Element> pElements,
       PartsToRemove pMode) {
-    super(pLogger, pElementManipulator, pElements, pMode);
+    super(pLogger, pElementManipulator, pMode);
   }
 
   @Override
