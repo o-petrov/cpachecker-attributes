@@ -196,7 +196,7 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     // corner cases
     switch (stage) {
       case REMOVE_DELTA:
-        if (!deltaIter.hasNext()) {
+        if (!deltaIter.hasNext() || deltaList.size() == 1) {
           // tried all deltas, partition again
           if (mode != PartsToRemove.ONLY_DELTAS) {
             stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
@@ -206,7 +206,7 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
         break;
 
       case REMOVE_COMPLEMENT:
-        if (!deltaIter.hasNext()) {
+        if (!deltaIter.hasNext() || deltaList.size() == 1) {
           // tried all complements
           if (mode == PartsToRemove.ONLY_COMPLEMENTS) {
             halveDeltas();
