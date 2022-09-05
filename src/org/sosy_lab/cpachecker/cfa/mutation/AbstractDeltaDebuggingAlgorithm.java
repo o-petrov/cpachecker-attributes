@@ -16,7 +16,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.cpachecker.core.defaults.MultiStatistics;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
 /** General strategy that chooses how to mutate a CFA using Delta Debugging approach. */
@@ -47,8 +49,10 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private Iterator<ImmutableList<Element>> deltaIter = null;
   private ImmutableList<Element> currentDelta = null;
 
+  private DeltaDebuggingStatistics stats;
+  private final MultiStatistics multiStats;
+
   protected final LogManager logger;
-  private final DeltaDebuggingStatistics stats;
   private final CFAElementManipulator<Element> elementManipulator;
 
   protected String getElementTitle() {
@@ -99,6 +103,13 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     stats =
         new DeltaDebuggingStatistics(
             this.getClass().getSimpleName(), elementManipulator.getElementTitle());
+    multiStats =
+        new MultiStatistics(logger) {
+          @Override
+          public @Nullable String getName() {
+            return this.getClass().getSimpleName();
+          }
+        };
   }
 
   /**
@@ -108,9 +119,17 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
    * separately.
    */
   public void workOn(Collection<Element> pElements) {
-    Preconditions.checkState(
-        stage == DeltaDebuggingStage.INIT || stage == DeltaDebuggingStage.DONE,
-        "Cannot reset DD that was already setup and has not finished yet");
+    if (stage == DeltaDebuggingStage.DONE) {
+      // reset stats
+      multiStats.getSubStatistics().add(stats);
+      stats =
+          new DeltaDebuggingStatistics(
+              this.getClass().getSimpleName(), elementManipulator.getElementTitle());
+    } else {
+      Preconditions.checkState(
+          stage == DeltaDebuggingStage.INIT,
+          "Cannot reset DD that was already setup and has not finished yet");
+    }
     unresolvedElements = new ArrayList<>(Preconditions.checkNotNull(pElements));
     stats.elementsFound(unresolvedElements.size());
 
@@ -144,7 +163,8 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
 
   @Override
   public void collectStatistics(Collection<Statistics> pStatsCollection) {
-    pStatsCollection.add(stats);
+    multiStats.getSubStatistics().add(stats);
+    pStatsCollection.add(multiStats);
   }
 
   @Override
