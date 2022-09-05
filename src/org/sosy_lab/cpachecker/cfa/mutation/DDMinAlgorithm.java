@@ -79,7 +79,6 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
             Level.INFO,
             "The removed complement contains a part of a minimal failing test. "
                 + "Nothing is resolved. Mutation is rollbacked.");
-        deltaIter.remove();
         break;
 
       case REMOVE_DELTA:
@@ -87,7 +86,6 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
             Level.INFO,
             "The removed delta contains a part of a minimal failing test. "
                 + "Nothing is resolved. Mutation is rollbacked.");
-        resetDeltaListWithHalvesOfCurrentDelta();
         break;
 
       default:
