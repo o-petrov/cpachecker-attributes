@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -18,8 +19,10 @@ import java.util.List;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.defaults.MultiStatistics;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
+import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 
 /** General strategy that chooses how to mutate a CFA using Delta Debugging approach. */
 abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationStrategy {
@@ -108,6 +111,20 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
           @Override
           public @Nullable String getName() {
             return this.getClass().getSimpleName();
+          }
+
+          @Override
+          public void printStatistics(
+              PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
+            put(pOut, "count of dd runs", getSubStatistics().size());
+            int index = 1;
+            for (Statistics s : getSubStatistics()) {
+              String displayName = s.getName() + ' ' + String.valueOf(index++);
+              pOut.println(displayName);
+              displayName.chars().forEach(c -> pOut.print('-'));
+              pOut.println();
+              s.printStatistics(pOut, pResult, pReached);
+            }
           }
         };
   }
