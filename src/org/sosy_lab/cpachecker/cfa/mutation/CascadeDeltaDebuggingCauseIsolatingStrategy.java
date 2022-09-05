@@ -22,7 +22,7 @@ import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.util.statistics.StatCounter;
 
 class CascadeDeltaDebuggingCauseIsolatingStrategy<Element> implements CFAMutationStrategy {
-  private DeltaDebuggingCauseIsolatingAlgorithm<Element> delegate = null;
+  private DDAlgorithm<Element> delegate = null;
   private final LogManager logger;
   private final CFAElementManipulator<Element> elementManipulator;
   private List<Element> unresolvedElements = null;
@@ -64,7 +64,7 @@ class CascadeDeltaDebuggingCauseIsolatingStrategy<Element> implements CFAMutatio
       unresolvedElements = new ArrayList<>(elementManipulator.getAllElements(pCfa).nodes());
       passes.inc();
       delegate =
-          new DeltaDebuggingCauseIsolatingAlgorithm<>(
+          new DDAlgorithm<>(
               logger, elementManipulator, unresolvedElements);
     }
     if (!delegate.canMutate(pCfa)) {
@@ -79,7 +79,7 @@ class CascadeDeltaDebuggingCauseIsolatingStrategy<Element> implements CFAMutatio
 
       passes.inc();
       delegate =
-          new DeltaDebuggingCauseIsolatingAlgorithm<>(
+          new DDAlgorithm<>(
               logger, elementManipulator, unresolvedElements);
       boolean result = delegate.canMutate(pCfa);
       assert result;

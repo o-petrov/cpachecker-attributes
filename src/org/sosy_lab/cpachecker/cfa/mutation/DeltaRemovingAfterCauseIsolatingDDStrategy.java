@@ -39,7 +39,7 @@ class DeltaRemovingAfterCauseIsolatingDDStrategy<Element> implements CFAMutation
     if (delegate == null) {
       unresolvedElements = new ArrayList<>(elementManipulator.getAllElements(pCfa).nodes());
       delegate =
-          new DeltaDebuggingCauseIsolatingAlgorithm<>(
+          new DDAlgorithm<>(
               logger, elementManipulator, unresolvedElements);
     }
     if (!delegate.canMutate(pCfa)) {
@@ -53,9 +53,9 @@ class DeltaRemovingAfterCauseIsolatingDDStrategy<Element> implements CFAMutation
       }
 
       // we should reach here only once
-      assert delegate instanceof DeltaDebuggingCauseIsolatingAlgorithm;
+      assert delegate instanceof DDAlgorithm;
       delegate =
-          new DeltaDebuggingTestMinimizingAlgorithm<>(
+          new DDMinAlgorithm<>(
               logger, elementManipulator, unresolvedElements, PartsToRemove.ONLY_DELTAS);
       boolean result = delegate.canMutate(pCfa);
       assert result;

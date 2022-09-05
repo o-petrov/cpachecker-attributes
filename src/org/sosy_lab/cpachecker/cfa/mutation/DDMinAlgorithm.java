@@ -13,17 +13,17 @@ import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
-public class DeltaDebuggingTestMinimizingAlgorithm<Element>
+public class DDMinAlgorithm<Element>
     extends AbstractDeltaDebuggingAlgorithm<Element> {
 
-  public DeltaDebuggingTestMinimizingAlgorithm(
+  public DDMinAlgorithm(
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
       List<Element> pElements) {
     super(pLogger, pElementManipulator, pElements);
   }
 
-  public DeltaDebuggingTestMinimizingAlgorithm(
+  public DDMinAlgorithm(
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
       List<Element> pElements,

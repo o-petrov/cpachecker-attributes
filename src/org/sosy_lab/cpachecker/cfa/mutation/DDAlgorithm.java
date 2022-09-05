@@ -13,10 +13,10 @@ import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
-class DeltaDebuggingCauseIsolatingAlgorithm<Element>
-    extends DeltaDebuggingTestMinimizingAlgorithm<Element> {
+class DDAlgorithm<Element>
+    extends DDMinAlgorithm<Element> {
 
-  public DeltaDebuggingCauseIsolatingAlgorithm(
+  public DDAlgorithm(
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
       List<Element> pElements) {
