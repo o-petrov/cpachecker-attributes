@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
+/** This delta debugging algorithm (dd) finds a minimal fail-inducing difference. */
 class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   public DDAlgorithm(

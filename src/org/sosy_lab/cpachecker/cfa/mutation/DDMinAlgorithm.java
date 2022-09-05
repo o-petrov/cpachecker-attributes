@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
-public class DDMinAlgorithm<Element>
-    extends AbstractDeltaDebuggingAlgorithm<Element> {
+/** This delta debugging algorithm (ddmin) minimizes a failing test. */
+public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   public DDMinAlgorithm(
       LogManager pLogger,

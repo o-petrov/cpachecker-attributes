@@ -18,10 +18,7 @@ import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
-/**
- * General strategy that chooses how to mutate a CFA using Delta Debugging cause isolating
- * algorithm.
- */
+/** General strategy that chooses how to mutate a CFA using Delta Debugging approach. */
 abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationStrategy {
 
   protected enum DeltaDebuggingStage {
@@ -51,12 +48,16 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private final DeltaDebuggingStatistics stats;
   protected final CFAElementManipulator<Element> elementManipulator;
 
+  /** how to log result */
   protected abstract void logFinish();
 
+  /** what to do when a test fails */
   protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage stage);
 
+  /** what to do when a test passes */
   protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage stage);
 
+  /** what to do when a test run is unresolved */
   protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
     switch (pStage) {
       case REMOVE_COMPLEMENT:
