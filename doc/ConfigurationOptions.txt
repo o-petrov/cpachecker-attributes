@@ -894,6 +894,10 @@ cfaMutation = false
 # which DD algorithm implementation to use to mutate CFA
 cfaMutation.ddKind = no default value
 
+# which parts to remove? DD can remove deltas, complements, or both
+cfaMutation.ddParts = DELTAS_AND_COMPLEMENTS
+  enum:     [ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
+
 # Create log file for every round with this logging level.
 # Use main file logging level if that is lower.
 cfaMutation.logFilesLevel = Level.FINE

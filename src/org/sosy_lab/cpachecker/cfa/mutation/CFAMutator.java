@@ -52,6 +52,12 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   @Option(
       secure = true,
+      name = "ddParts",
+      description = "which parts to remove? DD can remove deltas, complements, or both")
+  private PartsToRemove ddParts = PartsToRemove.DELTAS_AND_COMPLEMENTS;
+
+  @Option(
+      secure = true,
       name = "manipulator",
       description = "which elements to remove from CFA (one manipulator class)")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
@@ -140,10 +146,17 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       }
 
       try {
-        strategy =
-            ddClass
-                .getConstructor(LogManager.class, CFAElementManipulator.class)
-                .newInstance(logger, elementManipulator);
+        if (AbstractDeltaDebuggingAlgorithm.class.isAssignableFrom(ddClass)) {
+          strategy =
+              ddClass
+                  .getConstructor(LogManager.class, CFAElementManipulator.class, PartsToRemove.class)
+                  .newInstance(logger, elementManipulator, ddParts);
+        } else {
+          strategy =
+              ddClass
+                  .getConstructor(LogManager.class, CFAElementManipulator.class)
+                  .newInstance(logger, elementManipulator);
+        }
       } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
         throw new InvalidConfigurationException(
             "Can not generate DD CFA mutation strategy from option", e);
