@@ -41,22 +41,26 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private DeltaDebuggingStage stage = null;
   private final PartsToRemove mode;
 
-  protected List<ImmutableList<Element>> deltaList = null;
-  protected Iterator<ImmutableList<Element>> deltaIter = null;
-  protected ImmutableList<Element> currentDelta = null;
+  private List<ImmutableList<Element>> deltaList = null;
+  private Iterator<ImmutableList<Element>> deltaIter = null;
+  private ImmutableList<Element> currentDelta = null;
 
   protected final LogManager logger;
   private final DeltaDebuggingStatistics stats;
-  protected final CFAElementManipulator<Element> elementManipulator;
+  private final CFAElementManipulator<Element> elementManipulator;
+
+  protected String getElementTitle() {
+    return elementManipulator.getElementTitle();
+  }
 
   /** how to log result */
   protected abstract void logFinish();
 
   /** what to do when a test fails */
-  protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage stage);
+  protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
 
   /** what to do when a test passes */
-  protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage stage);
+  protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
 
   /** what to do when a test run is unresolved */
   protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
@@ -325,6 +329,10 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     halveDeltas();
   }
 
+  protected void removeCurrentDeltaFromDeltaList() {
+    deltaIter.remove();
+  }
+
   private void finishIfNeeded() {
     if (unresolvedElements.isEmpty()) {
       stage = DeltaDebuggingStage.DONE;
@@ -336,10 +344,6 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
 
   protected void rollback(FunctionCFAsWithMetadata pCfa) {
     currentMutation.reverse().forEach(r -> elementManipulator.restore(pCfa, r));
-  }
-
-  protected int elementsNotRemovedCurrently() {
-    return unresolvedElements.size() - currentMutation.size();
   }
 
   protected void markRemainingElementsAsSafe() {

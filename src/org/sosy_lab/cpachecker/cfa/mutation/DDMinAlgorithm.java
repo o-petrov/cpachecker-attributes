@@ -35,10 +35,10 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
     logger.log(
         Level.INFO,
         "All",
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         "are resolved,",
         getCauseElements().size(),
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         shortListToLog(getCauseElements()),
         "remain in a minimal failing test.");
   }
@@ -63,7 +63,7 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
             Level.INFO,
             "The remaining complement is a failing test. The removed delta is not restored.");
         // remove delta from list
-        deltaIter.remove();
+        removeCurrentDeltaFromDeltaList();
 
         break;
       default:

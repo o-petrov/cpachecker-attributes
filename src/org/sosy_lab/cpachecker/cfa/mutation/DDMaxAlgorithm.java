@@ -27,10 +27,10 @@ class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
     logger.log(
         Level.INFO,
         "All",
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         "are resolved,",
         getSafeElements().size(),
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         shortListToLog(getSafeElements()),
         "remain in a maximal passing test");
   }
@@ -67,7 +67,7 @@ class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
             Level.INFO,
             "The removed complement contains a fail-inducing difference. "
                 + "The remaining delta is safe by itself. Mutation is rollbacked.");
-        deltaIter.remove();
+        removeCurrentDeltaFromDeltaList();
         break;
 
       case REMOVE_DELTA:

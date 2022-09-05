@@ -27,14 +27,14 @@ class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
     logger.log(
         Level.INFO,
         "All",
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         "are resolved, minimal fail-inducing difference of",
         getCauseElements().size(),
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         shortListToLog(getCauseElements()),
         "found,",
         getSafeElements().size(),
-        elementManipulator.getElementTitle(),
+        getElementTitle(),
         "also remain",
         shortListToLog(getSafeElements()));
   }
@@ -58,8 +58,7 @@ class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
         logger.log(
             Level.INFO,
             "The remaining complement is a fail-inducing test. The removed delta is not restored.");
-        // remove delta from list
-        deltaIter.remove();
+        removeCurrentDeltaFromDeltaList();
 
         break;
       default:
@@ -77,7 +76,7 @@ class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
             Level.INFO,
             "The removed complement contains a fail-inducing difference. "
                 + "The remaining delta is safe by itself. Mutation is rollbacked.");
-        deltaIter.remove();
+        removeCurrentDeltaFromDeltaList();
         break;
 
       case REMOVE_DELTA:
