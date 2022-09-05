@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import com.google.common.base.Joiner;
 import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
@@ -33,31 +32,15 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
 
   @Override
   protected void logFinish() {
-    String causeSize =
-        getCauseElements().size() > 0 ? String.valueOf(getCauseElements().size()) : "no";
-    String causeList =
-        getCauseElements().size() > 4
-            ? Joiner.on(", ")
-                .join(
-                    getCauseElements().get(0),
-                    getCauseElements().get(1),
-                    getCauseElements().get(2),
-                    "...")
-            : Joiner.on(", ").join(getCauseElements());
-    if (!causeList.isEmpty()) {
-      causeList = '(' + causeList + ')';
-    }
-
     logger.log(
         Level.INFO,
         "All",
         elementManipulator.getElementTitle(),
         "are resolved,",
-        causeSize,
-        "fail-inducing",
+        getCauseElements().size(),
         elementManipulator.getElementTitle(),
-        "remain",
-        causeList);
+        shortListToLog(getCauseElements()),
+        "remain in a minimal failing test.");
   }
 
   @Override
@@ -69,7 +52,7 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
         // delta has the cause, complement is safe
         logger.log(
             Level.INFO,
-            "The remaining delta is a fail-inducing test. The removed complement is not restored.");
+            "The remaining delta is a failing test. The removed complement is not restored.");
         // remove complement from list, i.e. make list of one delta, and then split it.
         resetDeltaListWithHalvesOfCurrentDelta();
 
@@ -78,7 +61,7 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
         // delta is safe, complement has the cause
         logger.log(
             Level.INFO,
-            "The remaining complement is a fail-inducing test. The removed delta is not restored.");
+            "The remaining complement is a failing test. The removed delta is not restored.");
         // remove delta from list
         deltaIter.remove();
 

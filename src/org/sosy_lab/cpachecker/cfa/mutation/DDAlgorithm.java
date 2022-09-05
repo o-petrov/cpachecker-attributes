@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import com.google.common.base.Joiner;
 import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
@@ -25,49 +24,19 @@ class DDAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   @Override
   protected void logFinish() {
-    String causeSize =
-        getCauseElements().size() > 0 ? String.valueOf(getCauseElements().size()) : "no";
-    String causeList =
-        getCauseElements().size() > 4
-            ? Joiner.on(", ")
-                .join(
-                    getCauseElements().get(0),
-                    getCauseElements().get(1),
-                    getCauseElements().get(2),
-                    "...")
-            : Joiner.on(", ").join(getCauseElements());
-    if (!causeList.isEmpty()) {
-      causeList = '(' + causeList + ')';
-    }
-
-    String safeSize =
-        getSafeElements().size() > 0 ? String.valueOf(getSafeElements().size()) : "no";
-    String safeList =
-        getSafeElements().size() > 4
-            ? Joiner.on(", ")
-                .join(
-                    getSafeElements().get(0),
-                    getSafeElements().get(1),
-                    getSafeElements().get(2),
-                    "...")
-            : Joiner.on(", ").join(getSafeElements());
-    if (!safeList.isEmpty()) {
-      safeList = '(' + safeList + ')';
-    }
-
     logger.log(
         Level.INFO,
         "All",
         elementManipulator.getElementTitle(),
         "are resolved, minimal fail-inducing difference of",
-        causeSize,
+        getCauseElements().size(),
         elementManipulator.getElementTitle(),
-        causeList,
+        shortListToLog(getCauseElements()),
         "found,",
-        safeSize,
+        getSafeElements().size(),
         elementManipulator.getElementTitle(),
         "also remain",
-        safeList);
+        shortListToLog(getSafeElements()));
   }
 
   @Override

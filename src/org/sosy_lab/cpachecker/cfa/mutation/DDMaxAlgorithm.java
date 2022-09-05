@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import com.google.common.base.Joiner;
 import java.util.List;
 import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
@@ -25,30 +24,15 @@ class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   @Override
   protected void logFinish() {
-    String safeSize =
-        getSafeElements().size() > 0 ? String.valueOf(getSafeElements().size()) : "no";
-    String safeList =
-        getSafeElements().size() > 4
-            ? Joiner.on(", ")
-                .join(
-                    getSafeElements().get(0),
-                    getSafeElements().get(1),
-                    getSafeElements().get(2),
-                    "...")
-            : Joiner.on(", ").join(getSafeElements());
-    if (!safeList.isEmpty()) {
-      safeList = '(' + safeList + ')';
-    }
-
     logger.log(
         Level.INFO,
         "All",
         elementManipulator.getElementTitle(),
         "are resolved,",
-        safeSize,
+        getSafeElements().size(),
         elementManipulator.getElementTitle(),
-        "remain in a maximal passing test",
-        safeList);
+        shortListToLog(getSafeElements()),
+        "remain in a maximal passing test");
   }
 
   @Override
