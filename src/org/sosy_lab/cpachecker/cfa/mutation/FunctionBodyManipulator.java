@@ -15,15 +15,22 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.Graph;
 import com.google.common.graph.GraphBuilder;
 import com.google.common.graph.ImmutableGraph;
+import com.google.common.graph.ImmutableGraph.Builder;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFACreationUtils;
+import org.sosy_lab.cpachecker.cfa.FunctionCallCollector;
 import org.sosy_lab.cpachecker.cfa.Language;
+import org.sosy_lab.cpachecker.cfa.ast.AFunctionCall;
+import org.sosy_lab.cpachecker.cfa.ast.AFunctionCallExpression;
+import org.sosy_lab.cpachecker.cfa.ast.AFunctionDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
 import org.sosy_lab.cpachecker.cfa.ast.c.CDesignatedInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
@@ -33,6 +40,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerList;
 import org.sosy_lab.cpachecker.cfa.ast.c.CReturnStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CVariableDeclaration;
+import org.sosy_lab.cpachecker.cfa.model.AStatementEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
@@ -67,7 +75,6 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
     @Override
     public String toString() {
-      // TODO Auto-generated method stub
       return name;
     }
 
@@ -142,10 +149,21 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   private final LogManager logger;
 
+  private Map<String, RemovedFunction> functionElements = new TreeMap<>();
+
   public FunctionBodyManipulator(Configuration pConfig, LogManager pLogger)
       throws InvalidConfigurationException {
     logger = Preconditions.checkNotNull(pLogger);
     threadCreateTransformer = new ThreadCreateTransformer(pLogger, pConfig);
+  }
+
+  private RemovedFunction functionElementByName(FunctionCFAsWithMetadata pCfa, String pName) {
+    RemovedFunction result = functionElements.get(pName);
+    if (result == null) {
+      result = new RemovedFunction(pCfa, pName);
+      functionElements.put(pName, result);
+    }
+    return result;
   }
 
   @Override
@@ -172,18 +190,39 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     bodiesNeeded = builder.build();
 
     for (String name : pCfa.getFunctions().keySet()) {
-      result.addNode(new RemovedFunction(pCfa, name));
+      result.addNode(functionElementByName(pCfa, name));
     }
 
-    // TODO function calls... (additionally, via pointers and thread creation too)
+    addDirectCalls(pCfa, result);
+    // TODO other function calls... (via pointers and thread creation too)
 
     return result.build();
+  }
+
+  private void addDirectCalls(FunctionCFAsWithMetadata pCfa, Builder<RemovedFunction> pCallGraph) {
+    FunctionCallCollector fcc = new FunctionCallCollector();
+    for (FunctionEntryNode entry : pCfa.getFunctions().values()) {
+      CFATraversal.dfs().ignoreFunctionCalls().traverseOnce(entry, fcc);
+    }
+
+    for (AStatementEdge edge : fcc.getFunctionCalls()) {
+      String callerName = edge.getPredecessor().getFunctionName();
+      AFunctionCall callStmt = (AFunctionCall) edge.getStatement();
+      AFunctionCallExpression callExpr = callStmt.getFunctionCallExpression();
+      AFunctionDeclaration decl = callExpr.getDeclaration();
+      if (decl == null) {
+        continue;
+      }
+      String calledName = callExpr.getDeclaration().getName();
+      pCallGraph.putEdge(
+          functionElementByName(pCfa, callerName), functionElementByName(pCfa, calledName));
+    }
   }
 
   @Override
   public void remove(FunctionCFAsWithMetadata pCfa, RemovedFunction pChosen) {
     if (bodiesNeeded.contains(pChosen.name)) {
-      // logger.log(Level.FINE, "Replacing function", pChosen, "body with default 'return'");
+      logger.log(Level.FINE, "Replacing function", pChosen, "body with default 'return'");
       if (pCfa.getLanguage() != Language.C) {
         throw new UnsupportedOperationException(
             "Replacing function bodies with dummy returns is not supported for Java");
@@ -194,7 +233,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
       pCfa.getCFANodes().putAll(pChosen.name, pChosen.newNodes);
 
     } else {
-      logger.log(Level.INFO, "Removing function", pChosen);
+      logger.log(Level.FINE, "Removing function", pChosen);
       // remove function entry
       pCfa.getFunctions().remove(pChosen.name);
       // remove nodes
@@ -204,7 +243,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   @Override
   public void restore(FunctionCFAsWithMetadata pCfa, RemovedFunction pRemoved) {
-    logger.log(Level.INFO, "Restoring function", pRemoved.name);
+    logger.log(Level.FINE, "Restoring function", pRemoved.name);
     pCfa.getCFANodes().removeAll(pRemoved.name);
     pCfa.getCFANodes().putAll(pRemoved.name, pRemoved.oldNodes);
     pCfa.getFunctions().put(pRemoved.name, pRemoved.entry);
