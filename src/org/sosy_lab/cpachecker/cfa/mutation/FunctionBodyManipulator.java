@@ -56,17 +56,17 @@ import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
 import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
-class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManipulator.RemovedFunction> {
+class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManipulator.FunctionElement> {
   //  private static final NeedsDependencies needsAnyCaller = NeedsDependencies.ANY;
 
-  class RemovedFunction {
+  class FunctionElement {
     private final String name;
     private final FunctionEntryNode entry;
     private final NavigableSet<CFANode> oldNodes;
     private NavigableSet<CFANode> newNodes = null;
     private ImmutableList<CFAEdge> halfConnectedEdges = ImmutableList.of();
 
-    RemovedFunction(FunctionCFAsWithMetadata pCfa, String pName) {
+    FunctionElement(FunctionCFAsWithMetadata pCfa, String pName) {
       Preconditions.checkArgument(!Strings.isNullOrEmpty(pName));
       name = pName;
       entry = pCfa.getFunctions().get(name);
@@ -149,7 +149,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   private final LogManager logger;
 
-  private Map<String, RemovedFunction> functionElements = new TreeMap<>();
+  private Map<String, FunctionElement> functionElements = new TreeMap<>();
 
   public FunctionBodyManipulator(Configuration pConfig, LogManager pLogger)
       throws InvalidConfigurationException {
@@ -157,18 +157,18 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     threadCreateTransformer = new ThreadCreateTransformer(pLogger, pConfig);
   }
 
-  private RemovedFunction functionElementByName(FunctionCFAsWithMetadata pCfa, String pName) {
-    RemovedFunction result = functionElements.get(pName);
+  private FunctionElement functionElementByName(FunctionCFAsWithMetadata pCfa, String pName) {
+    FunctionElement result = functionElements.get(pName);
     if (result == null) {
-      result = new RemovedFunction(pCfa, pName);
+      result = new FunctionElement(pCfa, pName);
       functionElements.put(pName, result);
     }
     return result;
   }
 
   @Override
-  public Graph<RemovedFunction> getAllElements(FunctionCFAsWithMetadata pCfa) {
-    ImmutableGraph.Builder<RemovedFunction> result =
+  public Graph<FunctionElement> getAllElements(FunctionCFAsWithMetadata pCfa) {
+    ImmutableGraph.Builder<FunctionElement> result =
         GraphBuilder.directed().expectedNodeCount(pCfa.getFunctions().size()).immutable();
 
     ImmutableSet.Builder<String> builder = ImmutableSet.builder();
@@ -199,7 +199,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     return result.build();
   }
 
-  private void addDirectCalls(FunctionCFAsWithMetadata pCfa, Builder<RemovedFunction> pCallGraph) {
+  private void addDirectCalls(FunctionCFAsWithMetadata pCfa, Builder<FunctionElement> pCallGraph) {
     FunctionCallCollector fcc = new FunctionCallCollector();
     for (FunctionEntryNode entry : pCfa.getFunctions().values()) {
       CFATraversal.dfs().ignoreFunctionCalls().traverseOnce(entry, fcc);
@@ -220,7 +220,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   @Override
-  public void remove(FunctionCFAsWithMetadata pCfa, RemovedFunction pChosen) {
+  public void remove(FunctionCFAsWithMetadata pCfa, FunctionElement pChosen) {
     if (bodiesNeeded.contains(pChosen.name)) {
       logger.log(Level.FINE, "Replacing function", pChosen, "body with default 'return'");
       if (pCfa.getLanguage() != Language.C) {
@@ -242,7 +242,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   @Override
-  public void restore(FunctionCFAsWithMetadata pCfa, RemovedFunction pRemoved) {
+  public void restore(FunctionCFAsWithMetadata pCfa, FunctionElement pRemoved) {
     logger.log(Level.FINE, "Restoring function", pRemoved.name);
     pCfa.getCFANodes().removeAll(pRemoved.name);
     pCfa.getCFANodes().putAll(pRemoved.name, pRemoved.oldNodes);
