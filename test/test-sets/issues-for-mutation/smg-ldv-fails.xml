@@ -39,49 +39,74 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 	<columns>
 		<column title="total rounds">total count of mutation rounds</column>
-		<column title="rounds with same error">successful mutations (sought-for error)</column>
-		<column title="rounds with no error">unsuccessfull mutations (no error)</column>
-		<column title="rounds with other problem">unsuccessfull mutations (other problems)</column>
+<!--		<column title="rounds with same error">successful mutations (sought-for error)</column>-->
+<!--		<column title="rounds with no error">unsuccessfull mutations (no error)</column>-->
+<!--		<column title="rounds with other problem">unsuccessfull mutations (other problems)</column>-->
 
-		<column title="local nodes before">count of nodes in function CFAs before mutations</column>
-		<column title="local nodes after">count of nodes in function CFAs after mutations</column>
-		<column title="local edges before">count of edges in function CFAs before mutations</column>
-		<column title="local edges after">count of edges in function CFAs after mutations</column>
-		<column title="global decls before">count of global declarations before mutations</column>
-		<column title="global decls after">count of global declarations after mutations</column>
+<!--		<column title="local nodes before">count of nodes in function CFAs before mutations</column>-->
+<!--		<column title="local nodes after">count of nodes in function CFAs after mutations</column>-->
+<!--		<column title="local edges before">count of edges in function CFAs before mutations</column>-->
+<!--		<column title="local edges after">count of edges in function CFAs after mutations</column>-->
+<!--		<column title="global decls before">count of global declarations before mutations</column>-->
+<!--		<column title="global decls after">count of global declarations after mutations</column>-->
 		<column title="local functions before">count of functions in function CFAs before mutations</column>
 		<column title="local functions after">count of functions in function CFAs after mutations</column>
-		<column title="CFAs CC sum before">cyclomatic complexity of function CFAs before mutations</column>
-		<column title="CFAs CC sum after">cyclomatic complexity of function CFAs after mutations</column>
+<!--		<column title="CFAs CC sum before">cyclomatic complexity of function CFAs before mutations</column>-->
+<!--		<column title="CFAs CC sum after">cyclomatic complexity of function CFAs after mutations</column>-->
 
-		<column title="full nodes before">count of nodes in full CFA before mutations</column>
-		<column title="full nodes after">count of nodes in full CFA after mutations</column>
-		<column title="full edges before">count of edges in full CFA before mutations</column>
-		<column title="full edges after">count of edges in full CFA after mutations</column>
-		<column title="full functions before">count of functions in full CFA before mutations</column>
-		<column title="full functions after">count of functions in full CFA after mutations</column>
-		<column title="CC of full CFA before">cyclomatic complexity of full CFA before mutations</column>
-		<column title="CC of full CFA after">cyclomatic complexity of full CFA after mutations</column>
+<!--		<column title="full nodes before">count of nodes in full CFA before mutations</column>-->
+<!--		<column title="full nodes after">count of nodes in full CFA after mutations</column>-->
+<!--		<column title="full edges before">count of edges in full CFA before mutations</column>-->
+<!--		<column title="full edges after">count of edges in full CFA after mutations</column>-->
+<!--		<column title="full functions before">count of functions in full CFA before mutations</column>-->
+<!--		<column title="full functions after">count of functions in full CFA after mutations</column>-->
+<!--		<column title="CC of full CFA before">cyclomatic complexity of full CFA before mutations</column>-->
+<!--		<column title="CC of full CFA after">cyclomatic complexity of full CFA after mutations</column>-->
 
 		<column title="original time">time for original analysis run</column>
 		<column title="time after mutations">time for analysis after mutations</column>
 		<column title="time after rollbacks">time for analysis after rollback</column>
 	</columns>
 
-    <rundefinition name="Function-AE-Chain-Statement-Expression-Declaration-Global"/>
+	<option name="-setprop">cfaMutation.manipulator=FunctionBodyManipulator</option>
 
-	<rundefinition name="Expression-Declaration-Global">
-        <option name="-setprop">cfaMutation.strategies=ExpressionRemover,DeclarationEdgeRemover,GlobalDeclarationRemover</option>
+	<rundefinition name="DRADD">
+		<option name="-setprop">cfaMutation.ddKind=DeltaRemovingAfterDDAlgorithm</option>
 	</rundefinition>
-	<rundefinition name="AE-Chain-Statement-Expression-Declaration-Global">
-        <option name="-setprop">cfaMutation.strategies=AssumeEdgesRemover,StatementChainRemover,StatementEdgeRemover,ExpressionRemover,DeclarationEdgeRemover,GlobalDeclarationRemover</option>
+	<rundefinition name="DDMin">
+		<option name="-setprop">cfaMutation.ddKind=DDMinAlgorithm</option>
 	</rundefinition>
-	<rundefinition name="Function">
-        <option name="-setprop">cfaMutation.strategies=FunctionBodyRemover</option>
+	<rundefinition name="DR-DDMin">
+		<option name="-setprop">cfaMutation.ddKind=DDMinAlgorithm</option>
+		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
 	</rundefinition>
-	<rundefinition name="Chain">
-        <option name="-setprop">cfaMutation.strategies=StatementChainRemover</option>
+	<rundefinition name="DDMax">
+		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
 	</rundefinition>
+	<rundefinition name="CR-DDMax">
+		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
+		<option name="-setprop">cfaMutation.ddParts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD">
+		<option name="-setprop">cfaMutation.ddKind=DDAlgorithm</option>
+	</rundefinition>
+	<rundefinition name="DDStar">
+		<option name="-setprop">cfaMutation.ddKind=DDStarAlgorithm</option>
+	</rundefinition>
+
+<!--    <rundefinition name="Function-AE-Chain-Statement-Expression-Declaration-Global"/>-->
+<!--	<rundefinition name="Expression-Declaration-Global">-->
+<!--        <option name="-setprop">cfaMutation.strategies=ExpressionRemover,DeclarationEdgeRemover,GlobalDeclarationRemover</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="AE-Chain-Statement-Expression-Declaration-Global">-->
+<!--        <option name="-setprop">cfaMutation.strategies=AssumeEdgesRemover,StatementChainRemover,StatementEdgeRemover,ExpressionRemover,DeclarationEdgeRemover,GlobalDeclarationRemover</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="Function">-->
+<!--        <option name="-setprop">cfaMutation.strategies=FunctionBodyRemover</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="Chain">-->
+<!--        <option name="-setprop">cfaMutation.strategies=StatementChainRemover</option>-->
+<!--	</rundefinition>-->
 
     <!-- timeout
     <tasks name="issue-779">
