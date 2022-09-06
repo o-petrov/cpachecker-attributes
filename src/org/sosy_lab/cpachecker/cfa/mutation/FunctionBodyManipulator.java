@@ -214,8 +214,11 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
         continue;
       }
       String calledName = callExpr.getDeclaration().getName();
-      pCallGraph.putEdge(
-          functionElementByName(pCfa, callerName), functionElementByName(pCfa, calledName));
+      if (pCfa.getFunctions().containsKey(calledName)) {
+        // do not count call to not present function
+        pCallGraph.putEdge(
+            functionElementByName(pCfa, callerName), functionElementByName(pCfa, calledName));
+      }
     }
   }
 
