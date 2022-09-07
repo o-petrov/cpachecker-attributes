@@ -238,7 +238,10 @@ public class CPAcheckerMutator extends CPAchecker {
 
           LogManager checkLogger = cfaMutator.createRoundLogger(logOptions);
           lastResult = analysisRound(rollbacked, checkLogger, totalStats.afterRollbacks);
-          Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
+          if (!shutdownNotifier.shouldShutdown()) {
+            // if stop not because of global shutdown, it must be FAIL
+            Verify.verify(lastResult.toDDResult(originalResult) == DDResultOfARun.FAIL);
+          }
 
           shutdownReason = shouldShutdown();
           if (shutdownReason != null) {
