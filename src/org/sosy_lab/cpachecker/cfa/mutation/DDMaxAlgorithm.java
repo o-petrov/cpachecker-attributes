@@ -9,14 +9,20 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import java.util.logging.Level;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 
 /** This delta debugging algorithm (ddmax) maximizes a passing test. */
 class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   public DDMaxAlgorithm(
-      LogManager pLogger, CFAElementManipulator<Element> pElementManipulator, PartsToRemove pMode) {
-    super(pLogger, pElementManipulator, pMode);
+      Configuration pConfig,
+      LogManager pLogger,
+      CFAElementManipulator<Element> pElementManipulator,
+      PartsToRemove pMode)
+      throws InvalidConfigurationException {
+    super(pConfig, pLogger, pElementManipulator, pMode);
   }
 
   @Override

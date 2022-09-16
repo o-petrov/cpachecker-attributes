@@ -13,6 +13,8 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
@@ -27,10 +29,13 @@ class DDStarAlgorithm<Element> implements CFAMutationStrategy {
   private List<Element> causeElements = new ArrayList<>();
 
   public DDStarAlgorithm(
-      LogManager pLogger, CFAElementManipulator<Element> pElementManipulator) {
+      Configuration pConfig, LogManager pLogger, CFAElementManipulator<Element> pElementManipulator)
+      throws InvalidConfigurationException {
     logger = Preconditions.checkNotNull(pLogger);
     elementManipulator = Preconditions.checkNotNull(pElementManipulator);
-    delegate = new DDAlgorithm<>(logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
+    delegate =
+        new DDAlgorithm<>(
+            pConfig, logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
   }
 
   @Override

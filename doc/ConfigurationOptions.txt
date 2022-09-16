@@ -898,6 +898,10 @@ cfaMutation.ddKind = no default value
 cfaMutation.ddParts = DELTAS_AND_COMPLEMENTS
   enum:     [ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
 
+# directory for hierarchical/dependency graphs built by CFA mutation DD
+# algorithms
+cfaMutation.graphsDir = "."
+
 # Create log file for every round with this logging level.
 # Use main file logging level if that is lower.
 cfaMutation.logFilesLevel = Level.FINE

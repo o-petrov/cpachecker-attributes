@@ -18,6 +18,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.defaults.MultiStatistics;
@@ -55,6 +57,7 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private DeltaDebuggingStatistics stats;
   private final MultiStatistics multiStats;
 
+  private Configuration config;
   protected final LogManager logger;
   private final CFAElementManipulator<Element> elementManipulator;
 
@@ -96,16 +99,19 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   }
 
   public AbstractDeltaDebuggingAlgorithm(
+      Configuration pConfig,
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
-      PartsToRemove pMode) {
+      PartsToRemove pMode)
+      throws InvalidConfigurationException {
 
+    config = Preconditions.checkNotNull(pConfig);
     logger = Preconditions.checkNotNull(pLogger);
     elementManipulator = Preconditions.checkNotNull(pElementManipulator);
     mode = Preconditions.checkNotNull(pMode);
     stats =
         new DeltaDebuggingStatistics(
-            this.getClass().getSimpleName(), elementManipulator.getElementTitle());
+            config, logger, this.getClass().getSimpleName(), elementManipulator.getElementTitle());
     multiStats =
         new MultiStatistics(logger) {
           @Override
@@ -139,9 +145,19 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     if (stage == DeltaDebuggingStage.DONE) {
       // reset stats
       multiStats.getSubStatistics().add(stats);
-      stats =
-          new DeltaDebuggingStatistics(
-              this.getClass().getSimpleName(), elementManipulator.getElementTitle());
+      try {
+        stats =
+            new DeltaDebuggingStatistics(
+                multiStats.getSubStatistics().size(),
+                config,
+                logger,
+                this.getClass().getSimpleName(),
+                elementManipulator.getElementTitle());
+      } catch (InvalidConfigurationException e) {
+        logger.logfUserException(Level.SEVERE, e, "DD can not work on given elements");
+        stage = DeltaDebuggingStage.DONE;
+      }
+
     } else {
       Preconditions.checkState(
           stage == DeltaDebuggingStage.INIT,

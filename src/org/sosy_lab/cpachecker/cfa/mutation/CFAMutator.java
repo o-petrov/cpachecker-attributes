@@ -149,13 +149,18 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
         if (AbstractDeltaDebuggingAlgorithm.class.isAssignableFrom(ddClass)) {
           strategy =
               ddClass
-                  .getConstructor(LogManager.class, CFAElementManipulator.class, PartsToRemove.class)
-                  .newInstance(logger, elementManipulator, ddParts);
+                  .getConstructor(
+                      Configuration.class,
+                      LogManager.class,
+                      CFAElementManipulator.class,
+                      PartsToRemove.class)
+                  .newInstance(config, logger, elementManipulator, ddParts);
         } else {
           strategy =
               ddClass
-                  .getConstructor(LogManager.class, CFAElementManipulator.class)
-                  .newInstance(logger, elementManipulator);
+                  .getConstructor(
+                      Configuration.class, LogManager.class, CFAElementManipulator.class)
+                  .newInstance(config, logger, elementManipulator);
         }
       } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
         throw new InvalidConfigurationException(

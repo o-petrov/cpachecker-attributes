@@ -9,16 +9,20 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import java.util.logging.Level;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 
 /** This delta debugging algorithm (ddmin) minimizes a failing test. */
 public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   public DDMinAlgorithm(
+      Configuration pConfig,
       LogManager pLogger,
       CFAElementManipulator<Element> pElementManipulator,
-      PartsToRemove pMode) {
-    super(pLogger, pElementManipulator, pMode);
+      PartsToRemove pMode)
+      throws InvalidConfigurationException {
+    super(pConfig, pLogger, pElementManipulator, pMode);
   }
 
   @Override

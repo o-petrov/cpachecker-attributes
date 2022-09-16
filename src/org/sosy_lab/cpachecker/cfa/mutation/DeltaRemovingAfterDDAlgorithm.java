@@ -12,6 +12,8 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
@@ -36,11 +38,15 @@ class DeltaRemovingAfterDDAlgorithm<Element> implements CFAMutationStrategy {
   private List<Statistics> stats = new ArrayList<>(2);
 
   public DeltaRemovingAfterDDAlgorithm(
-      LogManager pLogger, CFAElementManipulator<Element> pElementManipulator) {
+      Configuration pConfig, LogManager pLogger, CFAElementManipulator<Element> pElementManipulator)
+      throws InvalidConfigurationException {
     logger = pLogger;
     elementManipulator = pElementManipulator;
-    delegate1 = new DDAlgorithm<>(logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
-    delegate2 = new DDMinAlgorithm<>(logger, elementManipulator, PartsToRemove.ONLY_DELTAS);
+    delegate1 =
+        new DDAlgorithm<>(
+            pConfig, logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
+    delegate2 =
+        new DDMinAlgorithm<>(pConfig, logger, elementManipulator, PartsToRemove.ONLY_DELTAS);
   }
 
   @Override
