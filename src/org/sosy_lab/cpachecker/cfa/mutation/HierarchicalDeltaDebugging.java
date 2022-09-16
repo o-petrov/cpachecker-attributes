@@ -10,14 +10,19 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import java.util.Collection;
 import java.util.logging.Level;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
-class HierarchicalDeltaDebugging<Element> extends DDMinAlgorithm<Element> {
+class HierarchicalDeltaDebugging<Element> implements CFAMutationStrategy {
+  private CFAElementManipulator<Element> manipulator = null;
+  private AbstractDeltaDebuggingAlgorithm<Element> delegate = null;
   private ImmutableSet<Element> currentLevel = null;
   private ImmutableList<Element> currentMutation = null;
+  private LogManager logger;
 
   public HierarchicalDeltaDebugging(
       Configuration pConfig,
@@ -25,39 +30,41 @@ class HierarchicalDeltaDebugging<Element> extends DDMinAlgorithm<Element> {
       CFAElementManipulator<Element> pManipulator,
       PartsToRemove pMode)
       throws InvalidConfigurationException {
-    super(pConfig, pLogger, pManipulator, pMode);
+    logger = pLogger;
+    manipulator = pManipulator;
+    delegate = new DDMinAlgorithm<>(pConfig, pLogger, manipulator, pMode);
   }
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
     if (currentLevel == null) {
       // setup
-      elementManipulator.setupFromCfa(pCfa, stats);
-      currentLevel = elementManipulator.getNextLevelElements();
+      manipulator.setupFromCfa(pCfa, stats);
+      currentLevel = manipulator.getNextLevelElements();
       logger.log(
           Level.INFO,
           "HDD starts with",
           currentLevel.size(),
           "(out of total",
-          elementManipulator.getAllElements().size() + ')',
+          manipulator.getAllElements().size() + ')',
           "root/source",
-          getElementTitle() + ':',
+          manipulator.getElementTitle() + ':',
           currentLevel);
 
-    } else if (super.canMutate(pCfa)) {
+    } else if (delegate.canMutate(pCfa)) {
       logger.log(Level.FINE, "HDD continues on same level");
       return true;
 
     } else {
       // current level is minimized, go one level deeper
-      currentLevel = elementManipulator.getNextLevelElements();
+      currentLevel = manipulator.getNextLevelElements();
       logger.log(
           Level.INFO,
           "HDD steps to successors' level with",
           currentLevel.size(),
           "(out of total",
-          elementManipulator.getAllElements().size() + ')',
-          getElementTitle() + ':',
+          manipulator.getAllElements().size() + ')',
+          manipulator.getElementTitle() + ':',
           currentLevel);
     }
 
@@ -66,20 +73,25 @@ class HierarchicalDeltaDebugging<Element> extends DDMinAlgorithm<Element> {
       return false;
     }
 
-    workOn(currentLevel);
-    boolean result = super.canMutate(pCfa);
+    delegate.workOn(currentLevel);
+    boolean result = delegate.canMutate(pCfa);
     assert result : "Can not work on " + currentLevel;
     return true;
   }
 
   @Override
-  protected void applyMutation(
-      FunctionCFAsWithMetadata pCfa, ImmutableList<Element> pChosenElements) {
-    currentMutation = elementManipulator.remove(pCfa, pChosenElements);
+  public void collectStatistics(Collection<Statistics> pStatsCollection) {
+    // TODO Auto-generated method stub
+
   }
 
   @Override
-  protected void rollback(FunctionCFAsWithMetadata pCfa) {
-    elementManipulator.restore(pCfa, currentMutation);
+  public void mutate(FunctionCFAsWithMetadata pCfa) {
+    delegate.mutate(pCfa);
+  }
+
+  @Override
+  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+    delegate.setResult(pCfa, pResult);
   }
 }
