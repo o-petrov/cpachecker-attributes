@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.graph.MutableValueGraph;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,10 +31,31 @@ import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationStrategy {
 
   protected enum DeltaDebuggingStage {
-    INIT,
+    NO_INIT,
+    READY,
+    REMOVE_WHOLE,
+    REMOVE_HALF1,
+    REMOVE_HALF2,
     REMOVE_COMPLEMENT,
     REMOVE_DELTA,
-    DONE
+    DONE;
+
+    @Override
+    public String toString() {
+      switch (this) {
+        case REMOVE_COMPLEMENT:
+          return "complement";
+        case REMOVE_DELTA:
+          return "delta";
+        case REMOVE_HALF1:
+        case REMOVE_HALF2:
+          return "half";
+        case REMOVE_WHOLE:
+          return "whole";
+        default:
+          throw new AssertionError(this.name());
+      }
+    }
   }
 
   /** All elements to investigate in next {@link #mutate} calls */
@@ -44,9 +66,11 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private List<Element> causeElements = null;
   /** Elements that are removed in current round */
   private ImmutableList<Element> currentMutation = null;
+  /** All elements remaining in CFA. See {@link HierarchicalDeltaDebugging} for more */
+  private MutableValueGraph<Element, ? extends Enum<?>> graph = null;
 
   /** Save stage of DD algorithm between calls to {@link #mutate} */
-  private DeltaDebuggingStage stage = DeltaDebuggingStage.INIT;
+  private DeltaDebuggingStage stage = DeltaDebuggingStage.NO_INIT;
 
   private final PartsToRemove mode;
 
@@ -54,48 +78,15 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   private Iterator<ImmutableList<Element>> deltaIter = null;
   private ImmutableList<Element> currentDelta = null;
 
-  private DeltaDebuggingStatistics stats;
+  protected DeltaDebuggingStatistics stats;
   private final MultiStatistics multiStats;
 
-  private Configuration config;
+  private final Configuration config;
   protected final LogManager logger;
-  private final CFAElementManipulator<Element> elementManipulator;
+  protected final CFAElementManipulator<Element> elementManipulator;
 
   protected String getElementTitle() {
     return elementManipulator.getElementTitle();
-  }
-
-  /** how to log result */
-  protected abstract void logFinish();
-
-  /** what to do when a test fails */
-  protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
-
-  /** what to do when a test passes */
-  protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
-
-  /** what to do when a test run is unresolved */
-  protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    switch (pStage) {
-      case REMOVE_COMPLEMENT:
-        logger.log(
-            Level.INFO,
-            "Something in the removed complement is needed for a test run to be resolved. "
-                + "Nothing is resolved. Mutation is rollbacked.");
-        break;
-
-      case REMOVE_DELTA:
-        logger.log(
-            Level.INFO,
-            "Something in the removed delta is needed for a test run to be resolved. "
-                + "Nothing is resolved. Mutation is rollbacked.");
-        break;
-
-      default:
-        throw new AssertionError();
-    }
-
-    rollback(pCfa);
   }
 
   public AbstractDeltaDebuggingAlgorithm(
@@ -104,14 +95,15 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
       CFAElementManipulator<Element> pElementManipulator,
       PartsToRemove pMode)
       throws InvalidConfigurationException {
-
     config = Preconditions.checkNotNull(pConfig);
     logger = Preconditions.checkNotNull(pLogger);
     elementManipulator = Preconditions.checkNotNull(pElementManipulator);
     mode = Preconditions.checkNotNull(pMode);
+
     stats =
         new DeltaDebuggingStatistics(
             config, logger, this.getClass().getSimpleName(), elementManipulator.getElementTitle());
+
     multiStats =
         new MultiStatistics(logger) {
           @Override
@@ -142,6 +134,8 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
    * separately.
    */
   public void workOn(Collection<Element> pElements) {
+    Preconditions.checkNotNull(pElements);
+    Preconditions.checkArgument(!pElements.isEmpty(), "Can not DD on no elements");
     if (stage == DeltaDebuggingStage.DONE) {
       // reset stats
       multiStats.getSubStatistics().add(stats);
@@ -160,9 +154,10 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
 
     } else {
       Preconditions.checkState(
-          stage == DeltaDebuggingStage.INIT,
+          stage == DeltaDebuggingStage.NO_INIT,
           "Cannot reset DD that was already setup and has not finished yet");
     }
+
     unresolvedElements = new ArrayList<>(Preconditions.checkNotNull(pElements));
     stats.elementsFound(unresolvedElements.size());
 
@@ -186,33 +181,53 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
         elementManipulator.getElementTitle());
 
     resetDeltaListWithOneDelta(ImmutableList.copyOf(unresolvedElements));
-    if (mode == PartsToRemove.ONLY_COMPLEMENTS) {
-      halveDeltas();
-      stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
-    } else {
-      stage = DeltaDebuggingStage.REMOVE_DELTA;
-    }
-  }
-
-  @Override
-  public void collectStatistics(Collection<Statistics> pStatsCollection) {
-    multiStats.getSubStatistics().add(stats);
-    pStatsCollection.add(multiStats);
+    stage = DeltaDebuggingStage.READY;
   }
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
     stats.startPremath();
 
-    if (stage == DeltaDebuggingStage.INIT) {
-      // setup for all elements in the CFA
-      workOn(elementManipulator.getAllElements(pCfa).nodes());
-    }
-
-    // corner cases
+    // switch to next stage
     switch (stage) {
+      case NO_INIT:
+        // setup for all elements in the CFA
+        elementManipulator.setupFromCfa(pCfa, stats);
+        workOn(elementManipulator.getAllElements());
+        if (stage == DeltaDebuggingStage.READY) {
+          stage = DeltaDebuggingStage.REMOVE_WHOLE;
+        }
+        break;
+
+      case READY:
+        // elements are already given
+        stage = DeltaDebuggingStage.REMOVE_WHOLE;
+        break;
+
+      case REMOVE_WHOLE:
+        stage = DeltaDebuggingStage.REMOVE_HALF1;
+        halveDeltas();
+        break;
+
+      case REMOVE_HALF1:
+        if (deltaList.size() == 1) {
+          // successfully removed fist half, only second half remained
+          currentDelta = deltaList.get(0);
+          resetDeltaListWithHalvesOfCurrentDelta();
+          break; // remove first subhalf...
+        }
+        stage = DeltaDebuggingStage.REMOVE_HALF2;
+        break;
+
+      case REMOVE_HALF2:
+        if (mode != PartsToRemove.ONLY_DELTAS) {
+          stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
+        }
+        halveDeltas();
+        break;
+
       case REMOVE_DELTA:
-        if (!deltaIter.hasNext() || deltaList.size() == 1) {
+        if (!deltaIter.hasNext()) {
           // tried all deltas, partition again
           if (mode != PartsToRemove.ONLY_DELTAS) {
             stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
@@ -222,10 +237,11 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
         break;
 
       case REMOVE_COMPLEMENT:
-        if (!deltaIter.hasNext() || deltaList.size() == 1) {
+        if (!deltaIter.hasNext()) {
           // tried all complements
-          if (mode == PartsToRemove.ONLY_COMPLEMENTS) {
-            halveDeltas();
+          if (deltaList.size() == 1) {
+            currentDelta = deltaList.get(0);
+            resetDeltaListWithHalvesOfCurrentDelta();
           } else {
             stage = DeltaDebuggingStage.REMOVE_DELTA;
             deltaIter = deltaList.iterator();
@@ -255,6 +271,7 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   @Override
   public void mutate(FunctionCFAsWithMetadata pCfa) {
     stats.startMutation();
+    assert deltaIter.hasNext() : "no next delta for delta list " + deltaList;
 
     // set next mutation
     // not in the switch of #canMutate because stage can be changed there
@@ -271,12 +288,17 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
             elementManipulator.getElementTitle());
         break;
 
+      case REMOVE_WHOLE:
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
       case REMOVE_DELTA:
         currentDelta = deltaIter.next();
         currentMutation = currentDelta;
         logger.log(
             Level.INFO,
-            "Removing a delta of",
+            "Removing a",
+            stage,
+            "of",
             currentMutation.size(),
             elementManipulator.getElementTitle());
         break;
@@ -284,10 +306,14 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
       default:
         throw new AssertionError();
     }
-    // remove elements (apply mutations)
-    currentMutation.forEach(mutation -> elementManipulator.remove(pCfa, mutation));
-
+    applyMutation(pCfa, currentMutation);
     stats.stopTimers();
+  }
+
+  protected void applyMutation(
+      FunctionCFAsWithMetadata pCfa, ImmutableList<Element> pChosenElements) {
+    currentMutation = pChosenElements;
+    pChosenElements.forEach(mutation -> elementManipulator.remove(pCfa, mutation));
   }
 
   @Override
@@ -319,28 +345,25 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     stats.stopTimers();
   }
 
-  /**
-   * Return the elements marked as cause. Do not call this method until {@link #canMutate} returns
-   * false, as the cause may be not identified.
-   *
-   * @return all the objects that remain in CFA and are not safe.
-   * @throws IllegalStateException if called before algorithm has finished
-   */
-  public ImmutableList<Element> getCauseElements() {
-    Preconditions.checkState(stage == DeltaDebuggingStage.DONE);
-    return (ImmutableList<Element>) causeElements;
+  protected void resetDeltaListWithHalvesOfCurrentDelta() {
+    switch (stage) {
+      case REMOVE_WHOLE:
+        stage = DeltaDebuggingStage.REMOVE_HALF1;
+        break;
+      case REMOVE_HALF1:
+        stage = DeltaDebuggingStage.REMOVE_HALF2;
+        break;
+      case REMOVE_HALF2:
+      default:
+        stage = DeltaDebuggingStage.REMOVE_DELTA;
+        break;
+    }
+    resetDeltaListWithOneDelta(currentDelta);
+    halveDeltas();
   }
 
-  /**
-   * Return the remaining elements considered safe. Do not call this method until {@link #canMutate}
-   * returns false, as the cause may be not identified.
-   *
-   * @return all the objects that remain in CFA and seem to be safe.
-   * @throws IllegalStateException if called before algorithm has finished
-   */
-  public ImmutableList<Element> getSafeElements() {
-    Preconditions.checkState(stage == DeltaDebuggingStage.DONE);
-    return (ImmutableList<Element>) safeElements;
+  protected void removeCurrentDeltaFromDeltaList() {
+    deltaIter.remove();
   }
 
   protected void halveDeltas() {
@@ -385,19 +408,6 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
     resetDeltaList(list);
   }
 
-  protected void resetDeltaListWithHalvesOfCurrentDelta() {
-    // switch from REMOVE_COMPLEMENT
-    if (mode != PartsToRemove.ONLY_COMPLEMENTS) {
-      stage = DeltaDebuggingStage.REMOVE_DELTA;
-    }
-    resetDeltaListWithOneDelta(currentDelta);
-    halveDeltas();
-  }
-
-  protected void removeCurrentDeltaFromDeltaList() {
-    deltaIter.remove();
-  }
-
   private void finishIfNeeded() {
     if (unresolvedElements.isEmpty()) {
       stage = DeltaDebuggingStage.DONE;
@@ -421,6 +431,9 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
   protected void markRemovedElementsAsResolved() {
     stats.elementsRemoved(currentMutation.size());
     unresolvedElements.removeAll(currentMutation);
+    if (graph != null) {
+      currentMutation.forEach(node -> graph.removeNode(node));
+    }
   }
 
   protected String shortListToLog(ImmutableList<?> pList) {
@@ -432,5 +445,55 @@ abstract class AbstractDeltaDebuggingAlgorithm<Element> implements CFAMutationSt
       shortList = "no elements";
     }
     return '(' + shortList + ')';
+  }
+
+  /** how to log result */
+  protected abstract void logFinish();
+
+  /** what to do when a test fails */
+  protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
+
+  /** what to do when a test passes */
+  protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
+
+  /** what to do when a test run is unresolved */
+  protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
+    logger.log(
+        Level.INFO,
+        "Something in the removed",
+        pStage,
+        "is needed for a test run to be resolved.",
+        "Nothing is resolved. Mutation is rollbacked.");
+    rollback(pCfa);
+  }
+
+  /**
+   * Return the elements marked as cause. Do not call this method until {@link #canMutate} returns
+   * false, as the cause may be not identified.
+   *
+   * @return all the objects that remain in CFA and are not safe.
+   * @throws IllegalStateException if called before algorithm has finished
+   */
+  public ImmutableList<Element> getCauseElements() {
+    Preconditions.checkState(stage == DeltaDebuggingStage.DONE);
+    return (ImmutableList<Element>) causeElements;
+  }
+
+  /**
+   * Return the remaining elements considered safe. Do not call this method until {@link #canMutate}
+   * returns false, as the cause may be not identified.
+   *
+   * @return all the objects that remain in CFA and seem to be safe.
+   * @throws IllegalStateException if called before algorithm has finished
+   */
+  public ImmutableList<Element> getSafeElements() {
+    Preconditions.checkState(stage == DeltaDebuggingStage.DONE);
+    return (ImmutableList<Element>) safeElements;
+  }
+
+  @Override
+  public void collectStatistics(Collection<Statistics> pStatsCollection) {
+    multiStats.getSubStatistics().add(stats);
+    pStatsCollection.add(multiStats);
   }
 }

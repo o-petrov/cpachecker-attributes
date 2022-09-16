@@ -50,8 +50,11 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
             "The remaining delta is a failing test. The removed complement is not restored.");
         // remove complement from list, i.e. make list of one delta, and then split it.
         resetDeltaListWithHalvesOfCurrentDelta();
-
         break;
+
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
+      case REMOVE_WHOLE:
       case REMOVE_DELTA:
         // delta is safe, complement has the cause
         logger.log(
@@ -59,8 +62,8 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
             "The remaining complement is a failing test. The removed delta is not restored.");
         // remove delta from list
         removeCurrentDeltaFromDeltaList();
-
         break;
+
       default:
         throw new AssertionError();
     }
@@ -68,24 +71,12 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
 
   @Override
   protected void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    switch (pStage) {
-      case REMOVE_COMPLEMENT:
-        logger.log(
-            Level.INFO,
-            "The removed complement contains a part of a minimal failing test. "
-                + "Nothing is resolved. Mutation is rollbacked.");
-        break;
-
-      case REMOVE_DELTA:
-        logger.log(
-            Level.INFO,
-            "The removed delta contains a part of a minimal failing test. "
-                + "Nothing is resolved. Mutation is rollbacked.");
-        break;
-
-      default:
-        throw new AssertionError();
-    }
+    logger.log(
+        Level.INFO,
+        "The removed",
+        pStage,
+        "contains a part of a minimal failing test. "
+            + "Nothing is resolved. Mutation is rollbacked.");
 
     rollback(pCfa);
   }
