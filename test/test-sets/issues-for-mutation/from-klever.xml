@@ -14,7 +14,7 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 -->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
-<benchmark tool="cpachecker" walltimelimit="1100s">
+<benchmark tool="cpachecker" walltimelimit="1600s">
 
     <option name="-setprop">cpa.callstack.unsupportedFunctions=__VERIFIER_nonexisting_dummy_function</option>
     <option name="-setprop">cpa.predicate.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
@@ -36,7 +36,7 @@ These programs are used to test CFA mutator when it tries to make minimal failin
     <option name="-setprop">cpa.smg.memsetFunctions=__VERIFIER_memset</option>
 
     <option name="-setprop">cfaMutation=true</option>
-    <option name="-setprop">limits.time.wall=1000s</option>
+    <option name="-setprop">limits.time.wall=1500s</option>
     <option name="-setprop">limits.time.cpu=-1ns</option>
 
 	<option name="-setprop">output.disable=false</option>
@@ -95,11 +95,23 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
 		<option name="-setprop">cfaMutation.ddParts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
+	<rundefinition name="DR-DDMax">
+		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
+		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
+	</rundefinition>
 	<rundefinition name="DD">
 		<option name="-setprop">cfaMutation.ddKind=DDAlgorithm</option>
 	</rundefinition>
 	<rundefinition name="DDStar">
 		<option name="-setprop">cfaMutation.ddKind=DDStarAlgorithm</option>
+	</rundefinition>
+
+    <rundefinition name="HDD">
+		<option name="-setprop">cfaMutation.ddKind=HierarchicalDeltaDebugging</option>
+	</rundefinition>
+    <rundefinition name="DR-HDD">
+		<option name="-setprop">cfaMutation.ddKind=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
 	</rundefinition>
 
 <!--    <rundefinition name="Function-AE-Chain-Statement-Expression-Declaration-Global"/>-->

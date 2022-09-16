@@ -87,11 +87,23 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
 		<option name="-setprop">cfaMutation.ddParts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
+	<rundefinition name="DR-DDMax">
+		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
+		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
+	</rundefinition>
 	<rundefinition name="DD">
 		<option name="-setprop">cfaMutation.ddKind=DDAlgorithm</option>
 	</rundefinition>
 	<rundefinition name="DDStar">
 		<option name="-setprop">cfaMutation.ddKind=DDStarAlgorithm</option>
+	</rundefinition>
+
+	<rundefinition name="HDD">
+		<option name="-setprop">cfaMutation.ddKind=HierarchicalDeltaDebugging</option>
+	</rundefinition>
+    <rundefinition name="DR-HDD">
+		<option name="-setprop">cfaMutation.ddKind=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
 	</rundefinition>
 
 <!--    <rundefinition name="Function-AE-Chain-Statement-Expression-Declaration-Global"/>-->
