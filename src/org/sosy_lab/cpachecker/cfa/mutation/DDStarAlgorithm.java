@@ -8,66 +8,39 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import org.sosy_lab.common.configuration.Configuration;
-import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
-import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
 /**
  * A delta debugging algorithm that repeatedly finds minimal fail-inducing difference on remaining
  * CFA. This way it finds a minimal failing test.
  */
-class DDStarAlgorithm<Element> implements CFAMutationStrategy {
-  private final DDAlgorithm<Element> delegate;
-  private final LogManager logger;
-  private final CFAElementManipulator<Element> elementManipulator;
+class DDStarAlgorithm<Element> extends DDAlgorithm<Element> {
   private List<Element> causeElements = new ArrayList<>();
 
   public DDStarAlgorithm(
-      Configuration pConfig, LogManager pLogger, CFAElementManipulator<Element> pElementManipulator)
-      throws InvalidConfigurationException {
-    logger = Preconditions.checkNotNull(pLogger);
-    elementManipulator = Preconditions.checkNotNull(pElementManipulator);
-    delegate =
-        new DDAlgorithm<>(
-            pConfig, logger, elementManipulator, PartsToRemove.DELTAS_AND_COMPLEMENTS);
-  }
-
-  @Override
-  public void collectStatistics(Collection<Statistics> pStatsCollection) {
-    delegate.collectStatistics(pStatsCollection);
+      LogManager pLogger, CFAElementManipulator<Element> pManipulator, PartsToRemove pMode) {
+    super(pLogger, pManipulator, pMode);
   }
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
-    if (!delegate.canMutate(pCfa)) {
-      // found cause
-      causeElements.addAll(delegate.getCauseElements());
-      ImmutableList<Element> remaining = delegate.getSafeElements();
-
-      if (remaining.isEmpty()) {
-        return false;
-      }
-
-      delegate.workOn(remaining);
-      boolean result = delegate.canMutate(pCfa);
-      assert result;
+    if (super.canMutate(pCfa)) {
+      return true;
     }
+
+    // found cause
+    causeElements.addAll(super.getCauseElements());
+    ImmutableList<Element> remaining = super.getSafeElements();
+    if (remaining.isEmpty()) {
+      return false;
+    }
+
+    super.workOn(remaining);
+    boolean result = super.canMutate(pCfa);
+    assert result;
     return true;
-  }
-
-  @Override
-  public void mutate(FunctionCFAsWithMetadata pCfa) {
-    delegate.mutate(pCfa);
-  }
-
-  @Override
-  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
-    delegate.setResult(pCfa, pResult);
   }
 }

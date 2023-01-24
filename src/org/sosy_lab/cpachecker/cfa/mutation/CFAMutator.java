@@ -30,6 +30,7 @@ import org.sosy_lab.common.log.TimestampedLogFormatter;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.ParseResult;
+import org.sosy_lab.cpachecker.cfa.export.DOTBuilder2;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
@@ -45,23 +46,30 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   @Option(
       secure = true,
-      name = "ddKind",
+      name = "dd",
       description = "which DD algorithm implementation to use to mutate CFA")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
   private Class<? extends CFAMutationStrategy> ddClass = null;
 
   @Option(
       secure = true,
-      name = "ddParts",
-      description = "which parts to remove? DD can remove deltas, complements, or both")
-  private PartsToRemove ddParts = PartsToRemove.DELTAS_AND_COMPLEMENTS;
+      name = "hdd",
+      description = "which HDD algorithm to use to mutate CFA (needs flat DD specified too)")
+  @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
+  private Class<? extends CFAMutationStrategy> hddClass = null;
 
   @Option(
       secure = true,
       name = "manipulator",
       description = "which elements to remove from CFA (one manipulator class)")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
-  private Class<? extends CFAElementManipulator<?>> manipulatorClass = null;
+  private Class<CFAElementManipulator<?>> manipulatorClass;
+
+  @Option(
+      secure = true,
+      name = "dd.parts",
+      description = "which parts to remove? DD can remove deltas, complements, or both")
+  private PartsToRemove mode = PartsToRemove.DELTAS_AND_COMPLEMENTS;
 
   @Option(
       secure = true,
@@ -134,10 +142,10 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       }
 
     } else {
-      // use experimental impl
-      CFAElementManipulator<?> elementManipulator;
+
+      CFAElementManipulator<?> manipulator = null;
       try {
-        elementManipulator =
+        manipulator =
             manipulatorClass
                 .getConstructor(Configuration.class, LogManager.class)
                 .newInstance(config, logger);
@@ -146,29 +154,69 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       }
 
       try {
-        if (AbstractDeltaDebuggingAlgorithm.class.isAssignableFrom(ddClass)) {
+        if (ddClass == DeltaRemovingAfterDDAlgorithm.class) {
+          if (hddClass != null) {
+            throw new InvalidConfigurationException(
+                "HDD cannot use dr-ddmin-after-dd as flat DD delegate");
+          }
+
           strategy =
               ddClass
-                  .getConstructor(
-                      Configuration.class,
-                      LogManager.class,
-                      CFAElementManipulator.class,
-                      PartsToRemove.class)
-                  .newInstance(config, logger, elementManipulator, ddParts);
+                  .getConstructor(LogManager.class, CFAElementManipulator.class)
+                  .newInstance(logger, manipulator);
         } else {
-          strategy =
+          CFAMutationStrategy flatStrategy =
               ddClass
                   .getConstructor(
-                      Configuration.class, LogManager.class, CFAElementManipulator.class)
-                  .newInstance(config, logger, elementManipulator);
+                      LogManager.class, CFAElementManipulator.class, PartsToRemove.class)
+                  .newInstance(logger, manipulator, mode);
+          strategy =
+              hddClass == null
+                  ? flatStrategy
+                  : hddClass
+                      .getConstructor(LogManager.class, FlatDeltaDebugging.class)
+                      .newInstance(logger, flatStrategy);
         }
       } catch (ReflectiveOperationException | SecurityException | IllegalArgumentException e) {
+        logger.logUserException(
+            Level.SEVERE, e.getCause(), "Can not generate DD CFA mutation strategy from option");
         throw new InvalidConfigurationException(
-            "Can not generate DD CFA mutation strategy from option", e);
+            "Can not generate DD CFA mutation strategy from option", e.getCause());
       }
     }
 
     mutatorStats = new CFAMutatorStatistics(pLogger);
+  }
+
+  private CFA exportCreateExportCFA()
+      throws InvalidConfigurationException, InterruptedException, ParserException {
+    if (mutatorStats.getRound() == 0) {
+      exportDirectory = cfaExportDirectory.resolve("0-original-cfa");
+    } else {
+      exportDirectory =
+          cfaExportDirectory.resolve(String.valueOf(mutatorStats.getRound()) + "-mutation-round");
+    }
+
+    mutatorStats.startExport();
+    try {
+      new DOTBuilder2(localCfa)
+          .writeGraphs(exportDirectory.resolve("function-cfas-before-processing"));
+    } catch (IOException e) {
+      logger.logUserException(
+          Level.WARNING, e, "Could not write function CFAs before processing to dot files");
+    }
+    // new BlockToDotWriter(localCfa).dump(exportDirectory.resolve("function-cfa-blocks"), logger);
+    mutatorStats.stopExport();
+
+    mutatorStats.setCfaStats(localCfa);
+    CFA result = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
+    mutatorStats.setCfaStats(result);
+
+    mutatorStats.startExport();
+    exportCFA(result);
+    mutatorStats.stopExport();
+
+    return result;
   }
 
   /**
@@ -181,21 +229,13 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     localCfa =
         FunctionCFAsWithMetadata.fromParseResult(
             pParseResult, machineModel, pMainFunction, language);
-    mutatorStats.setCfaStats(localCfa);
-    CFA result = super.createCFA(pParseResult, pMainFunction);
-    mutatorStats.setCfaStats(result);
-    return result;
+
+    return exportCreateExportCFA();
   }
 
   @Override
   protected void exportCFAAsync(CFA pCfa) {
     // do not export asynchronously as CFA will be mutated
-    if (mutatorStats.getRound() == 0) {
-      mutatorStats.startExport();
-      exportDirectory = cfaExportDirectory.resolve("0-original-cfa");
-      super.exportCFA(pCfa);
-      mutatorStats.stopExport();
-    }
   }
 
   public void setup() {
@@ -213,6 +253,13 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     mutatorStats.startPreparations();
     boolean result = strategy.canMutate(localCfa);
     mutatorStats.stopPreparations();
+
+    if (strategy instanceof AbstractDeltaDebuggingStrategy<?>) {
+      mutatorStats.startExport();
+      ((AbstractDeltaDebuggingStrategy<?>) strategy).exportGraph(exportDirectory);
+      mutatorStats.stopExport();
+    }
+
     return result;
   }
 
@@ -222,16 +269,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     strategy.mutate(localCfa);
     mutatorStats.stopMutation();
 
-    mutatorStats.setCfaStats(localCfa);
-    CFA result = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
-    mutatorStats.setCfaStats(result);
-
-    mutatorStats.startExport();
-    exportDirectory = cfaExportDirectory.resolve(mutatorStats.getRound() + "-mutation-round");
-    super.exportCFA(result);
-    mutatorStats.stopExport();
-
-    return result;
+    return exportCreateExportCFA();
   }
 
   /** Undo last mutation if needed */
@@ -257,8 +295,9 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
       mutatorStats.startExport();
       exportDirectory =
-          cfaExportDirectory.resolve(mutatorStats.getRound() + "-mutation-round-rollbacked");
-      super.exportCFA(rollbackedCfa);
+          cfaExportDirectory.resolve(
+              String.valueOf(mutatorStats.getRound()) + "-mutation-round-rollbacked");
+      exportCFA(rollbackedCfa);
       mutatorStats.stopExport();
     }
 

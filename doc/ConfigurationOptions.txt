@@ -892,15 +892,17 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 cfaMutation = false
 
 # which DD algorithm implementation to use to mutate CFA
-cfaMutation.ddKind = no default value
+cfaMutation.dd = no default value
 
 # which parts to remove? DD can remove deltas, complements, or both
-cfaMutation.ddParts = DELTAS_AND_COMPLEMENTS
-  enum:     [ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
+cfaMutation.dd.parts = DELTAS_AND_COMPLEMENTS
+  enum:     [DUMMY, ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
 
-# directory for hierarchical/dependency graphs built by CFA mutation DD
-# algorithms
-cfaMutation.graphsDir = "."
+# directory to dump function CFAs with marked up structured blocks
+cfaMutation.exportBlocksDir = "cfa-structured-blocks"
+
+# which HDD algorithm to use to mutate CFA (needs flat DD specified too)
+cfaMutation.hdd = no default value
 
 # Create log file for every round with this logging level.
 # Use main file logging level if that is lower.
@@ -933,11 +935,15 @@ cfaMutation.rollbacksInRowCheck = 5
 # successfully,
 # CFA mutator needs to setup its own time limit for each round.
 # It is walltime for original analysis run multiplied by numerator,
-# divided by denominator (both are integer), plus additional bias.
-# By default it is original run * 2 / 1 + 20s.
+# plus additional bias. By default it is original run * 2.0 + 20s.
 cfaMutation.walltimeLimit.add = 20s
-cfaMutation.walltimeLimit.denominator = 1
-cfaMutation.walltimeLimit.numerator = 2
+
+# Sometimes analysis run can be unpredictably long. To run many rounds
+# successfully,
+# CFA mutator needs to setup its own time limit for each round.
+# It is walltime for original analysis run multiplied by coefficient,
+# plus additional bias. By default it is original run * 2.0 + 20s.
+cfaMutation.walltimeLimit.numerator = 2.0
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false

@@ -29,32 +29,18 @@ import java.util.logging.Level;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
-import org.sosy_lab.cpachecker.cfa.CFACreationUtils;
 import org.sosy_lab.cpachecker.cfa.FunctionCallCollector;
 import org.sosy_lab.cpachecker.cfa.Language;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionCall;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionDeclaration;
-import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
-import org.sosy_lab.cpachecker.cfa.ast.c.CDesignatedInitializer;
-import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
-import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
-import org.sosy_lab.cpachecker.cfa.ast.c.CInitializer;
-import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
-import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerList;
-import org.sosy_lab.cpachecker.cfa.ast.c.CReturnStatement;
-import org.sosy_lab.cpachecker.cfa.ast.c.CVariableDeclaration;
 import org.sosy_lab.cpachecker.cfa.model.AStatementEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
-import org.sosy_lab.cpachecker.cfa.model.c.CDeclarationEdge;
-import org.sosy_lab.cpachecker.cfa.model.c.CReturnStatementEdge;
 import org.sosy_lab.cpachecker.cfa.postprocessing.function.ThreadCreateTransformer;
 import org.sosy_lab.cpachecker.cfa.postprocessing.function.ThreadCreateTransformer.ThreadFinder;
-import org.sosy_lab.cpachecker.cfa.types.c.CDefaults;
-import org.sosy_lab.cpachecker.cfa.types.c.CStorageClass;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
 import org.sosy_lab.cpachecker.util.CFATraversal;
@@ -73,7 +59,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
         case DIRECT_CALL:
           return "calls";
         case POINTER_CALL:
-          return "pointer-calls";
+          return "calls via pointer";
         case THREAD_CREATION:
           return "creates new thread and calls";
         default:
@@ -82,7 +68,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     }
   }
 
-  class FunctionElement {
+  static class FunctionElement {
     private final String name;
     private final FunctionEntryNode entry;
     private final NavigableSet<CFANode> oldNodes;
@@ -121,7 +107,6 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     }
 
     private void insertDummyReturn() {
-      FileLocation loc = FileLocation.DUMMY;
       FunctionExitNode exit = entry.getExitNode();
       ImmutableList.Builder<CFAEdge> halfConnected = ImmutableList.builder();
 
@@ -146,44 +131,14 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
       CFAMutationUtils.changeSuccessor(entry.getLeavingEdge(0).getSuccessor(), lastNode);
       newNodes.add(lastNode);
 
-      CInitializer init = CDefaults.forType(returnType, loc);
-      CExpression rexp = null;
-
-      if (init instanceof CInitializerList) {
-        // complex type, can not write return with this value
-        CFANode node = new CFANode(entry.getFunction());
-        newNodes.add(node);
-
-        CVariableDeclaration decl =
-            new CVariableDeclaration(
-                loc,
-                false,
-                CStorageClass.AUTO,
-                returnType,
-                retVarName,
-                retVarName,
-                retVarName,
-                init);
-        CFACreationUtils.addEdgeToCFA(
-            new CDeclarationEdge(decl.toASTString(), loc, lastNode, node, decl), logger);
-        lastNode = node;
-        rexp = new CIdExpression(loc, decl);
-
-      } else if (init instanceof CDesignatedInitializer) {
-        throw new AssertionError();
-
-      } else if (init instanceof CInitializerExpression) {
-        rexp = ((CInitializerExpression) init).getExpression();
+      Optional<CFANode> node = CFAMutationUtils.insertDefaultReturnStatementEdge(lastNode, exit);
+      if (node.isPresent()) {
+        newNodes.add(node.orElseThrow());
       }
 
-      CReturnStatement rst = new CReturnStatement(loc, Optional.of(rexp), Optional.empty());
-      CFACreationUtils.addEdgeToCFA(
-          new CReturnStatementEdge(rst.toASTString(), rst, loc, lastNode, exit), logger);
       halfConnectedEdges = halfConnected.build();
     }
   }
-
-  private static final String retVarName = "CPAchecker_CFAmutator_dummy_retval";
 
   private ImmutableSet<String> bodiesNeeded;
 
@@ -197,6 +152,8 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   private ImmutableValueGraph<FunctionElement, FunctionCall> prevGraph = null;
   private ImmutableSet<FunctionElement> currentLevel = null;
   private List<FunctionElement> previousLevels = new ArrayList<>();
+
+  private ImmutableList<FunctionElement> currentMutation;
 
   public FunctionBodyManipulator(Configuration pConfig, LogManager pLogger)
       throws InvalidConfigurationException {
@@ -214,7 +171,12 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   @Override
-  public void setupFromCfa(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStatistics pStats) {
+  public ImmutableValueGraph<FunctionElement, ?> getGraph() {
+    return ImmutableValueGraph.copyOf(functionCallGraph);
+  }
+
+  @Override
+  public void setupFromCfa(FunctionCFAsWithMetadata pCfa) {
     functionCallGraph =
         ValueGraphBuilder.directed().expectedNodeCount(pCfa.getFunctions().size()).build();
 
@@ -242,8 +204,6 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
     addDirectCalls(pCfa, functionCallGraph);
     // TODO other function calls... (via pointers and thread creation too)
-
-    pStats.setGraph(functionCallGraph);
 
     setPostorder();
   }
@@ -274,7 +234,6 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     }
   }
 
-  @Override
   public void remove(FunctionCFAsWithMetadata pCfa, FunctionElement pChosen) {
     if (bodiesNeeded.contains(pChosen.name)) {
       logger.log(Level.FINE, "Replacing function", pChosen, "body with default 'return'");
@@ -296,7 +255,6 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     }
   }
 
-  @Override
   public void restore(FunctionCFAsWithMetadata pCfa, FunctionElement pRemoved) {
     logger.log(Level.FINE, "Restoring function", pRemoved.name);
     pCfa.getCFANodes().removeAll(pRemoved.name);
@@ -401,8 +359,13 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   @Override
-  public ImmutableList<FunctionElement> remove(
-      FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
+  public void remove(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
+    pChosen.forEach(f -> remove(pCfa, f));
+    currentMutation = ImmutableList.copyOf(pChosen);
+  }
+
+  @Override
+  public void prune(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
     Preconditions.checkState(functionCallGraph != null, "Function call graph was not set up");
 
     List<FunctionElement> removed = new ArrayList<>(pChosen);
@@ -426,25 +389,22 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
         Level.INFO, "Removing", removed.size(), getElementTitle(), "including callees:", removed);
     removed.forEach(f -> functionCallGraph.removeNode(f));
     assert prevGraph.nodes().containsAll(removed);
-    return ImmutableList.copyOf(removed).reverse();
+    currentMutation = ImmutableList.copyOf(removed);
   }
 
   @Override
-  public void restore(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pRemoved) {
+  public void rollback(FunctionCFAsWithMetadata pCfa) {
     logger.log(
         Level.INFO,
         "Restoring",
-        pRemoved.size(),
+        currentMutation.size(),
         getElementTitle(),
-        "including callees:",
-        pRemoved);
-    for (var edge : prevGraph.edges()) {
-      functionCallGraph.putEdgeValue(edge, prevGraph.edgeValue(edge).orElseThrow());
+        currentMutation);
+    if (prevGraph != null) {
+      for (var edge : prevGraph.edges()) {
+        functionCallGraph.putEdgeValue(edge, prevGraph.edgeValue(edge).orElseThrow());
+      }
     }
-    System.out.println("prev nodes: " + prevGraph.nodes());
-    System.out.println("curr nodes: " + functionCallGraph.nodes());
-    System.out.println("prev edges: " + prevGraph.edges());
-    System.out.println("curr edges: " + functionCallGraph.edges());
-    pRemoved.forEach(f -> restore(pCfa, f));
+    currentMutation.reverse().forEach(f -> restore(pCfa, f));
   }
 }

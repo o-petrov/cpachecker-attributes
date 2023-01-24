@@ -8,21 +8,12 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.graph.ImmutableValueGraph;
 import com.google.common.graph.ValueGraph;
 import java.util.Collection;
 
 interface CFAElementManipulator<Element> {
-
-  /** Remove chosen element from CFA (ignore hierarchy/dependency graph). */
-  public void remove(FunctionCFAsWithMetadata pCfa, Element pChosen);
-
-  /** Restore removed element (ignore hierarchy/dependency graph). */
-  public void restore(FunctionCFAsWithMetadata pCfa, Element pRemoved);
-
-  /** A human-readable name of CFA elements. */
-  public String getElementTitle();
 
   /**
    * Retrieve elements — atomic CFA parts — this manipulator can remove, and their
@@ -38,10 +29,13 @@ interface CFAElementManipulator<Element> {
    * it can be a graph with edges from including block to the included ones.
    *
    * <p>If CFA is changed by something else, this method must be called before other methods.
-   *
-   * <p>Produced graph is written to file by the provided statistics.
    */
-  public void setupFromCfa(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStatistics pStats);
+  public void setupFromCfa(FunctionCFAsWithMetadata pCfa);
+
+  public ImmutableValueGraph<Element, ?> getGraph();
+
+  /** A human-readable name of CFA elements. */
+  public String getElementTitle();
 
   /**
    * Return all possible atomic CFA parts — elements — this manager can remove.
@@ -65,9 +59,15 @@ interface CFAElementManipulator<Element> {
    */
   public ImmutableSet<Element> getNextLevelElements();
 
-  /** Remove chosen elements from CFA with respect to hierarchy/dependency graph. */
-  public ImmutableList<Element> remove(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen);
+  /** Remove chosen elements from CFA (ignore hierarchy/dependency graph). */
+  public void remove(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen);
 
-  /** Restore removed elements with respect to hierarchy/dependency graph. */
-  public void restore(FunctionCFAsWithMetadata pCfa, Collection<Element> pRemoved);
+  /**
+   * Remove chosen elements with their (direct and transitive) children in hierarchy/dependency
+   * graph. (If the graph is not a tree, it is not exactly children; there are different decisions.)
+   */
+  public void prune(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen);
+
+  /** Rollback the last mutation this manipulator did. */
+  public void rollback(FunctionCFAsWithMetadata pCfa);
 }

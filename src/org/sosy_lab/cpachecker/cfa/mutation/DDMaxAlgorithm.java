@@ -8,27 +8,19 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import java.util.logging.Level;
-import org.sosy_lab.common.configuration.Configuration;
-import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 
 /** This delta debugging algorithm (ddmax) maximizes a passing test. */
-class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
+class DDMaxAlgorithm<Element> extends FlatDeltaDebugging<Element> {
 
   public DDMaxAlgorithm(
-      Configuration pConfig,
-      LogManager pLogger,
-      CFAElementManipulator<Element> pElementManipulator,
-      PartsToRemove pMode)
-      throws InvalidConfigurationException {
-    super(pConfig, pLogger, pElementManipulator, pMode);
+      LogManager pLogger, CFAElementManipulator<Element> pManipulator, PartsToRemove pMode) {
+    super(pLogger, pManipulator, pMode);
   }
 
   @Override
   protected void logFinish() {
-    logger.log(
-        Level.INFO,
+    logInfo(
         "All",
         getElementTitle(),
         "are resolved,",
@@ -40,44 +32,33 @@ class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
 
   @Override
   protected void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    switch (pStage) {
-      case REMOVE_COMPLEMENT:
-        logger.log(
-            Level.INFO,
-            "The remaining delta is a failing test. Nothing is resolved. The removed complement is restored.");
-
-        break;
-      case REMOVE_DELTA:
-        logger.log(
-            Level.INFO,
-            "The remaining complement is a failing test. Nothing is resolved. The removed delta is restored.");
-
-        break;
-      default:
-        throw new AssertionError();
-    }
-
-    rollback(pCfa);
+    logInfo(
+        "The remaining",
+        pStage.nameThis(),
+        "is a failing test. Nothing is resolved. The removed complement is restored.");
+    manipulator.rollback(pCfa);
   }
 
   @Override
   protected void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
     markRemainingElementsAsSafe();
 
+    logInfo(
+        "The removed",
+        pStage.nameThis(),
+        "contains a fail-inducing difference. The remaining",
+        pStage.nameOther(),
+        "is safe by itself. Mutation is rollbacked.");
+
     switch (pStage) {
       case REMOVE_COMPLEMENT:
-        logger.log(
-            Level.INFO,
-            "The removed complement contains a fail-inducing difference. "
-                + "The remaining delta is safe by itself. Mutation is rollbacked.");
         removeCurrentDeltaFromDeltaList();
         break;
 
+      case REMOVE_WHOLE:
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
       case REMOVE_DELTA:
-        logger.log(
-            Level.INFO,
-            "The removed delta contains a fail-inducing difference. "
-                + "The remaining complement is safe by itself. Mutation is rollbacked.");
         resetDeltaListWithHalvesOfCurrentDelta();
         break;
 
@@ -85,6 +66,6 @@ class DDMaxAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
         throw new AssertionError();
     }
 
-    rollback(pCfa);
+    manipulator.rollback(pCfa);
   }
 }

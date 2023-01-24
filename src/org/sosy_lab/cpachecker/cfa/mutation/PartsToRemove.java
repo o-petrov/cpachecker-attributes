@@ -9,6 +9,7 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 enum PartsToRemove {
+  DUMMY,
   ONLY_DELTAS,
   ONLY_COMPLEMENTS,
   DELTAS_AND_COMPLEMENTS

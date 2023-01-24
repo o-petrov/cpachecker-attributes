@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.export;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.sosy_lab.cpachecker.util.CFAUtils.successorsOf;
 
@@ -41,6 +40,7 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdgeType;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
+import org.sosy_lab.cpachecker.cfa.mutation.FunctionCFAsWithMetadata;
 import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFATraversal.CFAVisitor;
 import org.sosy_lab.cpachecker.util.CFATraversal.CompositeCFAVisitor;
@@ -65,16 +65,27 @@ import org.sosy_lab.cpachecker.util.CFATraversal.TraversalProcess;
  */
 public final class DOTBuilder2 {
 
-  private final CFA cfa;
+  private final Collection<FunctionEntryNode> functionEntries;
   private final CFAJSONBuilder jsoner;
   private final DOTViewBuilder dotter;
 
   public DOTBuilder2(CFA pCfa) {
-    cfa = checkNotNull(pCfa);
+    functionEntries = pCfa.getAllFunctionHeads();
     jsoner = new CFAJSONBuilder();
-    dotter = new DOTViewBuilder(cfa);
+    dotter = new DOTViewBuilder(pCfa);
     CFAVisitor vis = new NodeCollectingCFAVisitor(new CompositeCFAVisitor(jsoner, dotter));
-    for (FunctionEntryNode entryNode : cfa.getAllFunctionHeads()) {
+    for (FunctionEntryNode entryNode : functionEntries) {
+      CFATraversal.dfs().ignoreFunctionCalls().traverse(entryNode, vis);
+    }
+    dotter.postProcessing();
+  }
+
+  public DOTBuilder2(FunctionCFAsWithMetadata pCfa) {
+    functionEntries = pCfa.getFunctions().values();
+    jsoner = new CFAJSONBuilder();
+    dotter = new DOTViewBuilder();
+    CFAVisitor vis = new NodeCollectingCFAVisitor(new CompositeCFAVisitor(jsoner, dotter));
+    for (FunctionEntryNode entryNode : functionEntries) {
       CFATraversal.dfs().ignoreFunctionCalls().traverse(entryNode, vis);
     }
     dotter.postProcessing();
@@ -82,7 +93,7 @@ public final class DOTBuilder2 {
 
   /** output the CFA as DOT files */
   public void writeGraphs(Path outdir) throws IOException {
-    for (FunctionEntryNode entryNode : cfa.getAllFunctionHeads()) {
+    for (FunctionEntryNode entryNode : functionEntries) {
       dotter.writeFunctionFile(entryNode.getFunctionName(), outdir);
     }
   }
@@ -137,6 +148,10 @@ public final class DOTBuilder2 {
 
     private DOTViewBuilder(CFA cfa) {
       loopHeads = cfa.getAllLoopHeads();
+    }
+
+    private DOTViewBuilder() {
+      loopHeads = Optional.empty();
     }
 
     @Override
@@ -327,11 +342,13 @@ public final class DOTBuilder2 {
 
         for (CFAEdge edge : combo) {
           sb.append("<tr><td align=\"right\">");
-          sb.append("" + edge.getPredecessor().getNodeNumber());
+          sb.append(String.valueOf(edge.getPredecessor().getNodeNumber()));
           sb.append("</td><td align=\"left\">");
           sb.append(
               HtmlEscapers.htmlEscaper()
                   .escape(getEdgeText(edge))
+                  // " was escaped in #getEdgeText with \ and then replaced with &quot
+                  .replace("\\&", "&")
                   .replace("|", "&#124;")
                   .replace("{", "&#123;")
                   .replace("}", "&#125;"));

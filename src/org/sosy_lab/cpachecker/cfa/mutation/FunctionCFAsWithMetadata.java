@@ -36,7 +36,7 @@ import org.sosy_lab.cpachecker.util.Pair;
  * steps of CFA creation.
  */
 // TODO consistent interface. Class will be immutable?
-class FunctionCFAsWithMetadata extends ParseResult {
+public class FunctionCFAsWithMetadata extends ParseResult {
   private ImmutableSet<CFANode> localNodes = null;
   private TreeMap<CFANode, Hedgehog> localEdges = null;
   private final MachineModel machinemodel;

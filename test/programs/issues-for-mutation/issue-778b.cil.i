@@ -10329,74 +10329,31 @@ static int mts_usb_probe(struct usb_interface *intf, struct usb_device_id const 
   int ep_in_set[3U];
   struct mts_desc *new_desc;
   struct usb_host_interface *altsetting;
-  
-#line 660 
   int ep_out = -1;
-  
-#line 663 
   int *ep_in_current = (int *)(& ep_in_set);
-  
-#line 664 
   int err_retval = -12;
-  
-#line 667 
   struct usb_device *dev = interface_to_usbdev(intf);
-  
-#line 682 
   altsetting = intf->cur_altsetting;
-  
-#line 687 
   if ((unsigned int)altsetting->desc.bNumEndpoints != 3U) {
-    
-#line 688 
     printk("\001",3,(int)altsetting->desc.bNumEndpoints);
-    
-#line 690 
     return -19;
   }
-  
-#line 693 
   i = 0;
-  
-#line 693 
   goto ldv_44162;
   ldv_44161: 
-#line 694 
-  ;
-  
-#line 694 
-  if (((int)(altsetting->endpoint + i)->desc.bmAttributes & 3) != 2) 
-    
-#line 697 
+  if (((int)(altsetting->endpoint + i)->desc.bmAttributes & 3) != 2)
     printk("\001",(int)(altsetting->endpoint + i)->desc.bEndpointAddress);
   else 
-    
-#line 700 
     if (((int)(altsetting->endpoint + i)->desc.bEndpointAddress & 128) != 0) {
       int *tmp_0;
-      
-#line 702 
       tmp_0 = ep_in_current;
-      
-#line 702 
       ep_in_current ++;
-      
-#line 702 
       *tmp_0 = (int)(altsetting->endpoint + i)->desc.bEndpointAddress & 15;
-    }
-    else {
-      
-#line 706 
+    } else {
       if (ep_out != -1) {
-        
-#line 707 
         printk("\001");
-        
-#line 708 
         return -19;
       }
-      
-#line 711 
       ep_out = (int)(altsetting->endpoint + i)->desc.bEndpointAddress & 15;
     }
   

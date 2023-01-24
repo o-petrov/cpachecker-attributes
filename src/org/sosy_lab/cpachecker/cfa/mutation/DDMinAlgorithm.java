@@ -8,27 +8,19 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import java.util.logging.Level;
-import org.sosy_lab.common.configuration.Configuration;
-import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 
 /** This delta debugging algorithm (ddmin) minimizes a failing test. */
-public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Element> {
+public class DDMinAlgorithm<Element> extends FlatDeltaDebugging<Element> {
 
   public DDMinAlgorithm(
-      Configuration pConfig,
-      LogManager pLogger,
-      CFAElementManipulator<Element> pElementManipulator,
-      PartsToRemove pMode)
-      throws InvalidConfigurationException {
-    super(pConfig, pLogger, pElementManipulator, pMode);
+      LogManager pLogger, CFAElementManipulator<Element> pManipulator, PartsToRemove pMode) {
+    super(pLogger, pManipulator, pMode);
   }
 
   @Override
   protected void logFinish() {
-    logger.log(
-        Level.INFO,
+    logInfo(
         "All",
         getElementTitle(),
         "are resolved,",
@@ -41,13 +33,16 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
   @Override
   protected void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
     markRemovedElementsAsResolved();
+    logInfo(
+        "The remaining",
+        pStage.nameOther(),
+        "is a failing test. The removed",
+        pStage.nameThis(),
+        "is not restored.");
 
     switch (pStage) {
       case REMOVE_COMPLEMENT:
         // delta has the cause, complement is safe
-        logger.log(
-            Level.INFO,
-            "The remaining delta is a failing test. The removed complement is not restored.");
         // remove complement from list, i.e. make list of one delta, and then split it.
         resetDeltaListWithHalvesOfCurrentDelta();
         break;
@@ -57,9 +52,6 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
       case REMOVE_WHOLE:
       case REMOVE_DELTA:
         // delta is safe, complement has the cause
-        logger.log(
-            Level.INFO,
-            "The remaining complement is a failing test. The removed delta is not restored.");
         // remove delta from list
         removeCurrentDeltaFromDeltaList();
         break;
@@ -71,13 +63,11 @@ public class DDMinAlgorithm<Element> extends AbstractDeltaDebuggingAlgorithm<Ele
 
   @Override
   protected void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    logger.log(
-        Level.INFO,
+    logInfo(
         "The removed",
-        pStage,
-        "contains a part of a minimal failing test. "
-            + "Nothing is resolved. Mutation is rollbacked.");
+        pStage.nameThis(),
+        "contains a part of a minimal failing test. Nothing is resolved. Mutation is rollbacked.");
 
-    rollback(pCfa);
+    manipulator.rollback(pCfa);
   }
 }

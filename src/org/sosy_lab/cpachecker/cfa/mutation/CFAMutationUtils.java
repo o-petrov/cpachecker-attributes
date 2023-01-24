@@ -8,11 +8,20 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import java.util.Optional;
+import org.sosy_lab.cpachecker.cfa.ast.ADeclaration;
+import org.sosy_lab.cpachecker.cfa.ast.AFunctionDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.FileLocation;
 import org.sosy_lab.cpachecker.cfa.ast.c.CDeclaration;
+import org.sosy_lab.cpachecker.cfa.ast.c.CDesignatedInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CInitializer;
+import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerList;
 import org.sosy_lab.cpachecker.cfa.ast.c.CReturnStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
+import org.sosy_lab.cpachecker.cfa.ast.c.CVariableDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.java.JDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.java.JExpression;
 import org.sosy_lab.cpachecker.cfa.ast.java.JReturnStatement;
@@ -33,6 +42,10 @@ import org.sosy_lab.cpachecker.cfa.model.java.JAssumeEdge;
 import org.sosy_lab.cpachecker.cfa.model.java.JDeclarationEdge;
 import org.sosy_lab.cpachecker.cfa.model.java.JReturnStatementEdge;
 import org.sosy_lab.cpachecker.cfa.model.java.JStatementEdge;
+import org.sosy_lab.cpachecker.cfa.types.c.CDefaults;
+import org.sosy_lab.cpachecker.cfa.types.c.CStorageClass;
+import org.sosy_lab.cpachecker.cfa.types.c.CType;
+import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
 class CFAMutationUtils {
@@ -103,6 +116,28 @@ class CFAMutationUtils {
       default:
         throw new AssertionError();
     }
+  }
+
+  public static CFANode copyDeclarationEdge(ADeclarationEdge pEdge, CFANode pPredecessor) {
+    ADeclarationEdge newEdge;
+    CFANode newNode = new CFANode(pPredecessor.getFunction());
+
+    String raw = pEdge.getRawStatement();
+    FileLocation loc = pEdge.getFileLocation();
+    ADeclaration d = pEdge.getDeclaration();
+
+    if (pEdge instanceof CDeclarationEdge) {
+      newEdge = new CDeclarationEdge(raw, loc, pPredecessor, newNode, (CDeclaration) d);
+    } else if (pEdge instanceof JDeclarationEdge) {
+      newEdge = new JDeclarationEdge(raw, loc, pPredecessor, newNode, (JDeclaration) d);
+    } else {
+      throw new AssertionError();
+    }
+
+    pPredecessor.addLeavingEdge(newEdge);
+    newNode.addEnteringEdge(newEdge);
+
+    return newNode;
   }
 
   /** Is this node inside a chain, i.e. has it exctly one entering and exactly one leaving edge */
@@ -179,5 +214,64 @@ class CFAMutationUtils {
     for (int i = pNode.getNumEnteringEdges() - 1; i >= 0; i--) {
       pNode.removeEnteringEdge(pNode.getEnteringEdge(i));
     }
+  }
+
+  public static void removeAllLeavingEdges(CFANode pNode) {
+    for (int i = pNode.getNumLeavingEdges() - 1; i >= 0; i--) {
+      pNode.removeLeavingEdge(pNode.getLeavingEdge(i));
+    }
+  }
+
+  private static final String retVarName = "CPAchecker_CFAmutator_dummy_retval";
+
+  public static Optional<CFANode> insertDefaultReturnStatementEdge(
+      CFANode pNode, FunctionExitNode pExit) {
+    FileLocation loc = FileLocation.DUMMY;
+    AFunctionDeclaration functionDecl = pNode.getFunction();
+    CType returnType = (CType) functionDecl.getType().getReturnType();
+
+    if (returnType instanceof CVoidType) {
+      CReturnStatement rst = new CReturnStatement(loc, Optional.empty(), Optional.empty());
+
+      CFAEdge e = new CReturnStatementEdge(rst.toASTString(), rst, loc, pNode, pExit);
+      pNode.addLeavingEdge(e);
+      pExit.addEnteringEdge(e);
+
+      return Optional.empty();
+    }
+
+    CInitializer init = CDefaults.forType(returnType, loc);
+    CExpression rexp = null;
+    CFANode afterDecl = null;
+
+    if (init instanceof CInitializerList) {
+      // complex type, can not write return with this value
+      afterDecl = new CFANode(functionDecl);
+
+      CVariableDeclaration decl =
+          new CVariableDeclaration(
+              loc, false, CStorageClass.AUTO, returnType, retVarName, retVarName, retVarName, init);
+
+      CFAEdge e = new CDeclarationEdge(decl.toASTString(), loc, pNode, afterDecl, decl);
+      pNode.addLeavingEdge(e);
+      afterDecl.addEnteringEdge(e);
+
+      pNode = afterDecl;
+      rexp = new CIdExpression(loc, decl);
+
+    } else if (init instanceof CDesignatedInitializer) {
+      throw new AssertionError();
+
+    } else if (init instanceof CInitializerExpression) {
+      rexp = ((CInitializerExpression) init).getExpression();
+    }
+
+    CReturnStatement rst = new CReturnStatement(loc, Optional.of(rexp), Optional.empty());
+
+    CFAEdge e = new CReturnStatementEdge(rst.toASTString(), rst, loc, pNode, pExit);
+    pNode.addLeavingEdge(e);
+    pExit.addEnteringEdge(e);
+
+    return Optional.ofNullable(afterDecl);
   }
 }

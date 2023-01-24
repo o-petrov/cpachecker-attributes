@@ -10,23 +10,8 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.graph.ImmutableValueGraph;
-import com.google.common.graph.ValueGraph;
-import java.io.IOException;
 import java.io.PrintStream;
-import java.io.Writer;
-import java.nio.charset.Charset;
-import java.nio.file.Path;
-import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.sosy_lab.common.configuration.Configuration;
-import org.sosy_lab.common.configuration.FileOption;
-import org.sosy_lab.common.configuration.FileOption.Type;
-import org.sosy_lab.common.configuration.InvalidConfigurationException;
-import org.sosy_lab.common.configuration.Option;
-import org.sosy_lab.common.configuration.Options;
-import org.sosy_lab.common.io.IO;
-import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
@@ -36,21 +21,11 @@ import org.sosy_lab.cpachecker.util.statistics.StatKind;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 
-@Options(prefix = "cfaMutation")
 class DeltaDebuggingStatistics implements Statistics {
-  @FileOption(Type.OUTPUT_DIRECTORY)
-  @Option(
-      secure = true,
-      name = "graphsDir",
-      description =
-          "directory for hierarchical/dependency graphs built by CFA mutation DD algorithms")
-  private Path graphDirectory = Path.of(".");
-  private ImmutableValueGraph<?, ?> graph = null;
   private final int pass;
 
   private final String strategyName;
   private final String elementTitle;
-  private final LogManager logger;
 
   private final StatCounter totalRounds = new StatCounter("mutation rounds");
   private final StatCounter failRounds = new StatCounter("successful, same error");
@@ -68,20 +43,12 @@ class DeltaDebuggingStatistics implements Statistics {
   private final StatInt unresolvedCount;
   private final StatInt removedCount;
 
-  public DeltaDebuggingStatistics(
-      int pPass,
-      Configuration pConfig,
-      LogManager pLogger,
-      String pStrategyName,
-      String pElementTitle)
-      throws InvalidConfigurationException {
+  public DeltaDebuggingStatistics(int pPass, String pStrategyName, String pElementTitle) {
     pass = pPass;
     Preconditions.checkArgument(!Strings.isNullOrEmpty(pStrategyName));
     Preconditions.checkArgument(!Strings.isNullOrEmpty(pElementTitle));
     strategyName = pStrategyName;
     elementTitle = pElementTitle;
-    logger = Preconditions.checkNotNull(pLogger);
-    pConfig.inject(this, DeltaDebuggingStatistics.class);
 
     unresolvedCount = new StatInt(StatKind.SUM, "count of unresolved " + elementTitle);
     causeCount = new StatInt(StatKind.SUM, "count of fail-inducing " + elementTitle);
@@ -89,10 +56,8 @@ class DeltaDebuggingStatistics implements Statistics {
     removedCount = new StatInt(StatKind.SUM, "count of removed " + elementTitle);
   }
 
-  public DeltaDebuggingStatistics(
-      Configuration pConfig, LogManager pLogger, String pStrategyName, String pElementTitle)
-      throws InvalidConfigurationException {
-    this(0, pConfig, pLogger, pStrategyName, pElementTitle);
+  public DeltaDebuggingStatistics(String pStrategyName, String pElementTitle) {
+    this(0, pStrategyName, pElementTitle);
   }
 
   @Override
@@ -111,41 +76,8 @@ class DeltaDebuggingStatistics implements Statistics {
   }
 
   @Override
-  public void writeOutputFiles(Result pResult, UnmodifiableReachedSet pReached) {
-    if (graph != null) {
-      String filename = elementTitle + " " + String.valueOf(pass) + ".dot";
-      try (Writer w =
-          IO.openOutputFile(graphDirectory.resolve(filename), Charset.defaultCharset())) {
-        generateDot(w, graph);
-      } catch (IOException e) {
-        logger.logUserException(Level.WARNING, e, "Could not write " + elementTitle + " graph");
-      }
-    }
-  }
-
-  private static <N, V> void generateDot(Writer pWriter, ImmutableValueGraph<N, V> pGraph)
-      throws IOException {
-    pWriter.append("digraph G {\n" + "rankdir=LR;\n");
-    for (N node : pGraph.nodes()) {
-      pWriter.append(node.toString());
-      pWriter.append("\n");
-    }
-    for (N pred : pGraph.nodes()) {
-      for (N succ : pGraph.successors(pred)) {
-        pWriter.append(pred.toString());
-        pWriter.append(" -> ");
-        pWriter.append(succ.toString());
-        pWriter.append(" [label=\"");
-        pWriter.append(pGraph.edgeValue(pred, succ).orElseThrow().toString());
-        pWriter.append("\"]\n");
-      }
-    }
-    pWriter.append("}\n");
-  }
-
-  @Override
   public @Nullable String getName() {
-    return strategyName;
+    return strategyName + " (" + String.valueOf(pass) + " run)";
   }
 
   public void elementsFound(int pCount) {
@@ -202,10 +134,5 @@ class DeltaDebuggingStatistics implements Statistics {
     if (++currentRowOfRollbacks > longestRowOfRollbacks) {
       longestRowOfRollbacks = currentRowOfRollbacks;
     }
-  }
-
-  public void setGraph(ValueGraph<?, ?> pGraph) {
-    Preconditions.checkState(graph == null, "Dependency graph was already set");
-    graph = ImmutableValueGraph.copyOf(pGraph);
   }
 }

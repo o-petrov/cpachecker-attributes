@@ -14,7 +14,7 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 -->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
-<benchmark walltimelimit="1100s" tool="cpachecker">
+<benchmark walltimelimit="1100" tool="cpachecker">
     <option name="-setprop">cpa.callstack.unsupportedFunctions=__VERIFIER_nonexisting_dummy_function</option>
     <option name="-setprop">cpa.predicate.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
     <option name="-setprop">counterexample.export.extendedWitnessFile=witness.%d.graphml</option>
@@ -43,16 +43,16 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 <!--		<column title="rounds with no error">unsuccessfull mutations (no error)</column>-->
 <!--		<column title="rounds with other problem">unsuccessfull mutations (other problems)</column>-->
 
-<!--		<column title="local nodes before">count of nodes in function CFAs before mutations</column>-->
-<!--		<column title="local nodes after">count of nodes in function CFAs after mutations</column>-->
+		<column title="local nodes before">count of nodes in function CFAs before mutations</column>
+		<column title="local nodes after">count of nodes in function CFAs after mutations</column>
 <!--		<column title="local edges before">count of edges in function CFAs before mutations</column>-->
 <!--		<column title="local edges after">count of edges in function CFAs after mutations</column>-->
 <!--		<column title="global decls before">count of global declarations before mutations</column>-->
 <!--		<column title="global decls after">count of global declarations after mutations</column>-->
-		<column title="local functions before">count of functions in function CFAs before mutations</column>
-		<column title="local functions after">count of functions in function CFAs after mutations</column>
-<!--		<column title="CFAs CC sum before">cyclomatic complexity of function CFAs before mutations</column>-->
-<!--		<column title="CFAs CC sum after">cyclomatic complexity of function CFAs after mutations</column>-->
+<!--		<column title="functions before">count of functions in function CFAs before mutations</column>-->
+<!--		<column title="functions after">count of functions in function CFAs after mutations</column>-->
+		<column title="CFAs CC sum before">cyclomatic complexity of function CFAs before mutations</column>
+		<column title="CFAs CC sum after">cyclomatic complexity of function CFAs after mutations</column>
 
 <!--		<column title="full nodes before">count of nodes in full CFA before mutations</column>-->
 <!--		<column title="full nodes after">count of nodes in full CFA after mutations</column>-->
@@ -68,42 +68,81 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 		<column title="time after rollbacks">time for analysis after rollback</column>
 	</columns>
 
-	<option name="-setprop">cfaMutation.manipulator=FunctionBodyManipulator</option>
+	<!--    <option name="-setprop">cfaMutation.manipulator=FunctionBodyManipulator</option>-->
 
-	<rundefinition name="DRADD">
-		<option name="-setprop">cfaMutation.ddKind=DeltaRemovingAfterDDAlgorithm</option>
+	<option name="-setprop">cfaMutation.manipulator=StructuredBlockManipulator</option>
+
+<!--	<rundefinition name="DDMin">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDMinAlgorithm</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="DR-DDMin">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDMinAlgorithm</option>-->
+<!--		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="CR-DDMin">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDMinAlgorithm</option>-->
+<!--		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>-->
+<!--	</rundefinition>-->
+
+<!--	<rundefinition name="DDMax">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDMaxAlgorithm</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="DR-DDMax">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDMaxAlgorithm</option>-->
+<!--		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="CR-DDMax">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDMaxAlgorithm</option>-->
+<!--		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>-->
+<!--	</rundefinition>-->
+
+<!--	<rundefinition name="DD">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDAlgorithm</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="DDStar">-->
+<!--		<option name="-setprop">cfaMutation.dd=DDStarAlgorithm</option>-->
+<!--	</rundefinition>-->
+<!--	<rundefinition name="DRADD">-->
+<!--		<option name="-setprop">cfaMutation.dd=DeltaRemovingAfterDDAlgorithm</option>-->
+<!--	</rundefinition>-->
+
+	<rundefinition name="HDD-Min">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDMinAlgorithm</option>
 	</rundefinition>
-	<rundefinition name="DDMin">
-		<option name="-setprop">cfaMutation.ddKind=DDMinAlgorithm</option>
+	<rundefinition name="DR-HDD-Min">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDMinAlgorithm</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
-	<rundefinition name="DR-DDMin">
-		<option name="-setprop">cfaMutation.ddKind=DDMinAlgorithm</option>
-		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
-	</rundefinition>
-	<rundefinition name="DDMax">
-		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
-	</rundefinition>
-	<rundefinition name="CR-DDMax">
-		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
-		<option name="-setprop">cfaMutation.ddParts=ONLY_COMPLEMENTS</option>
-	</rundefinition>
-	<rundefinition name="DR-DDMax">
-		<option name="-setprop">cfaMutation.ddKind=DDMaxAlgorithm</option>
-		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
-	</rundefinition>
-	<rundefinition name="DD">
-		<option name="-setprop">cfaMutation.ddKind=DDAlgorithm</option>
-	</rundefinition>
-	<rundefinition name="DDStar">
-		<option name="-setprop">cfaMutation.ddKind=DDStarAlgorithm</option>
+	<rundefinition name="CR-HDD-Min">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDMinAlgorithm</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
-	<rundefinition name="HDD">
-		<option name="-setprop">cfaMutation.ddKind=HierarchicalDeltaDebugging</option>
+	<rundefinition name="HDD-Max">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDMaxAlgorithm</option>
 	</rundefinition>
-    <rundefinition name="DR-HDD">
-		<option name="-setprop">cfaMutation.ddKind=HierarchicalDeltaDebugging</option>
-		<option name="-setprop">cfaMutation.ddParts=ONLY_DELTAS</option>
+	<rundefinition name="DR-HDD-Max">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDMaxAlgorithm</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+	<rundefinition name="CR-HDD-Max">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDMaxAlgorithm</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+
+	<rundefinition name="H-DD">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDAlgorithm</option>
+	</rundefinition>
+	<rundefinition name="H-DDStar">
+		<option name="-setprop">cfaMutation.hdd=HierarchicalDeltaDebugging</option>
+		<option name="-setprop">cfaMutation.dd=DDStarAlgorithm</option>
 	</rundefinition>
 
 <!--    <rundefinition name="Function-AE-Chain-Statement-Expression-Declaration-Global"/>-->
