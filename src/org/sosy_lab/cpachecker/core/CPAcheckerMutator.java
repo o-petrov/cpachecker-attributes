@@ -65,35 +65,22 @@ public class CPAcheckerMutator extends CPAchecker {
 
   @Option(
       secure = true,
-      name = "walltimeLimit.numerator",
+      name = "walltimeLimit.factor",
       description =
-          "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
-              + "CFA mutator needs to setup its own time limit for each round.\n"
-              + "It is walltime for original analysis run multiplied by numerator,\n"
-              + "divided by denominator (both are integer), plus additional bias.\n"
-              + "By default it is original run * 2 / 1 + 20s.")
-  private int timelimitNumerator = 2;
-
-  @Option(
-      secure = true,
-      name = "walltimeLimit.denominator",
-      description =
-          "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
-              + "CFA mutator needs to setup its own time limit for each round.\n"
-              + "It is walltime for original analysis run multiplied by numerator,\n"
-              + "divided by denominator (both are integer), plus additional bias.\n"
-              + "By default it is original run * 2 / 1 + 20s.")
-  private int timelimitDenominator = 1;
+          "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
+              + "CFA mutator needs to setup its own time limit for each round. "
+              + "It is walltime for original analysis run multiplied by factor, "
+              + "plus additional bias. By default it is original run * 2.0 + 20s.")
+  private double timelimitFactor = 2.0;
 
   @Option(
       secure = true,
       name = "walltimeLimit.add",
       description =
-          "Sometimes analysis run can be unpredictably long. To run many rounds successfully,\n"
-              + "CFA mutator needs to setup its own time limit for each round.\n"
-              + "It is walltime for original analysis run multiplied by numerator,\n"
-              + "divided by denominator (both are integer), plus additional bias.\n"
-              + "By default it is original run * 2 / 1 + 20s.")
+          "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
+              + "CFA mutator needs to setup its own time limit for each round. "
+              + "It is walltime for original analysis run multiplied by factor, "
+              + "plus additional bias. By default it is original run * 2.0 + 20s.")
   private TimeSpan timelimitBias = TimeSpan.ofSeconds(20);
 
   private interface ResourceLimitsFactory {
@@ -175,17 +162,14 @@ public class CPAcheckerMutator extends CPAchecker {
 
       cfaMutator.setup();
       // set walltime limit for every single round
+      TimeSpan scaledWalltime =
+          TimeSpan.ofMillis(
+              (long) (totalStats.originalTime.getConsumedTime().asMillis() * timelimitFactor));
       limitsFactory =
           () ->
               ImmutableList.of(
                   WalltimeLimit.fromNowOn(
-                      TimeSpan.sum(
-                          timelimitBias,
-                          totalStats
-                              .originalTime
-                              .getConsumedTime()
-                              .multiply(timelimitNumerator)
-                              .divide(timelimitDenominator))));
+                      TimeSpan.sum(TimeSpan.ofMillis(1), timelimitBias, scaledWalltime)));
       logger.log(
           Level.INFO,
           "Using",

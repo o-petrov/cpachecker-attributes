@@ -932,18 +932,11 @@ cfaMutation.oldStrategies = [
 cfaMutation.rollbacksInRowCheck = 5
 
 # Sometimes analysis run can be unpredictably long. To run many rounds
-# successfully,
-# CFA mutator needs to setup its own time limit for each round.
-# It is walltime for original analysis run multiplied by numerator,
-# plus additional bias. By default it is original run * 2.0 + 20s.
+# successfully, CFA mutator needs to setup its own time limit for each round.
+# It is walltime for original analysis run multiplied by factor, plus
+# additional bias. By default it is original run * 2.0 + 20s.
 cfaMutation.walltimeLimit.add = 20s
-
-# Sometimes analysis run can be unpredictably long. To run many rounds
-# successfully,
-# CFA mutator needs to setup its own time limit for each round.
-# It is walltime for original analysis run multiplied by coefficient,
-# plus additional bias. By default it is original run * 2.0 + 20s.
-cfaMutation.walltimeLimit.numerator = 2.0
+cfaMutation.walltimeLimit.factor = 2.0
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
