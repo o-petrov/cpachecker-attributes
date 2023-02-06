@@ -16,6 +16,10 @@ import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
  * supplied.
  */
 interface CFAMutationStrategy extends StatisticsProvider {
+  public enum MutationRollback {
+    ROLLBACK,
+    NO_ROLLBACK
+  }
 
   /**
    * Whether this strategy can mutate given CFA. Prepares strategy for next call to {@link #mutate}.
@@ -34,5 +38,5 @@ interface CFAMutationStrategy extends StatisticsProvider {
    * Gives this strategy information about analysis run after last call to {@link #mutate}. Strategy
    * rewinds unsuccessful mutation.
    */
-  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult);
+  public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult);
 }

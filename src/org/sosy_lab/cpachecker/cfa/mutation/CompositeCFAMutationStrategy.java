@@ -73,8 +73,8 @@ public class CompositeCFAMutationStrategy implements CFAMutationStrategy {
   }
 
   @Override
-  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
-    currentStrategy.setResult(pCfa, pResult);
+  public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+    return currentStrategy.setResult(pCfa, pResult);
   }
 
   @Override

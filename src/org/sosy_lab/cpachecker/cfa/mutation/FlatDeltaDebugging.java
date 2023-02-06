@@ -19,7 +19,7 @@ import java.util.List;
 import org.sosy_lab.common.log.LogManager;
 
 /** General strategy that chooses how to mutate a CFA using Delta Debugging approach. */
-abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element> {
+class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element> {
 
   protected enum DeltaDebuggingStage {
     NO_INIT,
@@ -29,7 +29,8 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
     REMOVE_HALF2,
     REMOVE_COMPLEMENT,
     REMOVE_DELTA,
-    DONE;
+    ALL_RESOLVED,
+    FINISHED;
 
     public String nameThis() {
       switch (this) {
@@ -83,8 +84,11 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
   private ImmutableList<Element> currentDelta = null;
 
   public FlatDeltaDebugging(
-      LogManager pLogger, CFAElementManipulator<Element> pManipulator, PartsToRemove pMode) {
-    super(pLogger, pManipulator, pMode);
+      LogManager pLogger,
+      CFAElementManipulator<Element> pManipulator,
+      DDDirection pDirection,
+      PartsToRemove pMode) {
+    super(pLogger, pManipulator, pDirection, pMode);
   }
 
   /**
@@ -96,7 +100,7 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
   public void workOn(Collection<Element> pElements) {
     Preconditions.checkNotNull(pElements);
     Preconditions.checkArgument(!pElements.isEmpty(), "Can not DD on no elements");
-    if (stage == DeltaDebuggingStage.DONE) {
+    if (stage == DeltaDebuggingStage.FINISHED) {
       useNewStats();
     } else {
       Preconditions.checkState(
@@ -110,7 +114,7 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
     if (unresolvedElements.isEmpty()) {
       // nothing to do
       logInfo("No", getElementTitle(), "given to mutate");
-      stage = DeltaDebuggingStage.DONE;
+      stage = DeltaDebuggingStage.FINISHED;
       safeElements = ImmutableList.of();
       causeElements = ImmutableList.of();
       return;
@@ -193,15 +197,25 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
         }
         break;
 
-      case DONE: // nothing to do
+      case ALL_RESOLVED:
+        finalize(pCfa);
+        stage = DeltaDebuggingStage.FINISHED;
+        break;
+
+      case FINISHED: // nothing to do
         break;
 
       default:
         throw new AssertionError();
     }
 
+    if (stage == DeltaDebuggingStage.ALL_RESOLVED) {
+      finalize(pCfa);
+      stage = DeltaDebuggingStage.FINISHED;
+    }
+
     getCurrStats().stopTimers();
-    return stage != DeltaDebuggingStage.DONE;
+    return stage != DeltaDebuggingStage.FINISHED;
   }
 
   /**
@@ -243,32 +257,28 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
   }
 
   @Override
-  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+  public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
     getCurrStats().startAftermath();
+    // TODO stats for result
 
     // update resolved elements
-    switch (pResult) {
-      case FAIL:
-        getCurrStats().incFail();
-        testFailed(pCfa, stage);
-        break;
+    if (pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
+        && getDirection() != DDDirection.MAXIMIZATION) {
+      reduce(pCfa, stage);
 
-      case PASS:
-        getCurrStats().incPass();
-        testPassed(pCfa, stage);
-        break;
+    } else if (pResult == DDResultOfARun.MAXIMIZATION_PROPERTY_HOLDS
+        && getDirection() != DDDirection.MINIMIZATION) {
+      increase(pCfa, stage);
 
-      case UNRESOLVED:
-        getCurrStats().incUnres();
-        testUnresolved(pCfa, stage);
-        break;
-
-      default:
-        throw new AssertionError("unexpected result " + pResult);
+    } else {
+      testUnresolved(pCfa, stage);
     }
 
     currentMutation = null;
     getCurrStats().stopTimers();
+    return pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
+        ? MutationRollback.NO_ROLLBACK
+        : MutationRollback.ROLLBACK;
   }
 
   protected void resetDeltaListWithHalvesOfCurrentDelta() {
@@ -318,7 +328,10 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
     }
 
     resetDeltaList(result);
-    finishIfNeeded(); // DD can end only after halving deltas
+    // DD can end only after halving deltas
+    if (unresolvedElements.isEmpty()) {
+      stage = DeltaDebuggingStage.ALL_RESOLVED;
+    }
   }
 
   private void resetDeltaList(List<ImmutableList<Element>> pDeltaList) {
@@ -333,13 +346,14 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
     resetDeltaList(list);
   }
 
-  private void finishIfNeeded() {
-    if (unresolvedElements.isEmpty()) {
-      stage = DeltaDebuggingStage.DONE;
-      safeElements = ImmutableList.copyOf(safeElements);
+  protected void finalize(FunctionCFAsWithMetadata pCfa) {
+    if (getDirection() == DDDirection.MAXIMIZATION) {
+      mutate(pCfa, causeElements);
+      causeElements = ImmutableList.of();
+    } else {
       causeElements = ImmutableList.copyOf(causeElements);
-      logFinish();
     }
+    safeElements = ImmutableList.copyOf(safeElements);
   }
 
   protected void markRemainingElementsAsSafe() {
@@ -369,13 +383,80 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
   }
 
   /** how to log result */
-  protected abstract void logFinish();
+  protected void logFinish() {
+    logInfo(
+        "All",
+        getElementTitle(),
+        "are resolved, minimal fail-inducing difference of",
+        getMinElements().size(),
+        getElementTitle(),
+        shortListToLog(getMinElements()),
+        "found,",
+        getMaxElements().size(),
+        getElementTitle(),
+        "also remain",
+        shortListToLog(getMaxElements()));
+  }
 
-  /** what to do when a test fails */
-  protected abstract void testFailed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
+  /** what to do when a minimization property holds */
+  protected void reduce(
+      @SuppressWarnings("unused") FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
+    markRemovedElementsAsResolved();
+    logInfo(
+        "The remaining",
+        pStage.nameOther(),
+        "is a fail-inducing test. The removed",
+        pStage.nameThis(),
+        "is not restored.");
 
-  /** what to do when a test passes */
-  protected abstract void testPassed(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage);
+    switch (pStage) {
+      case REMOVE_COMPLEMENT:
+        // delta has the cause, complement is safe
+        // remove complement from list, i.e. make list of one delta, and then split it.
+        resetDeltaListWithHalvesOfCurrentDelta();
+        break;
+
+      case REMOVE_WHOLE:
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
+      case REMOVE_DELTA:
+        // delta is safe, complement has the cause
+        removeCurrentDeltaFromDeltaList();
+
+        break;
+      default:
+        throw new AssertionError();
+    }
+  }
+
+  /** what to do when a maximiztion property holds */
+  protected void increase(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
+    markRemainingElementsAsSafe();
+    logInfo(
+        "The removed",
+        pStage.nameThis(),
+        "contains a fail-inducing difference. The remaining",
+        pStage.nameOther(),
+        "is safe by itself. Mutation is rollbacked.");
+
+    switch (pStage) {
+      case REMOVE_COMPLEMENT:
+        removeCurrentDeltaFromDeltaList();
+        break;
+
+      case REMOVE_WHOLE:
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
+      case REMOVE_DELTA:
+        resetDeltaListWithHalvesOfCurrentDelta();
+        break;
+
+      default:
+        throw new AssertionError();
+    }
+
+    manipulator.rollback(pCfa);
+  }
 
   /** what to do when a test run is unresolved */
   protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
@@ -388,26 +469,30 @@ abstract class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrateg
   }
 
   /**
-   * Return the elements marked as cause. Do not call this method until {@link #canMutate} returns
-   * false, as the cause may be not identified.
+   * Return the elements that induce 'minimization' property when present. Do not call this method
+   * until {@link #canMutate} returns false, as the result is not ready.
    *
-   * @return all the objects that remain in CFA and are not safe.
-   * @throws IllegalStateException if called before algorithm has finished
+   * @return All the objects that remain in CFA and marked as inducing min-property.
+   * @throws IllegalStateException if called before algorithm has finished.
    */
-  public ImmutableList<Element> getCauseElements() {
-    Preconditions.checkState(stage == DeltaDebuggingStage.DONE);
+  public ImmutableList<Element> getMinElements() {
+    Preconditions.checkState(stage == DeltaDebuggingStage.FINISHED);
     return (ImmutableList<Element>) causeElements;
   }
 
   /**
-   * Return the remaining elements considered safe. Do not call this method until {@link #canMutate}
-   * returns false, as the cause may be not identified.
+   * Return the remaining elements that complain 'maximization' property together. Do not call this
+   * method until {@link #canMutate} returns false, as the result is not ready.
    *
-   * @return all the objects that remain in CFA and seem to be safe.
-   * @throws IllegalStateException if called before algorithm has finished
+   * @return All the objects that remain in CFA and seem to induce maximization property together.
+   * @throws IllegalStateException if called before algorithm has finished.
    */
-  public ImmutableList<Element> getSafeElements() {
-    Preconditions.checkState(stage == DeltaDebuggingStage.DONE);
+  public ImmutableList<Element> getMaxElements() {
+    Preconditions.checkState(stage == DeltaDebuggingStage.FINISHED);
     return (ImmutableList<Element>) safeElements;
+  }
+
+  protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+    manipulator.remove(pCfa, pChosen);
   }
 }

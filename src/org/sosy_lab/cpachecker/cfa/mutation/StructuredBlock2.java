@@ -150,6 +150,7 @@ public class StructuredBlock2 {
     return blocks;
   }
 
+  @SuppressWarnings("unused") // XXX
   private boolean hasEarlyReturn() {
     return getBlocks().stream().anyMatch(b -> b.after == functionExitNode)
         || getBlocks().stream().anyMatch(b -> b.hasEarlyReturn());
@@ -629,7 +630,7 @@ class StructuredFunctionBodyBuilder {
       }
     }
     nodes.removeAll(postdoms.keySet());
-    System.out.println(nodes);
+    //    System.out.println(nodes);
 
     boolean changed = true;
     while (changed) {

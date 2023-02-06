@@ -231,23 +231,10 @@ class CFAMutatorStatistics extends MultiStatistics {
     totalMutatorTimer.stop();
   }
 
-  public void startAftermath(DDResultOfARun pResult) {
+  public void startAftermath(@SuppressWarnings("unused") AnalysisOutcome pLastOutcome) {
     totalMutatorTimer.start();
     aftermathTimer.start();
-
-    switch (pResult) {
-      case FAIL:
-        failRounds.inc();
-        break;
-      case PASS:
-        passRounds.inc();
-        break;
-      case UNRESOLVED:
-        unresRounds.inc();
-        break;
-      default:
-        throw new AssertionError();
-    }
+    // TODO stats on result
   }
 
   public void stopAftermath() {

@@ -9,8 +9,10 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 enum PartsToRemove {
-  DUMMY,
+  /** DD will remove only deltas (whole and halfs too). */
   ONLY_DELTAS,
+  /** DD will remove only complements (whole and halfs too?). */
   ONLY_COMPLEMENTS,
+  /** DD will remove both deltas and complements. */
   DELTAS_AND_COMPLEMENTS
 }

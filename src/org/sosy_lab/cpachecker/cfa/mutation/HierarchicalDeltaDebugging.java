@@ -9,16 +9,18 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.collect.ImmutableSet;
+import java.util.Collection;
 import org.sosy_lab.common.log.LogManager;
 
-class HierarchicalDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element> {
-  private final FlatDeltaDebugging<Element> delegate;
+class HierarchicalDeltaDebugging<Element> extends FlatDeltaDebugging<Element> {
   private ImmutableSet<Element> currentLevel = null;
 
-  public HierarchicalDeltaDebugging(LogManager pLogger, FlatDeltaDebugging<Element> pDelegate) {
-    super(pLogger, pDelegate.getManipulator(), PartsToRemove.DUMMY);
-    delegate = pDelegate;
-    delegate.setHierarchical();
+  public HierarchicalDeltaDebugging(
+      LogManager pLogger,
+      CFAElementManipulator<Element> pManipulator,
+      DDDirection pDirection,
+      PartsToRemove pMode) {
+    super(pLogger, pManipulator, pDirection, pMode);
   }
 
   @Override
@@ -36,7 +38,7 @@ class HierarchicalDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy
           manipulator.getElementTitle() + ':',
           currentLevel);
 
-    } else if (delegate.canMutate(pCfa)) {
+    } else if (super.canMutate(pCfa)) {
       logFine("HDD continues on same level");
       return true;
 
@@ -54,22 +56,23 @@ class HierarchicalDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy
 
     if (currentLevel.isEmpty()) {
       // no nodes left to remove
+      super.finalize(pCfa);
       return false;
     }
 
-    delegate.workOn(currentLevel);
-    boolean result = delegate.canMutate(pCfa);
+    workOn(currentLevel);
+    boolean result = super.canMutate(pCfa);
     assert result : "Can not work on " + currentLevel;
     return true;
   }
 
   @Override
-  public void mutate(FunctionCFAsWithMetadata pCfa) {
-    delegate.mutate(pCfa);
+  protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+    manipulator.prune(pCfa, pChosen);
   }
 
   @Override
-  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
-    delegate.setResult(pCfa, pResult);
+  protected void finalize(FunctionCFAsWithMetadata pCfa) {
+    // pass
   }
 }

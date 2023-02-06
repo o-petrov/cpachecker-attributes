@@ -56,6 +56,10 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 		<column title="time after rollbacks">time for analysis after rollback</column>
 	</columns>
 
+    <option name="-setprop">cfaMutation.manipulator=FunctionBodyManipulator</option>
+<!--	<option name="-setprop">cfaMutation.dd.minProperty=ANOTHER_VERDICT_UNKNOWN</option>-->
+<!--	<option name="-setprop">cfaMutation.dd.maxProperty=VERDICT_TRUE</option>-->
+
 	<rundefinition name="IMC">
 		<option name="-setprop">cpa.predicate.memoryAllocationsAlwaysSucceed=true</option>
 		<option name="-bmc-interpolation"/>

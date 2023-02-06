@@ -367,9 +367,11 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     stats.totalTimer.stop();
   }
 
+  @SuppressWarnings("deprecation")
   @Override
-  public void setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+  public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
     stats.totalTimer.start();
+    MutationRollback result = MutationRollback.NO_ROLLBACK;
 
     if (stage == DeltaDebuggingStage.REMOVE_SAFE) {
       if (pResult == DDResultOfARun.FAIL) {
@@ -387,6 +389,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
             "at once. Removing them as deltas");
         // restore objects
         rollbackInfos.reverse().forEach(r -> restoreObject(pCfa, r));
+        result = MutationRollback.ROLLBACK;
       }
 
       if (deltaList.size() == 1) {
@@ -407,7 +410,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
       }
 
       stats.totalTimer.stop();
-      return;
+      return result;
     }
 
     // update safe and unresolved sets if possible
@@ -441,6 +444,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
 
         // restore objects
         rollbackInfos.reverse().forEach(r -> restoreObject(pCfa, r));
+        result = MutationRollback.ROLLBACK;
         break;
 
       case UNRESOLVED:
@@ -454,6 +458,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
             objectsTitle,
             "resolved");
         rollbackInfos.reverse().forEach(r -> restoreObject(pCfa, r));
+        result = MutationRollback.ROLLBACK;
         break;
 
       default:
@@ -489,6 +494,7 @@ abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     currentMutation = null;
     rollbackInfos = null;
     stats.totalTimer.stop();
+    return result;
   }
 
   /**

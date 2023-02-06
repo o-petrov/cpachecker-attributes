@@ -891,18 +891,46 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # test for a case when CPAchecker analysis crashes.
 cfaMutation = false
 
-# which DD algorithm implementation to use to mutate CFA
-cfaMutation.dd = no default value
+# which DD algorithm implementation to use to mutate CFA: my previous
+# implementation of original (flat) DD, new implementation of original (flat)
+# DD, or hierarchical DD.
+cfaMutation.dd = DD
+  enum:     [OLD, DD, HDD]
+
+# Delta Debugging can minimize input program or maximize it while preserving
+# given property.Here properties are results of analysis run:
+# 1. True;
+# 2. False with same description as False for original program;
+# 3. Any False;
+# 4. Timeout;
+# 5. Exception similar to the exception original program causes;
+# 6. Any exception;
+# 7. Unknown (or Not yet started) not because of exception or time limit.
+# Express property for minimized/maximized program as a set of allowed
+# outcomes.Also DD can find minimal difference ('cause') between given
+# properties, I.e. if 'cause' is removed, property for minimization ceases,
+# and property for maximization holds. If 'cause' is present, property for
+# minimization holds, and property for maximization does not.
+# By default, dd minimizes for same exception, so maximization property is
+# 'turned off'.If you specify {True, Any False} for maximization property
+# with {Same exception} for minimization property, DD will find a minimal
+# difference that changes a program from reproducing the exception to correct
+# analysis run with conclusive verdict.
+# The two properties should be mutually exclusive (impossible together);
+# minimization property should hold for original input program, and
+# maximization property should hold for 'empty' program `int main() {return
+# 0;}`.
+cfaMutation.dd.direction = MINIMIZATION
+  enum:     [MINIMIZATION, MAXIMIZATION, ISOLATION]
+cfaMutation.dd.maxProperty = {AnalysisOutcome.VERDICT_TRUE, AnalysisOutcome.VERDICT_FALSE}
+cfaMutation.dd.minProperty = {AnalysisOutcome.FAILURE_BECAUSE_OF_SAME_EXCEPTION}
 
 # which parts to remove? DD can remove deltas, complements, or both
 cfaMutation.dd.parts = DELTAS_AND_COMPLEMENTS
-  enum:     [DUMMY, ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
+  enum:     [ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
 
 # directory to dump function CFAs with marked up structured blocks
 cfaMutation.exportBlocksDir = "cfa-structured-blocks"
-
-# which HDD algorithm to use to mutate CFA (needs flat DD specified too)
-cfaMutation.hdd = no default value
 
 # Create log file for every round with this logging level.
 # Use main file logging level if that is lower.

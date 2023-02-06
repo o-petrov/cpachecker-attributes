@@ -93,10 +93,8 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     }
 
     private void setCallHeight(int p) {
-      System.out.println(
-          callHeight == -1
-              ? ""
-              : name + " already has call height (post oreder) set to " + callHeight);
+      //      System.out.println(callHeight == -1 ? ""
+      //            : name + " already has call height (post oreder) set to " + callHeight);
       Preconditions.checkArgument(p >= 0);
       callHeight = p;
     }
@@ -337,10 +335,10 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
       }
     }
 
-    System.out.println(functionCallGraph.nodes());
+    //    System.out.println(functionCallGraph.nodes());
     Optional<FunctionElement> source =
         functionCallGraph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
-    System.out.println("found " + source);
+    //    System.out.println("found " + source);
 
     while (source.isPresent()) {
       int id = 0;
@@ -352,9 +350,9 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
         node.setCallHeight(id++);
       }
 
-      System.out.println(functionCallGraph.nodes());
+      //      System.out.println(functionCallGraph.nodes());
       source = functionCallGraph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
-      System.out.println("found " + source);
+      //      System.out.println("found " + source);
     }
   }
 

@@ -27,19 +27,19 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
   private final LogManager logger;
   private final List<DeltaDebuggingStatistics> stats = new ArrayList<>();
   protected final CFAElementManipulator<Element> manipulator;
+  private final DDDirection direction;
   private final PartsToRemove mode;
-  private boolean isHierarchical = false;
 
   protected AbstractDeltaDebuggingStrategy(
-      LogManager pLogger, CFAElementManipulator<Element> pManipulator, PartsToRemove pMode) {
+      LogManager pLogger,
+      CFAElementManipulator<Element> pManipulator,
+      DDDirection pDirection,
+      PartsToRemove pMode) {
     logger = Preconditions.checkNotNull(pLogger);
     manipulator = Preconditions.checkNotNull(pManipulator);
+    direction = Preconditions.checkNotNull(pDirection);
     mode = Preconditions.checkNotNull(pMode);
     stats.add(new DeltaDebuggingStatistics(this.getClass().getSimpleName(), getElementTitle()));
-  }
-
-  protected void setHierarchical() {
-    isHierarchical = true;
   }
 
   protected LogManager getLogger() {
@@ -62,16 +62,12 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
     return manipulator;
   }
 
-  protected final void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
-    if (isHierarchical) {
-      manipulator.prune(pCfa, pChosen);
-    } else {
-      manipulator.remove(pCfa, pChosen);
-    }
-  }
-
   protected String getElementTitle() {
     return manipulator.getElementTitle();
+  }
+
+  protected DDDirection getDirection() {
+    return direction;
   }
 
   protected PartsToRemove getMode() {
