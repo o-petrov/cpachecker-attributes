@@ -13,6 +13,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.graph.EndpointPair;
 import com.google.common.graph.ImmutableValueGraph;
 import com.google.common.graph.MutableValueGraph;
 import com.google.common.graph.Traverser;
@@ -399,7 +400,10 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
         getElementTitle(),
         currentMutation);
     if (prevGraph != null) {
-      for (var edge : prevGraph.edges()) {
+      for (FunctionElement node : prevGraph.nodes()) {
+        functionCallGraph.addNode(node);
+      }
+      for (EndpointPair<FunctionElement> edge : prevGraph.edges()) {
         functionCallGraph.putEdgeValue(edge, prevGraph.edgeValue(edge).orElseThrow());
       }
     }
