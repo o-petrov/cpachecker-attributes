@@ -18,6 +18,7 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.ShutdownManager;
@@ -26,6 +27,7 @@ import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
+import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.log.LoggingOptions;
 import org.sosy_lab.common.time.TimeSpan;
@@ -58,7 +60,7 @@ public class CPAcheckerMutator extends CPAchecker {
               + "If set to 0, do not check any rollbacks.\n"
               + "If set to 1, check that bug occurs after every rollback.\n"
               + "If set to 2, check every other one that occurs immediately after "
-              + "another one, so if there occur 5 rollbacks in a row, 2nd and 4th "
+              + "another one, so if 5 rollbacks occur in a row, 2nd and 4th "
               + "will be checked. And so on.")
   private int checkAfterRollbacks = 5;
 
@@ -67,9 +69,9 @@ public class CPAcheckerMutator extends CPAchecker {
       name = "walltimeLimit.factor",
       description =
           "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
-              + "CFA mutator needs to setup its own time limit for each round. "
-              + "It is walltime for original analysis run multiplied by factor, "
-              + "plus additional bias. By default it is original run * 2.0 + 20s.")
+              + "CFA mutator limits walltime for original run (100s by default), and derives "
+              + "walltime for next rounds from _actuall time used_ for original run: multiply "
+              + "by the factor, plus the 'add'. By default it is orig.time * 2.0 + 20s.")
   private double timelimitFactor = 2.0;
 
   @Option(
@@ -77,16 +79,28 @@ public class CPAcheckerMutator extends CPAchecker {
       name = "walltimeLimit.add",
       description =
           "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
-              + "CFA mutator needs to setup its own time limit for each round. "
-              + "It is walltime for original analysis run multiplied by factor, "
-              + "plus additional bias. By default it is original run * 2.0 + 20s.")
+              + "CFA mutator limits walltime for original run (100s by default), and derives "
+              + "walltime for next rounds from _actuall time used_ for original run: multiply "
+              + "by the factor, plus the 'add'. By default it is orig.time * 2.0 + 20s.")
+  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 0)
   private TimeSpan timelimitBias = TimeSpan.ofSeconds(20);
+
+  @Option(
+      secure = true,
+      name = "walltimeLimit.original",
+      description =
+          "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
+              + "CFA mutator limits walltime for original run (100s by default), and derives "
+              + "walltime for next rounds from _actuall time used_ for original run: multiply "
+              + "by the factor, plus the 'add'. By default it is orig.time * 2.0 + 20s.")
+  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 1)
+  private TimeSpan timelimitOriginal = TimeSpan.ofSeconds(100);
 
   private interface ResourceLimitsFactory {
     public List<ResourceLimit> create();
   }
 
-  private ResourceLimitsFactory limitsFactory = () -> ImmutableList.of();
+  private ResourceLimitsFactory limitsFactory = null;
   private final ImmutableList<ResourceLimit> globalLimits;
   private final LoggingOptions logOptions;
   private final CFAMutator cfaMutator;
@@ -141,6 +155,14 @@ public class CPAcheckerMutator extends CPAchecker {
         // invalid input files
         return produceResult();
       }
+
+      // set walltime limit for original round
+      limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitOriginal));
+      logger.log(
+          Level.INFO,
+          "Using",
+          Joiner.on(", ").join(Iterables.transform(limitsFactory.create(), ResourceLimit::getName)),
+          "for the original round");
 
       final AnalysisResult originalResult =
           analysisRound(getCfa(), logger, totalStats.originalTime);

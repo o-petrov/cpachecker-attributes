@@ -955,16 +955,18 @@ cfaMutation.oldStrategies = [
 # If set to 0, do not check any rollbacks.
 # If set to 1, check that bug occurs after every rollback.
 # If set to 2, check every other one that occurs immediately after another
-# one, so if there occur 5 rollbacks in a row, 2nd and 4th will be checked.
-# And so on.
+# one, so if 5 rollbacks occur in a row, 2nd and 4th will be checked. And so
+# on.
 cfaMutation.rollbacksInRowCheck = 5
 
 # Sometimes analysis run can be unpredictably long. To run many rounds
-# successfully, CFA mutator needs to setup its own time limit for each round.
-# It is walltime for original analysis run multiplied by factor, plus
-# additional bias. By default it is original run * 2.0 + 20s.
+# successfully, CFA mutator limits walltime for original run (100s by
+# default), and derives walltime for next rounds from _actuall time used_ for
+# original run: multiply by the factor, plus the 'add'. By default it is
+# orig.time * 2.0 + 20s.
 cfaMutation.walltimeLimit.add = 20s
 cfaMutation.walltimeLimit.factor = 2.0
+cfaMutation.walltimeLimit.original = 100s
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
