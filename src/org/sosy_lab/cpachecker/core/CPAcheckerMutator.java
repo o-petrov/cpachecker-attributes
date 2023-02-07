@@ -456,11 +456,6 @@ public class CPAcheckerMutator extends CPAchecker {
     public MainCPAStatistics getStats() {
       return (MainCPAStatistics) result.getStatistics();
     }
-
-    @Override
-    public int hashCode() {
-      return result.hashCode() * 31 + (thrown == null ? 0 : thrown.hashCode());
-    }
   }
 
   class MainCFAMutationStatistics implements Statistics {

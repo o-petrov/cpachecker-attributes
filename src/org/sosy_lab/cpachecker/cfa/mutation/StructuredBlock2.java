@@ -700,7 +700,7 @@ class StructuredFunctionBodyBuilder {
 
   private StructuredBlock2 constructIrregularBlock(CFANode pStart, CFANode pAfter) {
     ImmutableSet.Builder<CFANode> nodes = ImmutableSet.builder();
-    HashSet<StructuredBlock2> blocks = new HashSet<>();
+    Set<StructuredBlock2> blocks = new HashSet<>();
     Deque<StructuredBlock2> waitlist = new ArrayDeque<>();
 
     Condition c = entryToCondition.get(pStart);

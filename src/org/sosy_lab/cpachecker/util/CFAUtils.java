@@ -18,7 +18,6 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.UnmodifiableIterator;
@@ -331,7 +330,7 @@ public class CFAUtils {
   }
 
   public static ImmutableSet<CFANode> getProgramSinks(final CFA pCfa) {
-    Builder<CFANode> sinks = ImmutableSet.<CFANode>builder();
+    ImmutableSet.Builder<CFANode> sinks = ImmutableSet.<CFANode>builder();
 
     CFANode cfaExitNode = pCfa.getMainFunction().getExitNode();
     if (pCfa.getAllNodes().contains(cfaExitNode)) {
@@ -343,7 +342,7 @@ public class CFAUtils {
   }
 
   public static ImmutableSet<CFANode> getFunctionSinks(final CFA pCfa) {
-    Builder<CFANode> sinks = ImmutableSet.<CFANode>builder();
+    ImmutableSet.Builder<CFANode> sinks = ImmutableSet.<CFANode>builder();
 
     for (FunctionEntryNode node : pCfa.getAllFunctionHeads()) {
       FunctionExitNode exitNode = node.getExitNode();

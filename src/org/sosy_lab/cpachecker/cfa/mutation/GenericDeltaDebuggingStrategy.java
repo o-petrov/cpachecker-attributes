@@ -28,14 +28,6 @@ import org.sosy_lab.cpachecker.util.statistics.StatKind;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 
-enum DeltaDebuggingStage {
-  INIT,
-  REMOVE_COMPLEMENT,
-  REMOVE_DELTA,
-  REMOVE_SAFE,
-  DONE
-}
-
 /**
  * Generic strategy that chooses how to mutate a CFA using Delta Debugging approach.
  *
@@ -125,6 +117,14 @@ enum DeltaDebuggingStage {
 // (remove delta from CFA vs. from unresolved objects)
 abstract class GenericDeltaDebuggingStrategy<RemoveObject, RestoreObject>
     implements CFAMutationStrategy {
+
+  private enum DeltaDebuggingStage {
+    INIT,
+    REMOVE_COMPLEMENT,
+    REMOVE_DELTA,
+    REMOVE_SAFE,
+    DONE
+  }
 
   protected class GenericDeltaDebuggingStatistics implements Statistics {
     private final String name;
