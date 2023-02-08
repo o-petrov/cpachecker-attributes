@@ -167,8 +167,8 @@ public class CPAcheckerMutator extends CPAchecker {
       final AnalysisResult originalResult =
           analysisRound(getCfa(), logger, totalStats.originalTime);
 
-      AnalysisOutcome originalOutCome = originalResult.toAnalysisOutcome(originalResult);
-      cfaMutator.verifyOriginalOutcome(originalOutCome);
+      AnalysisOutcome originalOutcome = originalResult.toAnalysisOutcome(originalResult);
+      cfaMutator.verifyOutcome(originalOutcome);
 
       cfaMutator.setup();
 

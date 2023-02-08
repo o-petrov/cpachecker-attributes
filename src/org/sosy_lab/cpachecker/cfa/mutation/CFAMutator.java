@@ -447,36 +447,12 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     }
   }
 
-  public void verifyOriginalOutcome(AnalysisOutcome pAnalysisOutcome) {
+  public void verifyOutcome(AnalysisOutcome pAnalysisOutcome) {
     Verify.verify(
         ddMinProperty.contains(pAnalysisOutcome),
-        "min-property %s does not hold for original outcome %s",
+        "min-property %s does not hold: %s",
         ddMinProperty,
         pAnalysisOutcome);
-  }
-
-  public void verifyOutcome(AnalysisOutcome pAnalysisOutcome) {
-    switch (ddDirection) {
-      case MAXIMIZATION:
-        Verify.verify(
-            ddMaxProperty.contains(pAnalysisOutcome),
-            "max-property %s does not hold: %s",
-            ddMaxProperty,
-            pAnalysisOutcome);
-        return;
-
-      case MINIMIZATION:
-      case ISOLATION:
-        Verify.verify(
-            ddMinProperty.contains(pAnalysisOutcome),
-            "min-property %s does not hold: %s",
-            ddMinProperty,
-            pAnalysisOutcome);
-        return;
-
-      default:
-        throw new AssertionError();
-    }
   }
 
   private DDResultOfARun outcomeToDDResult(AnalysisOutcome pOutcome) {
