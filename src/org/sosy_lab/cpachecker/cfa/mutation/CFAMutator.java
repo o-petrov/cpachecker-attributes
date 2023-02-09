@@ -219,6 +219,14 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       // new impl
       ddMinProperty = normalize(ddMinProperty);
       ddMaxProperty = normalize(ddMaxProperty);
+      if (!areMutuallyExclusive(ddMinProperty, ddMaxProperty)) {
+        throw new InvalidConfigurationException(
+            "Properties "
+                + toString(ddMinProperty)
+                + " and "
+                + toString(ddMaxProperty)
+                + " should not intersect");
+      }
       strategy = buildNewStrategy();
     }
 
@@ -468,7 +476,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     }
   }
 
-  public ImmutableSet<AnalysisOutcome> normalize(ImmutableSet<AnalysisOutcome> pOutcomes) {
+  private ImmutableSet<AnalysisOutcome> normalize(ImmutableSet<AnalysisOutcome> pOutcomes) {
     ImmutableSet.Builder<AnalysisOutcome> builder =
         ImmutableSet.<AnalysisOutcome>builder().addAll(pOutcomes);
 
@@ -483,7 +491,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     return builder.build();
   }
 
-  public boolean areMutuallyExclusive(
+  private boolean areMutuallyExclusive(
       ImmutableSet<AnalysisOutcome> pLeft, ImmutableSet<AnalysisOutcome> pRight) {
     return !pLeft.stream().anyMatch(outcome -> pRight.contains(outcome));
   }
