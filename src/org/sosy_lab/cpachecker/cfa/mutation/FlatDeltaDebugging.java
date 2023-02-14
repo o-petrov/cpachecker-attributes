@@ -67,6 +67,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   /** All elements to investigate in next {@link #mutate} calls */
   private List<Element> unresolvedElements = null;
+  /** All elements that were removed */
+  private List<Element> removedElements = null;
   /** All elements that remain in CFA, but appear to be safe */
   private List<Element> safeElements = null;
   /** All elements that appear to be the cause, i.e. result of DD algorithm */
@@ -365,6 +367,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   protected void markRemovedElementsAsResolved() {
     getCurrStats().elementsRemoved(currentMutation.size());
+    removedElements.addAll(currentMutation);
     unresolvedElements.removeAll(currentMutation);
     if (graph != null) {
       currentMutation.forEach(node -> graph.removeNode(node));
@@ -472,7 +475,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
    * Return the elements that induce 'minimization' property when present. Do not call this method
    * until {@link #canMutate} returns false, as the result is not ready.
    *
-   * @return All the objects that remain in CFA and marked as inducing min-property.
+   * @return All the elements that remain in CFA and marked as inducing min-property.
    * @throws IllegalStateException if called before algorithm has finished.
    */
   public ImmutableList<Element> getMinElements() {
@@ -481,15 +484,25 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   }
 
   /**
-   * Return the remaining elements that complain 'maximization' property together. Do not call this
+   * Return the remaining elements that comply to 'maximization' property together. Do not call this
    * method until {@link #canMutate} returns false, as the result is not ready.
    *
-   * @return All the objects that remain in CFA and seem to induce maximization property together.
+   * @return All the elements that remain in CFA and seem to induce maximization property together.
    * @throws IllegalStateException if called before algorithm has finished.
    */
   public ImmutableList<Element> getMaxElements() {
     Preconditions.checkState(stage == DeltaDebuggingStage.FINISHED);
     return (ImmutableList<Element>) safeElements;
+  }
+
+  /**
+   * Return the elements that were removed. You can call this method anytime, currently removed
+   * elements are returned.
+   *
+   * @return All the elements that were removed from the CFA.
+   */
+  public ImmutableList<Element> getRemovedElements() {
+    return ImmutableList.copyOf(removedElements);
   }
 
   protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
