@@ -39,7 +39,7 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
     manipulator = Preconditions.checkNotNull(pManipulator);
     direction = Preconditions.checkNotNull(pDirection);
     mode = Preconditions.checkNotNull(pMode);
-    stats.add(new DeltaDebuggingStatistics(this.getClass().getSimpleName(), getElementTitle()));
+    useNewStats();
   }
 
   protected LogManager getLogger() {

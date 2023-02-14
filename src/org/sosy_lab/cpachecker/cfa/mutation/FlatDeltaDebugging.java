@@ -113,17 +113,9 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     unresolvedElements = new ArrayList<>(Preconditions.checkNotNull(pElements));
     getCurrStats().elementsFound(unresolvedElements.size());
 
-    if (unresolvedElements.isEmpty()) {
-      // nothing to do
-      logInfo("No", getElementTitle(), "given to mutate");
-      stage = DeltaDebuggingStage.FINISHED;
-      safeElements = ImmutableList.of();
-      causeElements = ImmutableList.of();
-      return;
-    }
-
     safeElements = new ArrayList<>();
     causeElements = new ArrayList<>();
+    removedElements = new ArrayList<>();
 
     logInfo(this.getClass().getSimpleName(), "got", unresolvedElements.size(), getElementTitle());
 
@@ -201,7 +193,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
       case ALL_RESOLVED:
         finalize(pCfa);
-        stage = DeltaDebuggingStage.FINISHED;
         break;
 
       case FINISHED: // nothing to do
@@ -213,7 +204,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
     if (stage == DeltaDebuggingStage.ALL_RESOLVED) {
       finalize(pCfa);
-      stage = DeltaDebuggingStage.FINISHED;
     }
 
     getCurrStats().stopTimers();
@@ -356,6 +346,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       causeElements = ImmutableList.copyOf(causeElements);
     }
     safeElements = ImmutableList.copyOf(safeElements);
+    stage = DeltaDebuggingStage.FINISHED;
   }
 
   protected void markRemainingElementsAsSafe() {
@@ -391,14 +382,14 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         "All",
         getElementTitle(),
         "are resolved, minimal fail-inducing difference of",
-        getMinElements().size(),
+        getCauseElements().size(),
         getElementTitle(),
-        shortListToLog(getMinElements()),
+        shortListToLog(getCauseElements()),
         "found,",
-        getMaxElements().size(),
+        getSafeElements().size(),
         getElementTitle(),
         "also remain",
-        shortListToLog(getMaxElements()));
+        shortListToLog(getSafeElements()));
   }
 
   /** what to do when a minimization property holds */
@@ -472,25 +463,31 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   }
 
   /**
-   * Return the elements that induce 'minimization' property when present. Do not call this method
-   * until {@link #canMutate} returns false, as the result is not ready.
+   * Return the elements that induce fail/minimization property when present. In minimization
+   * scenario all remaining elements are considered as one cause. In cause-isolation scenario there
+   * can be several elements that are a cause together: when they are present, test 'fails'; when
+   * they are absent, test 'passes', when there are only some of them, test is unresolved.
+   *
+   * <p>Do not call this method until {@link #canMutate} returns false, as the result is not ready.
    *
    * @return All the elements that remain in CFA and marked as inducing min-property.
    * @throws IllegalStateException if called before algorithm has finished.
    */
-  public ImmutableList<Element> getMinElements() {
+  public ImmutableList<Element> getCauseElements() {
     Preconditions.checkState(stage == DeltaDebuggingStage.FINISHED);
     return (ImmutableList<Element>) causeElements;
   }
 
   /**
-   * Return the remaining elements that comply to 'maximization' property together. Do not call this
-   * method until {@link #canMutate} returns false, as the result is not ready.
+   * Return the remaining elements that comply to pass/maximization property together. (If all of
+   * these elements are present and none other, test passes).
+   *
+   * <p>Do not call this method until {@link #canMutate} returns false, as the result is not ready.
    *
    * @return All the elements that remain in CFA and seem to induce maximization property together.
    * @throws IllegalStateException if called before algorithm has finished.
    */
-  public ImmutableList<Element> getMaxElements() {
+  public ImmutableList<Element> getSafeElements() {
     Preconditions.checkState(stage == DeltaDebuggingStage.FINISHED);
     return (ImmutableList<Element>) safeElements;
   }
@@ -507,5 +504,9 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
     manipulator.remove(pCfa, pChosen);
+  }
+
+  protected boolean isFinished() {
+    return stage == DeltaDebuggingStage.FINISHED;
   }
 }
