@@ -136,6 +136,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   private enum DDVariant {
     OLD(null),
     DD(FlatDeltaDebugging.class),
+    DDSTAR(DDStar.class),
     HDD(HierarchicalDeltaDebugging.class);
 
     private final Class<? extends FlatDeltaDebugging> ddClass;
@@ -150,7 +151,8 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       name = "dd",
       description =
           "which DD algorithm implementation to use to mutate CFA: my previous implementation of "
-              + "original (flat) DD, new implementation of original (flat) DD, or hierarchical DD.")
+              + "original (flat) DD; new implementation of original (flat) DD; DD*, that iterates "
+              + "cause-isolating DD to minimize or maximize; or hierarchical DD.")
   private DDVariant ddVariant = DDVariant.DD;
 
   @Option(
@@ -226,6 +228,9 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
                 + " and "
                 + toString(ddMaxProperty)
                 + " should not intersect");
+      }
+      if (ddDirection == DDDirection.ISOLATION && ddVariant == DDVariant.DDSTAR) {
+        throw new InvalidConfigurationException("DD* cannot isolate cause");
       }
       strategy = buildNewStrategy();
     }
