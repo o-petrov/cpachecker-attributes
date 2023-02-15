@@ -243,7 +243,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       default:
         throw new AssertionError();
     }
-    logInfo("Removing a", stage.nameThis(), "of", currentMutation.size(), getElementTitle());
+    logInfo("Removing a", stage.nameThis(), "(" + currentMutation.size(), getElementTitle() + ")");
     mutate(pCfa, currentMutation);
     getCurrStats().stopTimers();
   }
@@ -298,9 +298,9 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     logInfo(
         "Halving remained",
         deltaList.size(),
-        "deltas with total",
+        "deltas (total",
         unresolvedElements.size(),
-        getElementTitle());
+        getElementTitle() + ")");
     List<ImmutableList<Element>> result = new ArrayList<>(deltaList.size() * 2);
 
     for (var delta : deltaList) {
@@ -454,10 +454,27 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   /** what to do when a test run is unresolved */
   protected void testUnresolved(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
+    String desc;
+    switch (getDirection()) {
+      case ISOLATION:
+        desc = "be resolved (min- or max-property";
+        break;
+      case MAXIMIZATION:
+        desc = "pass (max-property";
+        break;
+      case MINIMIZATION:
+        desc = "fail (min-property";
+        break;
+      default:
+        throw new AssertionError();
+    }
+
     logInfo(
         "Something in the removed",
-        pStage,
-        "is needed for a test run to be resolved.",
+        pStage.nameThis(),
+        "is needed for a test to",
+        desc,
+        "to be preserved).",
         "Nothing is resolved. Mutation is rollbacked.");
     manipulator.rollback(pCfa);
   }
