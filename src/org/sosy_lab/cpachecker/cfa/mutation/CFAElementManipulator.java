@@ -70,4 +70,7 @@ interface CFAElementManipulator<Element> {
 
   /** Rollback the last mutation this manipulator did. */
   public void rollback(FunctionCFAsWithMetadata pCfa);
+
+  /** Restore given elements (XXX does order matter?). */
+  public void restore(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen);
 }

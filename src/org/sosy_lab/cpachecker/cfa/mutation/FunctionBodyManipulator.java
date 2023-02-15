@@ -274,7 +274,6 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   @Override
   public String getElementTitle() {
-    // TODO Auto-generated method stub
     return "functions";
   }
 
@@ -361,6 +360,11 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   public void remove(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
     pChosen.forEach(f -> remove(pCfa, f));
     currentMutation = ImmutableList.copyOf(pChosen);
+  }
+
+  @Override
+  public void restore(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
+    pChosen.forEach(f -> restore(pCfa, f));
   }
 
   @Override

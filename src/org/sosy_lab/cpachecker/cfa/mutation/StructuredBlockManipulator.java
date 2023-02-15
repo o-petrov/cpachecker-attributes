@@ -158,6 +158,14 @@ class StructuredBlockManipulator implements CFAElementManipulator<StructuredBloc
   }
 
   @Override
+  public void restore(FunctionCFAsWithMetadata pCfa, Collection<StructuredBlock2> pChosen) {
+    for (StructuredBlock2 b : pChosen) {
+      addBlocks(b);
+      b.rollback(pCfa);
+    }
+  }
+
+  @Override
   public void prune(FunctionCFAsWithMetadata pCfa, Collection<StructuredBlock2> pChosen) {
     for (StructuredBlock2 b : pChosen) {
       currentMutation.add(b);
