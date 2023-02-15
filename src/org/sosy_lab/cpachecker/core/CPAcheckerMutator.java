@@ -187,11 +187,6 @@ public class CPAcheckerMutator extends CPAchecker {
           Joiner.on(", ").join(Iterables.transform(limitsFactory.create(), ResourceLimit::getName)),
           "for the following rounds");
 
-      if (!cfaMutator.canMutate()) {
-        logger.log(Level.INFO, "There are no possible mutations for the CFA of the given program.");
-        return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
-      }
-
       String shutdownReason = shouldShutdown();
       if (shutdownReason != null) {
         logger.logf(
@@ -259,8 +254,12 @@ public class CPAcheckerMutator extends CPAchecker {
         }
       }
 
+      if (lastResult == null) {
+        logger.log(Level.INFO, "There are no possible mutations for the CFA of the given program.");
+        return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
+      }
+
       logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
-      assert lastResult != null : "impossible";
       return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
 
     } catch (InvalidConfigurationException e) {
