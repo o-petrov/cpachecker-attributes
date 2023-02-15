@@ -83,9 +83,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     // generates new stats and new timer
     workOn(newUnresolved);
     // flip stage from ready to remove_whole
-    // also starts and stops new timer
-    boolean b = canMutate(pCfa);
-    assert b;
+    stage = DeltaDebuggingStage.REMOVE_WHOLE;
     // start new timer so canMutate that called finalize can stop timer without exception
     getCurrStats().startPremath();
   }

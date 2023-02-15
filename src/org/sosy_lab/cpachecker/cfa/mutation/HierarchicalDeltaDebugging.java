@@ -73,6 +73,6 @@ class HierarchicalDeltaDebugging<Element> extends FlatDeltaDebugging<Element> {
 
   @Override
   protected void finalize(FunctionCFAsWithMetadata pCfa) {
-    // pass
+    stage = DeltaDebuggingStage.FINISHED;
   }
 }

@@ -79,7 +79,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   private MutableValueGraph<Element, ? extends Enum<?>> graph = null;
 
   /** Save stage of DD algorithm between calls to {@link #mutate} */
-  private DeltaDebuggingStage stage = DeltaDebuggingStage.NO_INIT;
+  protected DeltaDebuggingStage stage = DeltaDebuggingStage.NO_INIT;
 
   private List<ImmutableList<Element>> deltaList = null;
   private Iterator<ImmutableList<Element>> deltaIter = null;
@@ -133,9 +133,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         // setup for all elements in the CFA
         setupFromCfa(pCfa);
         workOn(manipulator.getAllElements());
-        if (stage == DeltaDebuggingStage.READY) {
-          stage = DeltaDebuggingStage.REMOVE_WHOLE;
-        }
+        assert stage == DeltaDebuggingStage.READY;
+        stage = DeltaDebuggingStage.REMOVE_WHOLE;
         break;
 
       case READY:
@@ -521,9 +520,5 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
     manipulator.remove(pCfa, pChosen);
-  }
-
-  protected boolean isFinished() {
-    return stage == DeltaDebuggingStage.FINISHED;
   }
 }
