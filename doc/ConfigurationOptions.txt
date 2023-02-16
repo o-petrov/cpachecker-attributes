@@ -893,10 +893,10 @@ cfaMutation = false
 
 # which DD algorithm implementation to use to mutate CFA: my previous
 # implementation of original (flat) DD; new implementation of original (flat)
-# DD; DD*, that iterates cause-isolating DD to minimize or maximize; or
-# hierarchical DD.
+# DD; DD*, that iterates cause-isolating DD to minimize or maximize;
+# DDSearch, that iterates over optimums found by DD*; or hierarchical DD.
 cfaMutation.dd = DD
-  enum:     [OLD, DD, DDSTAR, HDD]
+  enum:     [OLD, DD, DDSTAR, DDSEARCH, HDD]
 
 # Delta Debugging can minimize input program or maximize it while preserving
 # given property.Here properties are results of analysis run:
