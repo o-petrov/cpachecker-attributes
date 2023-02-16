@@ -47,14 +47,19 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
 
   private ImmutableList<Element> storeOldAndGetNewList() {
     causeList.add(super.getCauseElements());
+    logInfo("Found a cause:", shortListToLog(super.getCauseElements()));
 
     switch (getStarDirection()) {
       case MAXIMIZATION:
         safeList.add(super.getSafeElements());
+        logInfo("Marked safe:", shortListToLog(super.getSafeElements()));
+        logInfo("Repeating dd on removed:", shortListToLog(super.getRemovedElements()));
         return super.getRemovedElements();
 
       case MINIMIZATION:
         removedList.add(super.getRemovedElements());
+        logInfo("Were removed:", shortListToLog(super.getRemovedElements()));
+        logInfo("Repeating dd on safe:", shortListToLog(super.getSafeElements()));
         return super.getSafeElements();
 
       default:
@@ -69,9 +74,8 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
 
     ImmutableList<Element> newUnresolved = storeOldAndGetNewList();
     if (getStarDirection() == DDDirection.MAXIMIZATION) {
-      // restore removed
+      logInfo("Restoring removed, removing found cause");
       manipulator.restore(pCfa, super.getRemovedElements());
-      // remove cause
       mutate(pCfa, super.getCauseElements());
     }
     if (newUnresolved.isEmpty()) {
