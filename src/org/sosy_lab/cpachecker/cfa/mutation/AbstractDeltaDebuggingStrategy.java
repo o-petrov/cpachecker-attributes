@@ -10,6 +10,7 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.ImmutableValueGraph;
 import java.io.IOException;
 import java.io.Writer;
@@ -17,13 +18,19 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 
 abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStrategy {
+
+  protected static final Map<ImmutableSet<?>, DDResultOfARun> resultCache = new HashMap<>();
+
   private final LogManager logger;
   private final List<DeltaDebuggingStatistics> stats = new ArrayList<>();
   protected final CFAElementManipulator<Element> manipulator;
@@ -124,5 +131,22 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
     } catch (IOException e) {
       logger.logUserException(Level.WARNING, e, "Could not write HDD graph");
     }
+  }
+
+  protected ImmutableSet<Element> whatRemainsWithout(Collection<Element> pElements) {
+    return manipulator.whatRemainsIfRemove(pElements);
+  }
+
+  // #cacheResult is always called after #getCachedResultWithout,
+  // so no need to get remaining elements again
+  private ImmutableSet<Element> lastAccessedKey;
+
+  protected Optional<DDResultOfARun> getCachedResultWithout(Collection<Element> pElements) {
+    lastAccessedKey = whatRemainsWithout(pElements);
+    return Optional.ofNullable(resultCache.get(lastAccessedKey));
+  }
+
+  protected void cacheResult(DDResultOfARun pResult) {
+    resultCache.put(lastAccessedKey, pResult);
   }
 }

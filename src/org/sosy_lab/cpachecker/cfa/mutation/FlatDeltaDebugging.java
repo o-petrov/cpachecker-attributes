@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import org.sosy_lab.common.log.LogManager;
 
 /** General strategy that chooses how to mutate a CFA using Delta Debugging approach. */
@@ -206,7 +207,23 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
 
     getCurrStats().stopTimers();
-    return stage != DeltaDebuggingStage.FINISHED;
+
+    if (stage == DeltaDebuggingStage.FINISHED) {
+      return false;
+
+    } else {
+      prepareCurrentMutation();
+      Optional<DDResultOfARun> cachedResult = getCachedResultWithout(currentMutation);
+
+      if (cachedResult.isPresent()) {
+        logInfo("Current configuration found in cache... no analysis needed.");
+        // it's a bit redundant, but analysis is way longer anyway
+        setResult(pCfa, cachedResult.orElseThrow());
+        return canMutate(pCfa);
+      }
+
+      return true;
+    }
   }
 
   /**
@@ -219,38 +236,42 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   @Override
   public void mutate(FunctionCFAsWithMetadata pCfa) {
     getCurrStats().startMutation();
+    logInfo("Removing a", stage.nameThis(), "(" + currentMutation.size(), getElementTitle() + ")");
+    mutate(pCfa, currentMutation);
+    getCurrStats().stopTimers();
+  }
+
+  private void prepareCurrentMutation() {
     assert deltaIter.hasNext() : "no next delta for delta list " + deltaList;
+    currentDelta = deltaIter.next();
+    ImmutableList<Element> currentComplement =
+        ImmutableList.copyOf(
+            unresolvedElements.stream().filter(el -> !currentDelta.contains(el)).iterator());
 
     // set next mutation
     // not in the switch of #canMutate because stage can be changed there
     switch (stage) {
       case REMOVE_COMPLEMENT:
-        currentDelta = deltaIter.next();
-        currentMutation =
-            ImmutableList.copyOf(
-                unresolvedElements.stream().filter(o -> !currentDelta.contains(o)).iterator());
+        currentMutation = currentComplement;
         break;
 
       case REMOVE_WHOLE:
       case REMOVE_HALF1:
       case REMOVE_HALF2:
       case REMOVE_DELTA:
-        currentDelta = deltaIter.next();
         currentMutation = currentDelta;
         break;
 
       default:
         throw new AssertionError();
     }
-    logInfo("Removing a", stage.nameThis(), "(" + currentMutation.size(), getElementTitle() + ")");
-    mutate(pCfa, currentMutation);
-    getCurrStats().stopTimers();
   }
 
   @Override
   public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
     getCurrStats().startAftermath();
     // TODO stats for result
+    cacheResult(pResult);
 
     // update resolved elements
     if (pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
@@ -322,6 +343,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     // DD can end only after halving deltas
     if (unresolvedElements.isEmpty()) {
       stage = DeltaDebuggingStage.ALL_RESOLVED;
+      logInfo("All elements were resolved");
     }
   }
 
@@ -346,6 +368,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
     safeElements = ImmutableList.copyOf(safeElements);
     stage = DeltaDebuggingStage.FINISHED;
+    logInfo("DD has finished");
   }
 
   protected void markRemainingElementsAsSafe() {

@@ -67,6 +67,11 @@ class HierarchicalDeltaDebugging<Element> extends FlatDeltaDebugging<Element> {
   }
 
   @Override
+  protected ImmutableSet<Element> whatRemainsWithout(Collection<Element> pElements) {
+    return manipulator.whatRemainsIfPrune(pElements);
+  }
+
+  @Override
   protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
     manipulator.prune(pCfa, pChosen);
   }

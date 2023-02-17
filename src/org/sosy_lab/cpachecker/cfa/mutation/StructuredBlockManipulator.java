@@ -55,6 +55,9 @@ class StructuredBlockManipulator implements CFAElementManipulator<StructuredBloc
     }
   }
 
+  private static final String removeUnsupported =
+      "Block manipulator can only prune, as structured program blocks cannot be removed independently.";
+
   private MutableValueGraph<StructuredBlock2, BlockDependency> graph = null;
   private ImmutableSet<StructuredBlock2> currentLevel = null;
   private List<StructuredBlock2> previousLevels = new ArrayList<>();
@@ -153,8 +156,7 @@ class StructuredBlockManipulator implements CFAElementManipulator<StructuredBloc
 
   @Override
   public void remove(FunctionCFAsWithMetadata pCfa, Collection<StructuredBlock2> pChosen) {
-    throw new UnsupportedOperationException(
-        "structured program blocks cannot be removed independently");
+    throw new UnsupportedOperationException(removeUnsupported);
   }
 
   @Override
@@ -244,5 +246,21 @@ class StructuredBlockManipulator implements CFAElementManipulator<StructuredBloc
       addBlocks(b);
       b.rollback(pCfa);
     }
+  }
+
+  @Override
+  public ImmutableSet<StructuredBlock2> whatRemainsIfRemove(Collection<StructuredBlock2> pChosen) {
+    throw new UnsupportedOperationException(removeUnsupported);
+  }
+
+  @Override
+  public ImmutableSet<StructuredBlock2> whatRemainsIfPrune(Collection<StructuredBlock2> pChosen) {
+    List<StructuredBlock2> result = new ArrayList<>(previousLevels);
+    for (StructuredBlock2 b : result) {
+      b.getBlocks().stream()
+          .filter(c -> !pChosen.contains(c) && !result.contains(c))
+          .forEach(c -> result.add(c));
+    }
+    return ImmutableSet.copyOf(result);
   }
 }

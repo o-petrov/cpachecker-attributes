@@ -73,4 +73,10 @@ interface CFAElementManipulator<Element> {
 
   /** Restore given elements (XXX does order matter?). */
   public void restore(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen);
+
+  /** Which elements remain in the CFA if manipulator removes given elements. */
+  ImmutableSet<Element> whatRemainsIfRemove(Collection<Element> pChosen);
+
+  /** Which elements remain in the CFA if manipulator prunes given elements. */
+  ImmutableSet<Element> whatRemainsIfPrune(Collection<Element> pChosen);
 }

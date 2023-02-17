@@ -368,15 +368,23 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   @Override
-  public void prune(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
-    Preconditions.checkState(functionCallGraph != null, "Function call graph was not set up");
+  public ImmutableSet<FunctionElement> whatRemainsIfRemove(Collection<FunctionElement> pChosen) {
+    return FluentIterable.from(functionCallGraph.nodes()).filter(f -> !pChosen.contains(f)).toSet();
+  }
 
+  @Override
+  public ImmutableSet<FunctionElement> whatRemainsIfPrune(Collection<FunctionElement> pChosen) {
+    List<FunctionElement> toRemove = whatToPruneIfChoose(pChosen);
+    return FluentIterable.from(functionCallGraph.nodes())
+        .filter(f -> !toRemove.contains(f))
+        .toSet();
+  }
+
+  private ImmutableList<FunctionElement> whatToPruneIfChoose(Collection<FunctionElement> pChosen) {
     List<FunctionElement> removed = new ArrayList<>(pChosen);
-    prevGraph = ImmutableValueGraph.copyOf(functionCallGraph);
 
     for (int i = 0; i < removed.size(); i++) {
       FunctionElement f = removed.get(i);
-      remove(pCfa, f);
       functionCallGraph.successors(f).stream()
           .filter(g -> !removed.contains(g))
           .filter(
@@ -388,11 +396,30 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
           .forEach(g -> removed.add(g));
     }
 
+    return ImmutableList.copyOf(removed);
+  }
+
+  @Override
+  public void prune(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
+    Preconditions.checkState(functionCallGraph != null, "Function call graph was not set up");
+
+    prevGraph = ImmutableValueGraph.copyOf(functionCallGraph);
+    currentMutation = whatToPruneIfChoose(pChosen);
+    assert prevGraph.nodes().containsAll(currentMutation);
+
     logger.log(
-        Level.INFO, "Removing", removed.size(), getElementTitle(), "including callees:", removed);
-    removed.forEach(f -> functionCallGraph.removeNode(f));
-    assert prevGraph.nodes().containsAll(removed);
-    currentMutation = ImmutableList.copyOf(removed);
+        Level.INFO,
+        "Removing",
+        currentMutation.size(),
+        getElementTitle(),
+        "including callees:",
+        currentMutation);
+
+    currentMutation.forEach(
+        f -> {
+          remove(pCfa, f);
+          functionCallGraph.removeNode(f);
+        });
   }
 
   @Override
