@@ -234,73 +234,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
     currentMutation = null;
 
-    // switch to next stage
-    switch (stage) {
-      case REMOVE_WHOLE:
-        stage = DeltaDebuggingStage.REMOVE_HALF1;
-        assert deltaList.size() == 2;
-        break;
-
-      case REMOVE_HALF1:
-        if (deltaList.size() == 1) {
-          // successfully removed first half, only second half remained
-          currentDelta = deltaList.get(0);
-          resetDeltaListWithHalvesOfCurrentDelta();
-          break; // remove first subhalf...
-        }
-        assert deltaList.size() == 2;
-        stage = DeltaDebuggingStage.REMOVE_HALF2;
-        break;
-
-      case REMOVE_HALF2:
-        if (deltaList.size() == 1) {
-          // successfully removed second half, only second half remained
-          currentDelta = deltaList.get(0);
-          resetDeltaListWithHalvesOfCurrentDelta();
-          break; // remove first subhalf...
-        }
-        assert deltaList.size() == 2;
-
-        if (getMode() != PartsToRemove.ONLY_DELTAS) {
-          stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
-        } else {
-          stage = DeltaDebuggingStage.REMOVE_DELTA;
-        }
-        halveDeltas();
-        break;
-
-      case REMOVE_DELTA:
-        if (!deltaIter.hasNext()) {
-          // tried all deltas, partition again
-          if (getMode() != PartsToRemove.ONLY_DELTAS) {
-            stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
-          }
-          halveDeltas();
-        }
-        break;
-
-      case REMOVE_COMPLEMENT:
-        if (!deltaIter.hasNext()) {
-          // tried all complements
-          if (deltaList.size() == 1) {
-            currentDelta = deltaList.get(0);
-            resetDeltaListWithHalvesOfCurrentDelta();
-          } else {
-            stage = DeltaDebuggingStage.REMOVE_DELTA;
-            deltaIter = deltaList.iterator();
-            currentDelta = null;
-          }
-        }
-        break;
-
-      case ALL_RESOLVED:
-      case FINISHED: // nothing to do
-        break;
-
-      default:
-        throw new AssertionError();
-    }
-
     if (stage == DeltaDebuggingStage.ALL_RESOLVED) {
       finalize(pCfa);
     }
@@ -312,18 +245,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   }
 
   protected void resetDeltaListWithHalvesOfCurrentDelta() {
-    //    switch (stage) {
-    //      case REMOVE_WHOLE:
-    //        stage = DeltaDebuggingStage.REMOVE_HALF1;
-    //        break;
-    //      case REMOVE_HALF1:
-    //        stage = DeltaDebuggingStage.REMOVE_HALF2;
-    //        break;
-    //      case REMOVE_HALF2:
-    //      default:
-    //        stage = DeltaDebuggingStage.REMOVE_DELTA;
-    //        break;
-    //    }
+    stage = DeltaDebuggingStage.REMOVE_HALF1;
     resetDeltaListWithOneDelta(currentDelta);
     halveDeltas();
   }
@@ -424,13 +346,14 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   /** what to do when a minimization property holds */
   protected void reduce(
       @SuppressWarnings("unused") FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    markRemovedElementsAsResolved();
     logInfo(
         "The remaining",
         pStage.nameOther(),
         "is a fail-inducing test. The removed",
         pStage.nameThis(),
         "is not restored.");
+
+    markRemovedElementsAsResolved();
 
     switch (pStage) {
       case REMOVE_COMPLEMENT:
@@ -454,13 +377,15 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   /** what to do when a maximiztion property holds */
   protected void increase(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
-    markRemainingElementsAsSafe();
     logInfo(
         "The removed",
         pStage.nameThis(),
         "contains a fail-inducing difference. The remaining",
         pStage.nameOther(),
         "is safe by itself. Mutation is rollbacked.");
+
+    markRemainingElementsAsSafe();
+    manipulator.rollback(pCfa);
 
     switch (pStage) {
       case REMOVE_COMPLEMENT:
@@ -477,8 +402,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       default:
         throw new AssertionError();
     }
-
-    manipulator.rollback(pCfa);
   }
 
   /** what to do when a test run is unresolved */
@@ -506,6 +429,65 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         "to be preserved).",
         "Nothing is resolved. Mutation is rollbacked.");
     manipulator.rollback(pCfa);
+
+    switch (stage) {
+      case REMOVE_WHOLE:
+        resetDeltaListWithHalvesOfCurrentDelta();
+        break;
+
+      case REMOVE_HALF1:
+        if (deltaList.size() == 1) {
+          // successfully removed first half, only second half remained
+          resetDeltaListWithHalvesOfCurrentDelta();
+          break; // remove first subhalf...
+        }
+        assert deltaList.size() == 2;
+        stage = DeltaDebuggingStage.REMOVE_HALF2;
+        break;
+
+      case REMOVE_HALF2:
+        if (deltaList.size() == 1) {
+          // successfully removed second half, only second half remained
+          resetDeltaListWithHalvesOfCurrentDelta();
+          break; // remove first subhalf...
+        }
+        assert deltaList.size() == 2;
+
+        if (getMode() != PartsToRemove.ONLY_DELTAS) {
+          stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
+        } else {
+          stage = DeltaDebuggingStage.REMOVE_DELTA;
+        }
+        halveDeltas();
+        break;
+
+      case REMOVE_DELTA:
+        if (!deltaIter.hasNext()) {
+          // tried all deltas, partition again
+          if (getMode() != PartsToRemove.ONLY_DELTAS) {
+            stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
+          }
+          halveDeltas();
+        }
+        break;
+
+      case REMOVE_COMPLEMENT:
+        if (!deltaIter.hasNext()) {
+          // tried all complements
+          if (deltaList.size() == 1) {
+            currentDelta = deltaList.get(0);
+            resetDeltaListWithHalvesOfCurrentDelta();
+          } else {
+            stage = DeltaDebuggingStage.REMOVE_DELTA;
+            deltaIter = deltaList.iterator();
+            currentDelta = null;
+          }
+        }
+        break;
+
+      default:
+        throw new AssertionError();
+    }
   }
 
   /**
