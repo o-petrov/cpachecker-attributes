@@ -81,6 +81,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   /** Save stage of DD algorithm between calls to {@link #mutate} */
   protected DeltaDebuggingStage stage = DeltaDebuggingStage.NO_INIT;
 
+  private boolean mutationIsPrepared = false;
+
   private List<ImmutableList<Element>> deltaList = null;
   private Iterator<ImmutableList<Element>> deltaIter = null;
   private ImmutableList<Element> currentDelta = null;
@@ -125,39 +127,140 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   @Override
   public boolean canMutate(FunctionCFAsWithMetadata pCfa) {
-    getCurrStats().startPremath();
-
-    // switch to next stage
     switch (stage) {
       case NO_INIT:
         // setup for all elements in the CFA
         setupFromCfa(pCfa);
         workOn(manipulator.getAllElements());
         assert stage == DeltaDebuggingStage.READY;
-        stage = DeltaDebuggingStage.REMOVE_WHOLE;
-        break;
 
+        // $FALL-THROUGH$
       case READY:
         // elements are already given
         stage = DeltaDebuggingStage.REMOVE_WHOLE;
+
+        // $FALL-THROUGH$
+      case REMOVE_WHOLE:
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
+      case REMOVE_DELTA:
+      case REMOVE_COMPLEMENT:
+        prepareCurrentMutation();
+        Optional<DDResultOfARun> cachedResult = getCachedResultWithout(currentMutation);
+        if (cachedResult.isEmpty()) {
+          return true; // ready to mutate
+        }
+
+        logInfo("Current configuration found in cache... no analysis needed.");
+        // it's a bit redundant, but analysis is way longer anyway
+        setResult(pCfa, cachedResult.orElseThrow());
+        return canMutate(pCfa);
+
+      case FINISHED: // nothing to do
+        return false;
+
+      default:
+        throw new AssertionError();
+    }
+  }
+
+  /**
+   * Choose and remove some elements from the CFA using Delta Debugging approach.
+   *
+   * <p>Although this class is described in terms of removing an element, this can actually mean any
+   * mutation of some part in CFA, e.g. replacing an edge with another one. Then restoring such an
+   * element is replacing new edge back with the old one.
+   */
+  @Override
+  public void mutate(FunctionCFAsWithMetadata pCfa) {
+    getCurrStats().startMutation();
+    logInfo("Removing a", stage.nameThis(), "(" + currentMutation.size(), getElementTitle() + ")");
+    mutate(pCfa, currentMutation);
+    mutationIsPrepared = false;
+    getCurrStats().stopTimers();
+  }
+
+  private void prepareCurrentMutation() {
+    if (mutationIsPrepared) {
+      return;
+    }
+
+    assert deltaIter.hasNext() : "no next delta for delta list " + deltaList;
+    currentDelta = deltaIter.next();
+    ImmutableList<Element> currentComplement =
+        ImmutableList.copyOf(
+            unresolvedElements.stream().filter(el -> !currentDelta.contains(el)).iterator());
+
+    // set next mutation
+    // not in the switch of #canMutate because stage can be changed there
+    switch (stage) {
+      case REMOVE_COMPLEMENT:
+        currentMutation = currentComplement;
         break;
 
       case REMOVE_WHOLE:
+      case REMOVE_HALF1:
+      case REMOVE_HALF2:
+      case REMOVE_DELTA:
+        currentMutation = currentDelta;
+        break;
+
+      default:
+        throw new AssertionError();
+    }
+
+    assert currentMutation.size() > 0 : "removing no elements makes no sense";
+    mutationIsPrepared = true;
+  }
+
+  @Override
+  public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+    getCurrStats().startAftermath();
+    // TODO stats for result
+    cacheResult(pResult);
+
+    // update resolved elements
+    if (pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
+        && getDirection() != DDDirection.MAXIMIZATION) {
+      reduce(pCfa, stage);
+
+    } else if (pResult == DDResultOfARun.MAXIMIZATION_PROPERTY_HOLDS
+        && getDirection() != DDDirection.MINIMIZATION) {
+      increase(pCfa, stage);
+
+    } else {
+      testUnresolved(pCfa, stage);
+    }
+
+    currentMutation = null;
+
+    // switch to next stage
+    switch (stage) {
+      case REMOVE_WHOLE:
         stage = DeltaDebuggingStage.REMOVE_HALF1;
-        halveDeltas();
+        assert deltaList.size() == 2;
         break;
 
       case REMOVE_HALF1:
         if (deltaList.size() == 1) {
-          // successfully removed fist half, only second half remained
+          // successfully removed first half, only second half remained
           currentDelta = deltaList.get(0);
           resetDeltaListWithHalvesOfCurrentDelta();
           break; // remove first subhalf...
         }
+        assert deltaList.size() == 2;
         stage = DeltaDebuggingStage.REMOVE_HALF2;
         break;
 
       case REMOVE_HALF2:
+        if (deltaList.size() == 1) {
+          // successfully removed second half, only second half remained
+          currentDelta = deltaList.get(0);
+          resetDeltaListWithHalvesOfCurrentDelta();
+          break; // remove first subhalf...
+        }
+        assert deltaList.size() == 2;
+
         if (getMode() != PartsToRemove.ONLY_DELTAS) {
           stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
         } else {
@@ -191,9 +294,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         break;
 
       case ALL_RESOLVED:
-        finalize(pCfa);
-        break;
-
       case FINISHED: // nothing to do
         break;
 
@@ -205,89 +305,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       finalize(pCfa);
     }
 
-    getCurrStats().stopTimers();
-
-    if (stage == DeltaDebuggingStage.FINISHED) {
-      return false;
-
-    } else {
-      prepareCurrentMutation();
-      Optional<DDResultOfARun> cachedResult = getCachedResultWithout(currentMutation);
-
-      if (cachedResult.isPresent()) {
-        logInfo("Current configuration found in cache... no analysis needed.");
-        // it's a bit redundant, but analysis is way longer anyway
-        setResult(pCfa, cachedResult.orElseThrow());
-        return canMutate(pCfa);
-      }
-
-      return true;
-    }
-  }
-
-  /**
-   * Choose and remove some elements from the CFA using Delta Debugging approach.
-   *
-   * <p>Although this class is described in terms of removing an element, this can actually mean any
-   * mutation of some part in CFA, e.g. replacing an edge with another one. Then restoring such an
-   * element is replacing new edge back with the old one.
-   */
-  @Override
-  public void mutate(FunctionCFAsWithMetadata pCfa) {
-    getCurrStats().startMutation();
-    logInfo("Removing a", stage.nameThis(), "(" + currentMutation.size(), getElementTitle() + ")");
-    mutate(pCfa, currentMutation);
-    getCurrStats().stopTimers();
-  }
-
-  private void prepareCurrentMutation() {
-    assert deltaIter.hasNext() : "no next delta for delta list " + deltaList;
-    currentDelta = deltaIter.next();
-    ImmutableList<Element> currentComplement =
-        ImmutableList.copyOf(
-            unresolvedElements.stream().filter(el -> !currentDelta.contains(el)).iterator());
-
-    // set next mutation
-    // not in the switch of #canMutate because stage can be changed there
-    switch (stage) {
-      case REMOVE_COMPLEMENT:
-        currentMutation = currentComplement;
-        break;
-
-      case REMOVE_WHOLE:
-      case REMOVE_HALF1:
-      case REMOVE_HALF2:
-      case REMOVE_DELTA:
-        currentMutation = currentDelta;
-        break;
-
-      default:
-        throw new AssertionError();
-    }
-
-    assert currentMutation.size() > 0 : "removing no elements makes no sense";
-  }
-
-  @Override
-  public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
-    getCurrStats().startAftermath();
-    // TODO stats for result
-    cacheResult(pResult);
-
-    // update resolved elements
-    if (pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
-        && getDirection() != DDDirection.MAXIMIZATION) {
-      reduce(pCfa, stage);
-
-    } else if (pResult == DDResultOfARun.MAXIMIZATION_PROPERTY_HOLDS
-        && getDirection() != DDDirection.MINIMIZATION) {
-      increase(pCfa, stage);
-
-    } else {
-      testUnresolved(pCfa, stage);
-    }
-
-    currentMutation = null;
     getCurrStats().stopTimers();
     return pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
         ? MutationRollback.NO_ROLLBACK

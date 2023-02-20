@@ -22,9 +22,10 @@ interface CFAMutationStrategy extends StatisticsProvider {
   }
 
   /**
-   * Whether this strategy can mutate given CFA. Prepares strategy for next call to {@link #mutate}.
-   * Strategy either can mutate the CFA, or can return cause and safe parts in it (all objects will
-   * fall in one of these categories).
+   * Whether this strategy can mutate given CFA. Has to be called before {@link #mutate} at least
+   * once (subsequent calls do not affect anything). Strategy either can mutate the CFA, or can
+   * return cause and safe parts in it (all elements remaining in CFA will fall in one of these
+   * categories).
    */
   public boolean canMutate(FunctionCFAsWithMetadata pCfa);
 
@@ -36,7 +37,7 @@ interface CFAMutationStrategy extends StatisticsProvider {
 
   /**
    * Gives this strategy information about analysis run after last call to {@link #mutate}. Strategy
-   * rewinds unsuccessful mutation.
+   * rewinds unsuccessful mutation and prepares for next mutation.
    */
   public MutationRollback setResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult);
 }
