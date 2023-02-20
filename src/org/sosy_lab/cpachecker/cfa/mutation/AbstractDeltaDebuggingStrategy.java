@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -133,6 +134,17 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
     }
   }
 
+  protected String shortListToLog(ImmutableList<?> pList) {
+    String shortList =
+        pList.size() > 4
+            ? Joiner.on(", ").join(pList.get(0), pList.get(1), pList.get(2), "...")
+            : Joiner.on(", ").join(pList);
+    if (shortList.isEmpty()) {
+      shortList = "no elements";
+    }
+    return '(' + shortList + ')';
+  }
+
   protected ImmutableSet<Element> whatRemainsWithout(Collection<Element> pElements) {
     return manipulator.whatRemainsIfRemove(pElements);
   }
@@ -143,6 +155,7 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
 
   protected Optional<DDResultOfARun> getCachedResultWithout(Collection<Element> pElements) {
     lastAccessedKey = whatRemainsWithout(pElements);
+    logInfo("Cache lookup for", shortListToLog(lastAccessedKey.asList()));
     return Optional.ofNullable(resultCache.get(lastAccessedKey));
   }
 

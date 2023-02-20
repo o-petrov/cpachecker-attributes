@@ -8,7 +8,6 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.graph.MutableValueGraph;
@@ -265,6 +264,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       default:
         throw new AssertionError();
     }
+
+    assert currentMutation.size() > 0 : "removing no elements makes no sense";
   }
 
   @Override
@@ -385,17 +386,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     if (graph != null) {
       currentMutation.forEach(node -> graph.removeNode(node));
     }
-  }
-
-  protected String shortListToLog(ImmutableList<?> pList) {
-    String shortList =
-        pList.size() > 4
-            ? Joiner.on(", ").join(pList.get(0), pList.get(1), pList.get(2), "...")
-            : Joiner.on(", ").join(pList);
-    if (shortList.isEmpty()) {
-      shortList = "no elements";
-    }
-    return '(' + shortList + ')';
   }
 
   /** how to log result */
