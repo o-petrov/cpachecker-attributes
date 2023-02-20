@@ -202,6 +202,14 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   private final CFAMutatorStatistics mutatorStats;
 
+  private enum CanMutate {
+    CAN_MUTATE,
+    CAN_NOT_MUTATE,
+    UNKNOWN;
+  }
+
+  private CanMutate strategyCanMutate = CanMutate.UNKNOWN;
+
   public CFAMutator(Configuration pConfig, LogManager pLogger, ShutdownNotifier pShutdownNotifier)
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
@@ -349,6 +357,10 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   }
 
   public boolean canMutate() {
+    if (strategyCanMutate != CanMutate.UNKNOWN) {
+      return strategyCanMutate == CanMutate.CAN_MUTATE;
+    }
+
     // clear processings before first #canMutate and after rollbacks
     mutatorStats.startCfaReset();
     localCfa.resetEdgesInNodes();
@@ -356,6 +368,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
     mutatorStats.startPreparations();
     boolean result = strategy.canMutate(localCfa);
+    strategyCanMutate = result ? CanMutate.CAN_MUTATE : CanMutate.CAN_NOT_MUTATE;
     mutatorStats.stopPreparations();
 
     if (strategy instanceof AbstractDeltaDebuggingStrategy<?>) {
@@ -370,6 +383,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   /** Apply some mutation to the CFA */
   public CFA mutate() throws InterruptedException, InvalidConfigurationException, ParserException {
     mutatorStats.startMutation();
+    strategyCanMutate = CanMutate.UNKNOWN;
     strategy.mutate(localCfa);
     mutatorStats.stopMutation();
 
@@ -464,11 +478,19 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   }
 
   public void verifyOutcome(AnalysisOutcome pAnalysisOutcome) {
-    Verify.verify(
-        ddMinProperty.contains(pAnalysisOutcome),
-        "min-property %s does not hold: %s",
-        ddMinProperty,
-        pAnalysisOutcome);
+    if (ddDirection == DDDirection.MAXIMIZATION && !canMutate()) {
+      Verify.verify(
+          ddMaxProperty.contains(pAnalysisOutcome),
+          "max-property after maximization was finished %s does not hold: %s",
+          ddMaxProperty,
+          pAnalysisOutcome);
+    } else {
+      Verify.verify(
+          ddMinProperty.contains(pAnalysisOutcome),
+          "min-property %s does not hold: %s",
+          ddMinProperty,
+          pAnalysisOutcome);
+    }
   }
 
   private DDResultOfARun outcomeToDDResult(AnalysisOutcome pOutcome) {
