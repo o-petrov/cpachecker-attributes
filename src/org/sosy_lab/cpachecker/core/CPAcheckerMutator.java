@@ -296,8 +296,10 @@ public class CPAcheckerMutator extends CPAchecker {
     for (ResourceLimit localLimit : nextRunLimits) {
       Class<? extends ResourceLimit> cls = localLimit.getClass();
       long localTimeout = localLimit.nanoSecondsToNextCheck(localLimit.getCurrentValue());
+
       for (ResourceLimit globalLimit : globalLimits) {
-        if (cls.isInstance(globalLimit) && globalLimit.isExceeded(localTimeout)) {
+        if (cls.isInstance(globalLimit)
+            && globalLimit.isExceeded(globalLimit.getCurrentValue() + localTimeout)) {
           return globalLimit.getName() + " will exceed during next analysis run";
         }
       }
