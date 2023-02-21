@@ -81,8 +81,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   /** Save stage of DD algorithm between calls to {@link #mutate} */
   protected DeltaDebuggingStage stage = DeltaDebuggingStage.NO_INIT;
 
-  private boolean mutationIsPrepared = false;
-
   private List<ImmutableList<Element>> deltaList = null;
   private Iterator<ImmutableList<Element>> deltaIter = null;
   private ImmutableList<Element> currentDelta = null;
@@ -176,12 +174,11 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     getCurrStats().startMutation();
     logInfo("Removing a", stage.nameThis(), "(" + currentMutation.size(), getElementTitle() + ")");
     mutate(pCfa, currentMutation);
-    mutationIsPrepared = false;
     getCurrStats().stopTimers();
   }
 
   private void prepareCurrentMutation() {
-    if (mutationIsPrepared) {
+    if (currentMutation != null) {
       return;
     }
 
@@ -210,7 +207,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
 
     assert currentMutation.size() > 0 : "removing no elements makes no sense";
-    mutationIsPrepared = true;
   }
 
   @Override
@@ -252,6 +248,47 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   protected void removeCurrentDeltaFromDeltaList() {
     deltaIter.remove();
+
+    if (deltaIter.hasNext()) {
+      return;
+
+    } else if (deltaList.size() == 0) {
+      // removed whole
+      assert unresolvedElements.isEmpty() : "no deltas but some elements are unresolved";
+      stage = DeltaDebuggingStage.ALL_RESOLVED;
+      return;
+
+    } else if (deltaList.size() == 1) {
+      // successfully removed all other deltas
+      // one half remained falls here too
+      resetDeltaListWithHalvesOfCurrentDelta();
+      return;
+    }
+
+    switch (stage) {
+      case REMOVE_DELTA:
+        // tried all deltas, partition again
+        if (getMode() != PartsToRemove.ONLY_DELTAS) {
+          stage = DeltaDebuggingStage.REMOVE_COMPLEMENT;
+        }
+        halveDeltas();
+        return;
+
+      case REMOVE_COMPLEMENT:
+        if (getMode() == PartsToRemove.ONLY_COMPLEMENTS) {
+          halveDeltas();
+          return;
+        }
+
+        // tried all complements -- switch to removing deltas from same list
+        stage = DeltaDebuggingStage.REMOVE_DELTA;
+        deltaIter = deltaList.iterator();
+        currentDelta = null;
+        return;
+
+      default:
+        throw new AssertionError(stage);
+    }
   }
 
   protected void halveDeltas() {
