@@ -87,7 +87,12 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     // generates new stats and new timer
     workOn(newUnresolved);
     // flip stage from ready to remove_whole
-    stage = DeltaDebuggingStage.REMOVE_WHOLE;
+    if (getStarDirection() == DDDirection.MAXIMIZATION) {
+      halveDeltas();
+      stage = DeltaDebuggingStage.REMOVE_HALF1;
+    } else {
+      stage = DeltaDebuggingStage.REMOVE_WHOLE;
+    }
     // start new timer so canMutate that called finalize can stop timer without exception
     getCurrStats().startPremath();
   }
