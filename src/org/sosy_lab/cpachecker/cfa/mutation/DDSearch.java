@@ -32,7 +32,7 @@ public class DDSearch<Element> extends DDStar<Element> {
 
   public DDSearch(
       LogManager pLogger,
-      CFAElementManipulator<Element> pManipulator,
+      CFAElementManipulator<Element, ?> pManipulator,
       DDDirection pDirection,
       PartsToRemove pMode) {
     super(pLogger, pManipulator, pDirection, pMode);

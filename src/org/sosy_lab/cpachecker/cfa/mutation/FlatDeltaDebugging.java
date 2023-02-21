@@ -87,7 +87,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   public FlatDeltaDebugging(
       LogManager pLogger,
-      CFAElementManipulator<Element> pManipulator,
+      CFAElementManipulator<Element, ?> pManipulator,
       DDDirection pDirection,
       PartsToRemove pMode) {
     super(pLogger, pManipulator, pDirection, pMode);

@@ -17,7 +17,7 @@ class HierarchicalDeltaDebugging<Element> extends FlatDeltaDebugging<Element> {
 
   public HierarchicalDeltaDebugging(
       LogManager pLogger,
-      CFAElementManipulator<Element> pManipulator,
+      CFAElementManipulator<Element, ?> pManipulator,
       DDDirection pDirection,
       PartsToRemove pMode) {
     super(pLogger, pManipulator, pDirection, pMode);

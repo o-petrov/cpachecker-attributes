@@ -33,7 +33,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
 
   public DDStar(
       LogManager pLogger,
-      CFAElementManipulator<Element> pManipulator,
+      CFAElementManipulator<Element, ?> pManipulator,
       DDDirection pDirection,
       PartsToRemove pMode) {
     super(pLogger, pManipulator, DDDirection.ISOLATION, pMode);

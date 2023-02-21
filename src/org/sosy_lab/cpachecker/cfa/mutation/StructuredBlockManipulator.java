@@ -30,7 +30,8 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 
 @Options(prefix = "cfaMutation")
-class StructuredBlockManipulator implements CFAElementManipulator<StructuredBlock2> {
+class StructuredBlockManipulator
+    implements CFAElementManipulator<StructuredBlock2, StructuredBlockManipulator.BlockDependency> {
   @FileOption(Type.OUTPUT_DIRECTORY)
   @Option(
       secure = true,
@@ -105,7 +106,7 @@ class StructuredBlockManipulator implements CFAElementManipulator<StructuredBloc
   }
 
   @Override
-  public ImmutableValueGraph<StructuredBlock2, ?> getGraph() {
+  public ImmutableValueGraph<StructuredBlock2, BlockDependency> getGraph() {
     return ImmutableValueGraph.copyOf(graph);
   }
 

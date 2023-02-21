@@ -34,13 +34,13 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
 
   private final LogManager logger;
   private final List<DeltaDebuggingStatistics> stats = new ArrayList<>();
-  protected final CFAElementManipulator<Element> manipulator;
+  protected final CFAElementManipulator<Element, ?> manipulator;
   private final DDDirection direction;
   private final PartsToRemove mode;
 
   protected AbstractDeltaDebuggingStrategy(
       LogManager pLogger,
-      CFAElementManipulator<Element> pManipulator,
+      CFAElementManipulator<Element, ?> pManipulator,
       DDDirection pDirection,
       PartsToRemove pMode) {
     logger = Preconditions.checkNotNull(pLogger);
@@ -66,7 +66,7 @@ abstract class AbstractDeltaDebuggingStrategy<Element> implements CFAMutationStr
     manipulator.setupFromCfa(pCfa);
   }
 
-  protected CFAElementManipulator<Element> getManipulator() {
+  protected CFAElementManipulator<Element, ?> getManipulator() {
     return manipulator;
   }
 

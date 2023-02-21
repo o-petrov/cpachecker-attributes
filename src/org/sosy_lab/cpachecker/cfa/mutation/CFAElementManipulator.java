@@ -13,7 +13,7 @@ import com.google.common.graph.ImmutableValueGraph;
 import com.google.common.graph.ValueGraph;
 import java.util.Collection;
 
-interface CFAElementManipulator<Element> {
+interface CFAElementManipulator<Element, ElementRelation> {
 
   /**
    * Retrieve elements — atomic CFA parts — this manipulator can remove, and their
@@ -32,7 +32,7 @@ interface CFAElementManipulator<Element> {
    */
   public void setupFromCfa(FunctionCFAsWithMetadata pCfa);
 
-  public ImmutableValueGraph<Element, ?> getGraph();
+  public ImmutableValueGraph<Element, ElementRelation> getGraph();
 
   /** A human-readable name of CFA elements. */
   public String getElementTitle();

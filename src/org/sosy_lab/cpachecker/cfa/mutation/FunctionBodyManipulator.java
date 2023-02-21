@@ -47,7 +47,9 @@ import org.sosy_lab.cpachecker.cfa.types.c.CVoidType;
 import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
-class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManipulator.FunctionElement> {
+class FunctionBodyManipulator
+    implements CFAElementManipulator<
+        FunctionBodyManipulator.FunctionElement, FunctionBodyManipulator.FunctionCall> {
 
   enum FunctionCall {
     DIRECT_CALL,
@@ -170,7 +172,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   @Override
-  public ImmutableValueGraph<FunctionElement, ?> getGraph() {
+  public ImmutableValueGraph<FunctionElement, FunctionCall> getGraph() {
     return ImmutableValueGraph.copyOf(graph);
   }
 

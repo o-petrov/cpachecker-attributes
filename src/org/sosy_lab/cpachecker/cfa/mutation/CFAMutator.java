@@ -162,7 +162,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       name = "manipulator",
       description = "which elements to remove from CFA (one manipulator class)")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
-  private Class<CFAElementManipulator<?>> manipulatorClass;
+  private Class<CFAElementManipulator<?, ?>> manipulatorClass;
 
   @Option(
       secure = true,
@@ -250,7 +250,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   }
 
   private CFAMutationStrategy buildNewStrategy() throws InvalidConfigurationException {
-    CFAElementManipulator<?> manipulator = null;
+    CFAElementManipulator<?, ?> manipulator = null;
     try {
       manipulator =
           manipulatorClass
