@@ -10,23 +10,16 @@ package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.graph.EndpointPair;
-import com.google.common.graph.ImmutableValueGraph;
 import com.google.common.graph.MutableValueGraph;
 import com.google.common.graph.Traverser;
 import com.google.common.graph.ValueGraphBuilder;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.logging.Level;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
@@ -48,7 +41,7 @@ import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 
 class FunctionBodyManipulator
-    implements CFAElementManipulator<
+    extends CFAElementManipulator<
         FunctionBodyManipulator.FunctionElement, FunctionBodyManipulator.FunctionCall> {
 
   enum FunctionCall {
@@ -145,20 +138,11 @@ class FunctionBodyManipulator
 
   private final ThreadCreateTransformer threadCreateTransformer;
 
-  private final LogManager logger;
-
   private Map<String, FunctionElement> functionElements = new TreeMap<>();
-
-  private MutableValueGraph<FunctionElement, FunctionCall> graph = null;
-  private ImmutableValueGraph<FunctionElement, FunctionCall> prevGraph = null;
-  private ImmutableSet<FunctionElement> currentLevel = null;
-  private List<FunctionElement> previousLevels = new ArrayList<>();
-
-  private ImmutableList<FunctionElement> currentMutation;
 
   public FunctionBodyManipulator(Configuration pConfig, LogManager pLogger)
       throws InvalidConfigurationException {
-    logger = Preconditions.checkNotNull(pLogger);
+    super(pLogger, "functions");
     threadCreateTransformer = new ThreadCreateTransformer(pLogger, pConfig);
   }
 
@@ -172,12 +156,15 @@ class FunctionBodyManipulator
   }
 
   @Override
-  public ImmutableValueGraph<FunctionElement, FunctionCall> getGraph() {
-    return ImmutableValueGraph.copyOf(graph);
+  protected ImmutableSet<FunctionElement> getPredecessors(FunctionElement pNode) {
+    // do not count 'callers' from recursive calls, i.e. with smaller postorder
+    return graph.predecessors(pNode).stream()
+        .filter(pred -> pred.getCallHeight() > pNode.getCallHeight())
+        .collect(ImmutableSet.toImmutableSet());
   }
 
   @Override
-  public void setupFromCfa(FunctionCFAsWithMetadata pCfa) {
+  public void constructElementGraph(FunctionCFAsWithMetadata pCfa) {
     graph =
         ValueGraphBuilder.directed().expectedNodeCount(pCfa.getFunctions().size()).build();
 
@@ -235,9 +222,10 @@ class FunctionBodyManipulator
     }
   }
 
-  public void remove(FunctionCFAsWithMetadata pCfa, FunctionElement pChosen) {
+  @Override
+  protected void removeElement(FunctionCFAsWithMetadata pCfa, FunctionElement pChosen) {
     if (bodiesNeeded.contains(pChosen.name)) {
-      logger.log(Level.FINE, "Replacing function", pChosen, "body with default 'return'");
+      logFine("Replacing function", pChosen, "body with default 'return'");
       if (pCfa.getLanguage() != Language.C) {
         throw new UnsupportedOperationException(
             "Replacing function bodies with dummy returns is not supported for Java");
@@ -248,7 +236,7 @@ class FunctionBodyManipulator
       pCfa.getCFANodes().putAll(pChosen.name, pChosen.newNodes);
 
     } else {
-      logger.log(Level.FINE, "Removing function", pChosen);
+      logFine("Removing function", pChosen);
       // remove function entry
       pCfa.getFunctions().remove(pChosen.name);
       // remove nodes
@@ -256,8 +244,9 @@ class FunctionBodyManipulator
     }
   }
 
-  public void restore(FunctionCFAsWithMetadata pCfa, FunctionElement pRemoved) {
-    logger.log(Level.FINE, "Restoring function", pRemoved.name);
+  @Override
+  protected void restoreElement(FunctionCFAsWithMetadata pCfa, FunctionElement pRemoved) {
+    logFine("Restoring function", pRemoved.name);
     pCfa.getCFANodes().removeAll(pRemoved.name);
     pCfa.getCFANodes().putAll(pRemoved.name, pRemoved.oldNodes);
     pCfa.getFunctions().put(pRemoved.name, pRemoved.entry);
@@ -272,54 +261,6 @@ class FunctionBodyManipulator
     for (int i = 1; i < pRemoved.halfConnectedEdges.size(); i++) {
       exit.addEnteringEdge(pRemoved.halfConnectedEdges.get(i));
     }
-  }
-
-  @Override
-  public String getElementTitle() {
-    return "functions";
-  }
-
-  @Override
-  public ImmutableSet<FunctionElement> getAllElements() {
-    Preconditions.checkState(graph != null, "Function call graph was not set up");
-    return ImmutableSet.copyOf(graph.nodes());
-  }
-
-  @Override
-  public ImmutableSet<FunctionElement> getNextLevelElements() {
-    Preconditions.checkState(graph != null, "Function call graph was not set up");
-    if (currentLevel == null) {
-      // return roots/sources
-      // functions that are not called by any other
-      currentLevel =
-          graph.nodes().stream()
-              .filter(
-                  f ->
-                      graph.predecessors(f).stream()
-                          .filter(g -> g.getCallHeight() > f.getCallHeight())
-                          .collect(ImmutableSet.toImmutableSet())
-                          .isEmpty())
-              .collect(ImmutableSet.toImmutableSet());
-    } else {
-      currentLevel =
-          FluentIterable.from(currentLevel)
-              // filter out f removed from graph but remaining in 'currentLevel'
-              .filter(f -> graph.nodes().contains(f))
-              .transformAndConcat(f -> graph.successors(f))
-              // filter out g that were in current or previous levels
-              // filter out g that has caller not from current or previous level
-              // (do not count 'callers' from recursive calls, i.e. with smaller postorder)
-              .filter(
-                  g ->
-                      !previousLevels.contains(g)
-                          && previousLevels.containsAll(
-                              graph.predecessors(g).stream()
-                                  .filter(f -> f.getCallHeight() > g.getCallHeight())
-                                  .collect(ImmutableSet.toImmutableSet())))
-              .toSet();
-    }
-    previousLevels.addAll(currentLevel);
-    return currentLevel;
   }
 
   private void setPostorder() {
@@ -356,90 +297,5 @@ class FunctionBodyManipulator
       source = graph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
       //      System.out.println("found " + source);
     }
-  }
-
-  @Override
-  public void remove(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
-    pChosen.forEach(f -> remove(pCfa, f));
-    currentMutation = ImmutableList.copyOf(pChosen);
-  }
-
-  @Override
-  public void restore(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
-    pChosen.forEach(f -> restore(pCfa, f));
-  }
-
-  @Override
-  public ImmutableSet<FunctionElement> whatRemainsIfRemove(Collection<FunctionElement> pChosen) {
-    return FluentIterable.from(graph.nodes()).filter(f -> !pChosen.contains(f)).toSet();
-  }
-
-  @Override
-  public ImmutableSet<FunctionElement> whatRemainsIfPrune(Collection<FunctionElement> pChosen) {
-    List<FunctionElement> toRemove = whatToPruneIfChoose(pChosen);
-    return FluentIterable.from(graph.nodes())
-        .filter(f -> !toRemove.contains(f))
-        .toSet();
-  }
-
-  private ImmutableList<FunctionElement> whatToPruneIfChoose(Collection<FunctionElement> pChosen) {
-    List<FunctionElement> removed = new ArrayList<>(pChosen);
-
-    for (int i = 0; i < removed.size(); i++) {
-      FunctionElement f = removed.get(i);
-      graph.successors(f).stream()
-          .filter(g -> !removed.contains(g))
-          .filter(
-              g ->
-                  removed.containsAll(
-                      graph.predecessors(g).stream()
-                          .filter(h -> h.getCallHeight() > g.getCallHeight())
-                          .collect(ImmutableSet.toImmutableSet())))
-          .forEach(g -> removed.add(g));
-    }
-
-    return ImmutableList.copyOf(removed);
-  }
-
-  @Override
-  public void prune(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
-    Preconditions.checkState(graph != null, "Function call graph was not set up");
-
-    prevGraph = ImmutableValueGraph.copyOf(graph);
-    currentMutation = whatToPruneIfChoose(pChosen);
-    assert prevGraph.nodes().containsAll(currentMutation);
-
-    logger.log(
-        Level.INFO,
-        "Removing",
-        currentMutation.size(),
-        getElementTitle(),
-        "including callees:",
-        currentMutation);
-
-    currentMutation.forEach(
-        f -> {
-          remove(pCfa, f);
-          graph.removeNode(f);
-        });
-  }
-
-  @Override
-  public void rollback(FunctionCFAsWithMetadata pCfa) {
-    logger.log(
-        Level.INFO,
-        "Restoring",
-        currentMutation.size(),
-        getElementTitle(),
-        currentMutation);
-    if (prevGraph != null) {
-      for (FunctionElement node : prevGraph.nodes()) {
-        graph.addNode(node);
-      }
-      for (EndpointPair<FunctionElement> edge : prevGraph.edges()) {
-        graph.putEdgeValue(edge, prevGraph.edgeValue(edge).orElseThrow());
-      }
-    }
-    currentMutation.reverse().forEach(f -> restore(pCfa, f));
   }
 }

@@ -9,17 +9,11 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.graph.ImmutableValueGraph;
-import com.google.common.graph.MutableValueGraph;
 import com.google.common.graph.ValueGraphBuilder;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.FileOption;
 import org.sosy_lab.common.configuration.FileOption.Type;
@@ -31,7 +25,7 @@ import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 
 @Options(prefix = "cfaMutation")
 class StructuredBlockManipulator
-    implements CFAElementManipulator<StructuredBlock2, StructuredBlockManipulator.BlockDependency> {
+    extends CFAElementManipulator<StructuredBlock2, StructuredBlockManipulator.BlockDependency> {
   @FileOption(Type.OUTPUT_DIRECTORY)
   @Option(
       secure = true,
@@ -59,21 +53,14 @@ class StructuredBlockManipulator
   private static final String removeUnsupported =
       "Block manipulator can only prune, as structured program blocks cannot be removed independently.";
 
-  private MutableValueGraph<StructuredBlock2, BlockDependency> graph = null;
-  private ImmutableSet<StructuredBlock2> currentLevel = null;
-  private List<StructuredBlock2> previousLevels = new ArrayList<>();
-
-  private List<StructuredBlock2> currentMutation = new ArrayList<>();
-  private final LogManager logger;
-
   public StructuredBlockManipulator(Configuration pConfig, LogManager pLogger)
       throws InvalidConfigurationException {
-    logger = Preconditions.checkNotNull(pLogger);
+    super(pLogger, "structured blocks");
     pConfig.inject(this, StructuredBlockManipulator.class);
   }
 
   @Override
-  public void setupFromCfa(FunctionCFAsWithMetadata pCfa) {
+  public void constructElementGraph(FunctionCFAsWithMetadata pCfa) {
     Preconditions.checkState(graph == null, "Structured program blocks graph was already set up");
     graph = ValueGraphBuilder.directed().build();
 
@@ -85,7 +72,7 @@ class StructuredBlockManipulator
       assert diff.isEmpty() : entry.getFunctionName() + " diff is " + diff;
       addBlocks(body);
     }
-    new StructuredBlockToDotWriter(pCfa).dump(dirForBlocks, logger);
+    new StructuredBlockToDotWriter(pCfa).dump(dirForBlocks, getLogger());
 
     // TODO decls?
   }
@@ -98,61 +85,15 @@ class StructuredBlockManipulator
     }
   }
 
-  private void removeBlocks(StructuredBlock2 pBlock) {
-    graph.removeNode(pBlock);
-    for (StructuredBlock2 sub : pBlock.getBlocks()) {
-      removeBlocks(sub);
-    }
+  @Override
+  protected void removeElement(FunctionCFAsWithMetadata pCfa, StructuredBlock2 pBlock) {
+    // TODO
+    throw new UnsupportedOperationException("TODO actually remove blocks from CFA");
   }
 
   @Override
-  public ImmutableValueGraph<StructuredBlock2, BlockDependency> getGraph() {
-    return ImmutableValueGraph.copyOf(graph);
-  }
-
-  @Override
-  public String getElementTitle() {
-    return "structured blocks";
-  }
-
-  @Override
-  public ImmutableSet<StructuredBlock2> getAllElements() {
-    return ImmutableSet.copyOf(graph.nodes());
-  }
-
-  @Override
-  public ImmutableSet<StructuredBlock2> getNextLevelElements() {
-    Preconditions.checkState(graph != null, "Structured program blocks graph was not set up");
-    if (currentLevel == null) {
-      // return roots/sources
-      // functions that are not called by any other
-      currentLevel =
-          graph.nodes().stream()
-              .filter(
-                  f ->
-                      graph.predecessors(f).stream()
-                          .collect(ImmutableSet.toImmutableSet())
-                          .isEmpty())
-              .collect(ImmutableSet.toImmutableSet());
-    } else {
-      currentLevel =
-          FluentIterable.from(currentLevel)
-              // filter out f removed from graph but remaining in 'currentLevel'
-              .filter(f -> graph.nodes().contains(f))
-              .transformAndConcat(f -> graph.successors(f))
-              // filter out g that were in current or previous levels
-              // filter out g that has caller not from current or previous level
-              // (do not count 'callers' from recursive calls, i.e. with smaller postorder)
-              .filter(
-                  g ->
-                      !previousLevels.contains(g)
-                          && previousLevels.containsAll(
-                              graph.predecessors(g).stream()
-                                  .collect(ImmutableSet.toImmutableSet())))
-              .toSet();
-    }
-    previousLevels.addAll(currentLevel);
-    return currentLevel;
+  public ImmutableSet<StructuredBlock2> whatRemainsIfRemove(Collection<StructuredBlock2> pChosen) {
+    throw new UnsupportedOperationException(removeUnsupported);
   }
 
   @Override
@@ -161,24 +102,13 @@ class StructuredBlockManipulator
   }
 
   @Override
-  public void restore(FunctionCFAsWithMetadata pCfa, Collection<StructuredBlock2> pChosen) {
-    for (StructuredBlock2 b : pChosen) {
-      addBlocks(b);
-      b.rollback(pCfa);
-    }
+  protected void restoreElement(FunctionCFAsWithMetadata pCfa, StructuredBlock2 pChosen) {
+    // TODO
+    throw new UnsupportedOperationException("TODO actually restore blocks from CFA");
   }
 
-  @Override
-  public void prune(FunctionCFAsWithMetadata pCfa, Collection<StructuredBlock2> pChosen) {
-    for (StructuredBlock2 b : pChosen) {
-      currentMutation.add(b);
-      b.retainDeclarations(pCfa);
-      removeBlocks(b);
-    }
-  }
-
-  //  private void pruneSubblocks(FunctionCFAsWithMetadata pCfa, StructuredBlock2 pBlock) {
-  //    logger.log(Level.INFO, "removing subblocks of", pBlock);
+  /*  private void pruneSubblocks(FunctionCFAsWithMetadata pCfa, StructuredBlock2 pBlock) {
+  //    logInfo("removing subblocks of", pBlock);
   //    currentMutation.add(pBlock);
   //    pCfa.getCFANodes().values().removeAll(pBlock.getNodes());
   //    prune(pCfa, pBlock.getSubBlocks());
@@ -239,29 +169,5 @@ class StructuredBlockManipulator
   //    }
   //
   //    removeBlocks(pBlock);
-  //  }
-
-  @Override
-  public void rollback(FunctionCFAsWithMetadata pCfa) {
-    for (StructuredBlock2 b : Lists.reverse(currentMutation)) {
-      addBlocks(b);
-      b.rollback(pCfa);
-    }
-  }
-
-  @Override
-  public ImmutableSet<StructuredBlock2> whatRemainsIfRemove(Collection<StructuredBlock2> pChosen) {
-    throw new UnsupportedOperationException(removeUnsupported);
-  }
-
-  @Override
-  public ImmutableSet<StructuredBlock2> whatRemainsIfPrune(Collection<StructuredBlock2> pChosen) {
-    List<StructuredBlock2> result = new ArrayList<>(previousLevels);
-    for (StructuredBlock2 b : result) {
-      b.getBlocks().stream()
-          .filter(c -> !pChosen.contains(c) && !result.contains(c))
-          .forEach(c -> result.add(c));
-    }
-    return ImmutableSet.copyOf(result);
-  }
+  //  } */
 }
