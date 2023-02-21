@@ -147,7 +147,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   private Map<String, FunctionElement> functionElements = new TreeMap<>();
 
-  private MutableValueGraph<FunctionElement, FunctionCall> functionCallGraph = null;
+  private MutableValueGraph<FunctionElement, FunctionCall> graph = null;
   private ImmutableValueGraph<FunctionElement, FunctionCall> prevGraph = null;
   private ImmutableSet<FunctionElement> currentLevel = null;
   private List<FunctionElement> previousLevels = new ArrayList<>();
@@ -171,12 +171,12 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   @Override
   public ImmutableValueGraph<FunctionElement, ?> getGraph() {
-    return ImmutableValueGraph.copyOf(functionCallGraph);
+    return ImmutableValueGraph.copyOf(graph);
   }
 
   @Override
   public void setupFromCfa(FunctionCFAsWithMetadata pCfa) {
-    functionCallGraph =
+    graph =
         ValueGraphBuilder.directed().expectedNodeCount(pCfa.getFunctions().size()).build();
 
     ImmutableSet.Builder<String> builder = ImmutableSet.builder();
@@ -198,10 +198,10 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     bodiesNeeded = builder.build();
 
     for (String name : pCfa.getFunctions().keySet()) {
-      functionCallGraph.addNode(functionElementByName(pCfa, name));
+      graph.addNode(functionElementByName(pCfa, name));
     }
 
-    addDirectCalls(pCfa, functionCallGraph);
+    addDirectCalls(pCfa, graph);
     // TODO other function calls... (via pointers and thread creation too)
 
     setPostorder();
@@ -279,21 +279,21 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   @Override
   public ImmutableSet<FunctionElement> getAllElements() {
-    Preconditions.checkState(functionCallGraph != null, "Function call graph was not set up");
-    return ImmutableSet.copyOf(functionCallGraph.nodes());
+    Preconditions.checkState(graph != null, "Function call graph was not set up");
+    return ImmutableSet.copyOf(graph.nodes());
   }
 
   @Override
   public ImmutableSet<FunctionElement> getNextLevelElements() {
-    Preconditions.checkState(functionCallGraph != null, "Function call graph was not set up");
+    Preconditions.checkState(graph != null, "Function call graph was not set up");
     if (currentLevel == null) {
       // return roots/sources
       // functions that are not called by any other
       currentLevel =
-          functionCallGraph.nodes().stream()
+          graph.nodes().stream()
               .filter(
                   f ->
-                      functionCallGraph.predecessors(f).stream()
+                      graph.predecessors(f).stream()
                           .filter(g -> g.getCallHeight() > f.getCallHeight())
                           .collect(ImmutableSet.toImmutableSet())
                           .isEmpty())
@@ -302,8 +302,8 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
       currentLevel =
           FluentIterable.from(currentLevel)
               // filter out f removed from graph but remaining in 'currentLevel'
-              .filter(f -> functionCallGraph.nodes().contains(f))
-              .transformAndConcat(f -> functionCallGraph.successors(f))
+              .filter(f -> graph.nodes().contains(f))
+              .transformAndConcat(f -> graph.successors(f))
               // filter out g that were in current or previous levels
               // filter out g that has caller not from current or previous level
               // (do not count 'callers' from recursive calls, i.e. with smaller postorder)
@@ -311,7 +311,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
                   g ->
                       !previousLevels.contains(g)
                           && previousLevels.containsAll(
-                              functionCallGraph.predecessors(g).stream()
+                              graph.predecessors(g).stream()
                                   .filter(f -> f.getCallHeight() > g.getCallHeight())
                                   .collect(ImmutableSet.toImmutableSet())))
               .toSet();
@@ -321,12 +321,12 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
   }
 
   private void setPostorder() {
-    for (FunctionElement source : functionCallGraph.nodes()) {
-      if (functionCallGraph.inDegree(source) == 0) {
+    for (FunctionElement source : graph.nodes()) {
+      if (graph.inDegree(source) == 0) {
 
         int id = 0;
         Iterable<FunctionElement> nodesInPostOrder =
-            Traverser.<FunctionElement>forGraph(n -> functionCallGraph.successors(n))
+            Traverser.<FunctionElement>forGraph(n -> graph.successors(n))
                 .depthFirstPostOrder(source);
 
         for (FunctionElement node : nodesInPostOrder) {
@@ -337,13 +337,13 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
     //    System.out.println(functionCallGraph.nodes());
     Optional<FunctionElement> source =
-        functionCallGraph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
+        graph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
     //    System.out.println("found " + source);
 
     while (source.isPresent()) {
       int id = 0;
       Iterable<FunctionElement> nodesInPostOrder =
-          Traverser.<FunctionElement>forGraph(n -> functionCallGraph.successors(n))
+          Traverser.<FunctionElement>forGraph(n -> graph.successors(n))
               .depthFirstPostOrder(source.orElseThrow());
 
       for (FunctionElement node : nodesInPostOrder) {
@@ -351,7 +351,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
       }
 
       //      System.out.println(functionCallGraph.nodes());
-      source = functionCallGraph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
+      source = graph.nodes().stream().filter(node -> node.callHeight < 0).findFirst();
       //      System.out.println("found " + source);
     }
   }
@@ -369,13 +369,13 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   @Override
   public ImmutableSet<FunctionElement> whatRemainsIfRemove(Collection<FunctionElement> pChosen) {
-    return FluentIterable.from(functionCallGraph.nodes()).filter(f -> !pChosen.contains(f)).toSet();
+    return FluentIterable.from(graph.nodes()).filter(f -> !pChosen.contains(f)).toSet();
   }
 
   @Override
   public ImmutableSet<FunctionElement> whatRemainsIfPrune(Collection<FunctionElement> pChosen) {
     List<FunctionElement> toRemove = whatToPruneIfChoose(pChosen);
-    return FluentIterable.from(functionCallGraph.nodes())
+    return FluentIterable.from(graph.nodes())
         .filter(f -> !toRemove.contains(f))
         .toSet();
   }
@@ -385,12 +385,12 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
     for (int i = 0; i < removed.size(); i++) {
       FunctionElement f = removed.get(i);
-      functionCallGraph.successors(f).stream()
+      graph.successors(f).stream()
           .filter(g -> !removed.contains(g))
           .filter(
               g ->
                   removed.containsAll(
-                      functionCallGraph.predecessors(g).stream()
+                      graph.predecessors(g).stream()
                           .filter(h -> h.getCallHeight() > g.getCallHeight())
                           .collect(ImmutableSet.toImmutableSet())))
           .forEach(g -> removed.add(g));
@@ -401,9 +401,9 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
 
   @Override
   public void prune(FunctionCFAsWithMetadata pCfa, Collection<FunctionElement> pChosen) {
-    Preconditions.checkState(functionCallGraph != null, "Function call graph was not set up");
+    Preconditions.checkState(graph != null, "Function call graph was not set up");
 
-    prevGraph = ImmutableValueGraph.copyOf(functionCallGraph);
+    prevGraph = ImmutableValueGraph.copyOf(graph);
     currentMutation = whatToPruneIfChoose(pChosen);
     assert prevGraph.nodes().containsAll(currentMutation);
 
@@ -418,7 +418,7 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
     currentMutation.forEach(
         f -> {
           remove(pCfa, f);
-          functionCallGraph.removeNode(f);
+          graph.removeNode(f);
         });
   }
 
@@ -432,10 +432,10 @@ class FunctionBodyManipulator implements CFAElementManipulator<FunctionBodyManip
         currentMutation);
     if (prevGraph != null) {
       for (FunctionElement node : prevGraph.nodes()) {
-        functionCallGraph.addNode(node);
+        graph.addNode(node);
       }
       for (EndpointPair<FunctionElement> edge : prevGraph.edges()) {
-        functionCallGraph.putEdgeValue(edge, prevGraph.edgeValue(edge).orElseThrow());
+        graph.putEdgeValue(edge, prevGraph.edgeValue(edge).orElseThrow());
       }
     }
     currentMutation.reverse().forEach(f -> restore(pCfa, f));
