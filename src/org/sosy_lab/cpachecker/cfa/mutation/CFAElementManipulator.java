@@ -131,8 +131,10 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
 
   private ImmutableList<Element> whatToPruneIfChoose(Collection<Element> pChosen) {
     List<Element> result = new ArrayList<>(pChosen);
+    assert graph.nodes().containsAll(result) : "chosen elements must be in graph";
 
-    for (Element f : result) {
+    for (int i = 0; i < result.size(); i++) {
+      Element f = result.get(i);
       graph.successors(f).stream()
           .filter(g -> !result.contains(g) && result.containsAll(getPredecessors(g)))
           .forEach(g -> result.add(g));
@@ -153,6 +155,7 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
    */
   public void prune(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
     Preconditions.checkState(graph != null, getElementTitle() + " graph was not set up");
+    logFine("Prunning", pChosen.size(), getElementTitle(), pChosen);
 
     mutationBackupGraph = ImmutableValueGraph.copyOf(graph);
     currentMutation = whatToPruneIfChoose(pChosen);
@@ -197,7 +200,8 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
           restoreEdgesWithOtherPresentNodes(cur);
         });
 
-    for (Element cur : result) {
+    for (int i = 0; i < result.size(); i++) {
+      Element cur = result.get(i);
       pruneBackupGraph.successors(cur).stream()
           .filter(suc -> !result.contains(suc) /* && graph contains any preds XXX */)
           .forEach(
