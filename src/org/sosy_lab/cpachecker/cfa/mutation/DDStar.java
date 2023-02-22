@@ -86,15 +86,32 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     getCurrStats().stopTimers();
     // generates new stats and new timer
     workOn(newUnresolved);
-    // flip stage from ready to remove_whole
+    // flip stage from ready
     if (getStarDirection() == DDDirection.MAXIMIZATION) {
-      halveDeltas();
-      stage = DeltaDebuggingStage.REMOVE_HALF1;
+      stage = DeltaDebuggingStage.CHECK_WHOLE;
     } else {
       stage = DeltaDebuggingStage.REMOVE_WHOLE;
     }
     // start new timer so canMutate that called finalize can stop timer without exception
     getCurrStats().startPremath();
+  }
+
+  @Override
+  protected void testWholeUnresolved() {
+    switch (getStarDirection()) {
+      case MAXIMIZATION:
+        // removing whole is wrong, we've just returned it inside
+        resetDeltaListWithHalvesOfCurrentDelta();
+        break;
+
+      case MINIMIZATION:
+        // just return to usual
+        stage = DeltaDebuggingStage.REMOVE_WHOLE;
+        break;
+
+      default:
+        throw new AssertionError();
+    }
   }
 
   @Override

@@ -24,6 +24,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   protected enum DeltaDebuggingStage {
     NO_INIT,
     READY,
+    CHECK_WHOLE,
     REMOVE_WHOLE,
     REMOVE_HALF1,
     REMOVE_HALF2,
@@ -43,6 +44,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
           return "half";
         case REMOVE_WHOLE:
           return "whole";
+        case CHECK_WHOLE:
+          return "nothing";
         default:
           throw new AssertionError(this);
       }
@@ -59,6 +62,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
           return "other half";
         case REMOVE_WHOLE:
           return "nothing";
+        case CHECK_WHOLE:
+          return "whole";
         default:
           throw new AssertionError(this);
       }
@@ -138,6 +143,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         stage = DeltaDebuggingStage.REMOVE_WHOLE;
 
         // $FALL-THROUGH$
+      case CHECK_WHOLE:
       case REMOVE_WHOLE:
       case REMOVE_HALF1:
       case REMOVE_HALF2:
@@ -179,6 +185,12 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
   private void prepareCurrentMutation() {
     if (currentMutation != null) {
+      return;
+    }
+
+    if (stage == DeltaDebuggingStage.CHECK_WHOLE) {
+      currentMutation = ImmutableList.of();
+      currentDelta = deltaList.get(0);
       return;
     }
 
@@ -404,6 +416,11 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         resetDeltaListWithHalvesOfCurrentDelta();
         break;
 
+      case CHECK_WHOLE:
+        // test is failing, so just return to usual
+        stage = DeltaDebuggingStage.REMOVE_WHOLE;
+        break;
+
       case REMOVE_WHOLE:
       case REMOVE_HALF1:
       case REMOVE_HALF2:
@@ -430,6 +447,13 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     manipulator.rollback(pCfa);
 
     switch (pStage) {
+      case CHECK_WHOLE:
+        currentDelta = null;
+        assert unresolvedElements.isEmpty();
+        stage = DeltaDebuggingStage.ALL_RESOLVED;
+        logInfo("All elements were resolved");
+        break;
+
       case REMOVE_COMPLEMENT:
         removeCurrentDeltaFromDeltaList();
         break;
@@ -473,6 +497,10 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     manipulator.rollback(pCfa);
 
     switch (stage) {
+      case CHECK_WHOLE:
+        testWholeUnresolved();
+        break;
+
       case REMOVE_WHOLE:
         resetDeltaListWithHalvesOfCurrentDelta();
         break;
@@ -530,6 +558,10 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       default:
         throw new AssertionError();
     }
+  }
+
+  protected void testWholeUnresolved() {
+    throw new UnsupportedOperationException("basic DD should not call this method");
   }
 
   /**
