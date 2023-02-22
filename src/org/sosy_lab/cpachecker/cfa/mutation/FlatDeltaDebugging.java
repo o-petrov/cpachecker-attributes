@@ -261,6 +261,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     } else if (deltaList.size() == 1) {
       // successfully removed all other deltas
       // one half remained falls here too
+      currentDelta = deltaList.get(0);
       resetDeltaListWithHalvesOfCurrentDelta();
       return;
     }
@@ -298,6 +299,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         "deltas (total",
         unresolvedElements.size(),
         getElementTitle() + ")");
+
     List<ImmutableList<Element>> result = new ArrayList<>(deltaList.size() * 2);
 
     for (var delta : deltaList) {
@@ -317,6 +319,9 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
 
     resetDeltaList(result);
+
+    deltaList.forEach(d -> logFine(d));
+
     // DD can end only after halving deltas
     if (unresolvedElements.isEmpty()) {
       stage = DeltaDebuggingStage.ALL_RESOLVED;
@@ -412,7 +417,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
   }
 
-  /** what to do when a maximiztion property holds */
+  /** what to do when a maximization property holds */
   protected void increase(FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
     logInfo(
         "The removed",
