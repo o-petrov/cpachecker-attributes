@@ -137,6 +137,8 @@ public class DDSearch<Element> extends DDStar<Element> {
         // reset DD*
         clear();
         workOnElements(removedElements);
+        // first, check if min-property still holds
+        stage = DeltaDebuggingStage.CHECK_WHOLE;
         return;
 
       default:

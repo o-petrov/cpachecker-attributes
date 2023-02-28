@@ -132,6 +132,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     workOn(pElements);
     // flip stage from ready
     if (getStarDirection() == DDDirection.MAXIMIZATION) {
+      // for max, it is needed to check whole: in case max-property holds, nothing should be removed
       stage = DeltaDebuggingStage.CHECK_WHOLE;
     } else {
       stage = DeltaDebuggingStage.REMOVE_WHOLE;

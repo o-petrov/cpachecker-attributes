@@ -450,6 +450,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
     switch (pStage) {
       case CHECK_WHOLE:
+        // either maximization does not need to remove anything
+        // or minimization is pointless
         currentDelta = null;
         assert unresolvedElements.isEmpty();
         stage = DeltaDebuggingStage.ALL_RESOLVED;
