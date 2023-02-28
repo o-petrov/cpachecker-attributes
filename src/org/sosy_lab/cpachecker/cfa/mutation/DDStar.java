@@ -46,26 +46,41 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
   }
 
   private ImmutableList<Element> storeOldAndGetNewList() {
-    causeList.add(super.getCauseElements());
-    logInfo("Found a cause:", shortListToLog(super.getCauseElements()));
+    ImmutableList<Element> newCause = super.getCauseElements();
+    if (newCause.isEmpty()) {
+      logInfo("Found no cause");
+    } else {
+      causeList.add(newCause);
+      logInfo("Found a cause:", shortListToLog(newCause));
+    }
+
+    ImmutableList<Element> safeElements = super.getSafeElements();
+    ImmutableList<Element> removedElements = super.getRemovedElements();
 
     switch (getStarDirection()) {
       case MAXIMIZATION:
-        safeList.add(super.getSafeElements());
-        logInfo("Marked safe:", shortListToLog(super.getSafeElements()));
-        logInfo("Repeating dd on removed:", shortListToLog(super.getRemovedElements()));
-        return super.getRemovedElements();
+        safeList.add(safeElements);
+        logInfo("Marked safe:", shortListToLog(safeElements));
+        if (removedElements.isEmpty()) {
+          logInfo("No removed elements to repeat dd on");
+        } else {
+          logInfo("Repeating dd on removed:", shortListToLog(removedElements));
+        }
+        return removedElements;
 
       case MINIMIZATION:
-        removedList.add(super.getRemovedElements());
-        logInfo("Were removed:", shortListToLog(super.getRemovedElements()));
-        logInfo("Repeating dd on safe:", shortListToLog(super.getSafeElements()));
-        return super.getSafeElements();
+        removedList.add(removedElements);
+        logInfo("Were removed:", shortListToLog(removedElements));
+        if (safeElements.isEmpty()) {
+          logInfo("No safe elements to repeat dd on");
+        } else {
+          logInfo("Repeating dd on safe:", shortListToLog(safeElements));
+        }
+        return safeElements;
 
       default:
         throw new AssertionError();
     }
-
   }
 
   @Override
@@ -79,21 +94,11 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
       mutate(pCfa, super.getCauseElements());
     }
     if (newUnresolved.isEmpty()) {
+      assert stage == DeltaDebuggingStage.FINISHED;
       return;
     }
 
-    // stop old timer
-    getCurrStats().stopTimers();
-    // generates new stats and new timer
-    workOn(newUnresolved);
-    // flip stage from ready
-    if (getStarDirection() == DDDirection.MAXIMIZATION) {
-      stage = DeltaDebuggingStage.CHECK_WHOLE;
-    } else {
-      stage = DeltaDebuggingStage.REMOVE_WHOLE;
-    }
-    // start new timer so canMutate that called finalize can stop timer without exception
-    getCurrStats().startPremath();
+    workOnElements(newUnresolved);
   }
 
   @Override
@@ -114,12 +119,33 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     }
   }
 
+  protected void clear() {
+    causeList.clear();
+    safeList.clear();
+    removedList.clear();
+  }
+
+  protected void workOnElements(ImmutableList<Element> pElements) {
+    // stop old timer
+    getCurrStats().stopTimers();
+    // generates new stats and new timer
+    workOn(pElements);
+    // flip stage from ready
+    if (getStarDirection() == DDDirection.MAXIMIZATION) {
+      stage = DeltaDebuggingStage.CHECK_WHOLE;
+    } else {
+      stage = DeltaDebuggingStage.REMOVE_WHOLE;
+    }
+    // start new timer so canMutate that called finalize can stop timer without exception
+    getCurrStats().startPremath();
+  }
+
   @Override
   public ImmutableList<Element> getCauseElements() {
     return FluentIterable.concat(causeList).toList();
   }
 
-  protected ImmutableList<ImmutableList<Element>> getCauseList() {
+  protected ImmutableList<ImmutableList<Element>> getListOfCauses() {
     return ImmutableList.copyOf(causeList);
   }
 

@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -23,11 +24,11 @@ public class DDSearch<Element> extends DDStar<Element> {
   // optimum is a list of elements
   private final List<ImmutableList<Element>> optimums = new ArrayList<>();
   // cause is a list of elements
-  private final List<ImmutableList<ImmutableList<Element>>> causeListList = new ArrayList<>();
+  private final List<ImmutableList<ImmutableList<Element>>> listOfListsOfCauses = new ArrayList<>();
   // cause that was forced in CFA in this round
   private final List<ImmutableList<Element>> forcedCauses = new ArrayList<>();
-  private Iterator<ImmutableList<ImmutableList<Element>>> itOverListList = causeListList.iterator();
-  private Iterator<ImmutableList<Element>> itOverList;
+  private int indexOfListOfCauses;
+  private Iterator<ImmutableList<Element>> itOverListOfCauses;
   private ImmutableList<Element> forcedCause;
 
   public DDSearch(
@@ -39,15 +40,28 @@ public class DDSearch<Element> extends DDStar<Element> {
   }
 
   private ImmutableList<Element> nextForcedCause() {
-    if (itOverList.hasNext()) {
-      return itOverList.next();
+    List<String> parts = new ArrayList<>();
+    for (int i = 0; i < listOfListsOfCauses.size(); i++) {
+      parts.add(
+          (indexOfListOfCauses == i ? ">>> " : "    ")
+              + String.valueOf(i)
+              + ". "
+              + listOfListsOfCauses.get(i));
+    }
+    logInfo(Joiner.on('\n').join(parts));
+
+    if (itOverListOfCauses.hasNext()) {
+      logInfo("next cause from this list");
+      return itOverListOfCauses.next();
     }
 
-    if (itOverListList.hasNext()) {
-      itOverList = itOverListList.next().iterator();
+    if (++indexOfListOfCauses < listOfListsOfCauses.size()) {
+      logInfo("changing list of causes");
+      itOverListOfCauses = listOfListsOfCauses.get(indexOfListOfCauses).iterator();
       return nextForcedCause();
     }
 
+    logInfo("no next cause");
     return ImmutableList.of();
   }
 
@@ -103,20 +117,26 @@ public class DDSearch<Element> extends DDStar<Element> {
   private void findNextOptimum(FunctionCFAsWithMetadata pCfa) {
     switch (getStarDirection()) {
       case MAXIMIZATION:
+        ImmutableList<Element> safeElements = getSafeElements();
         // no removed
         logInfo(
             "Searching for another maximum with a cause forced in on safe:",
-            shortListToLog(getSafeElements()));
-        workOn(getSafeElements());
+            shortListToLog(safeElements));
+        // reset DD*
+        clear();
+        workOnElements(safeElements);
         return;
 
       case MINIMIZATION:
+        ImmutableList<Element> removedElements = getRemovedElements();
         // no safe
         logInfo(
             "Searching for another minimum with a cause forced out on restored:",
-            shortListToLog(getRemovedElements()));
-        manipulator.restore(pCfa, getRemovedElements().reverse());
-        workOn(getRemovedElements());
+            shortListToLog(removedElements));
+        manipulator.restore(pCfa, removedElements.reverse());
+        // reset DD*
+        clear();
+        workOnElements(removedElements);
         return;
 
       default:
@@ -134,14 +154,15 @@ public class DDSearch<Element> extends DDStar<Element> {
     }
 
     optimums.add(getFoundOptimum());
-    logInfo("Current cause list:", shortListToLog(getCauseList()));
-    causeListList.add(getCauseList());
+    logInfo("Current list of causes:", shortListToLog(getListOfCauses()));
+    listOfListsOfCauses.add(getListOfCauses());
 
     if (forcedCauses.isEmpty()) {
       // no cause was forced out of CFA
       forcedCauses.add(ImmutableList.of());
       // init
-      itOverList = itOverListList.next().iterator();
+      indexOfListOfCauses = 0;
+      itOverListOfCauses = listOfListsOfCauses.get(indexOfListOfCauses).iterator();
 
     } else {
       unforceCause(pCfa, forcedCause);
