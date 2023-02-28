@@ -9,7 +9,9 @@
 package org.sosy_lab.cpachecker.cfa.mutation;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.graph.MutableValueGraph;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -310,9 +312,18 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     logInfo(
         "Halving remained",
         deltaList.size(),
-        "deltas (total",
-        unresolvedElements.size(),
+        "deltas (" + unresolvedElements.size(),
+        "unresolved",
         getElementTitle() + ")");
+
+    assert ImmutableSet.copyOf(unresolvedElements).size() == unresolvedElements.size()
+        : "repeated elements in unresolved list";
+    ImmutableSet<Element> deltaElements = FluentIterable.concat(deltaList).toSet();
+    assert deltaElements.size() == unresolvedElements.size()
+        : "unresolved and in-deltas sizes differ: "
+            + unresolvedElements.size()
+            + " and "
+            + deltaElements.size();
 
     List<ImmutableList<Element>> result = new ArrayList<>(deltaList.size() * 2);
 
@@ -340,6 +351,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     if (unresolvedElements.isEmpty()) {
       stage = DeltaDebuggingStage.ALL_RESOLVED;
       logInfo("All elements were resolved");
+    } else {
+      assert !deltaList.isEmpty();
     }
   }
 
