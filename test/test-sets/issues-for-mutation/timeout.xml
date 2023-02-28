@@ -218,10 +218,6 @@ These programs are used to test CFA mutator when it tries to make minimal failin
         <option name="-setprop">counterexample.export.exportExtendedWitness=true</option>
         <option name="-setprop">counterexample.export.compressWitness=false</option>
         <option name="-setprop">cpa.arg.witness.removeInsufficientEdges=false</option>
-        <option name="-setprop">counterexample.export.exportCounterexampleCoverage=true</option>
-        <option name="-setprop">counterexample.export.prefixAdditionalCoverageFile=Counterexample.%d.additionalCoverage.info</option>
-        <option name="-setprop">additionalCoverage.file=additionalCoverage.info</option>
-        <option name="-setprop">shutdown.timeout=100</option>
         <option name="-heap">4000m</option>
         <option name="-64"/>
         <option name="-smg-ldv"/>
