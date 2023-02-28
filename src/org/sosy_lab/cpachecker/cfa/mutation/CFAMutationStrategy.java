@@ -18,7 +18,8 @@ import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 interface CFAMutationStrategy extends StatisticsProvider {
   public enum MutationRollback {
     ROLLBACK,
-    NO_ROLLBACK
+    NO_ROLLBACK,
+    IRREGULAR;
   }
 
   /**

@@ -244,6 +244,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
 
     if (stage == DeltaDebuggingStage.ALL_RESOLVED) {
       finalize(pCfa);
+      getCurrStats().stopTimers();
+      return MutationRollback.IRREGULAR;
     }
 
     getCurrStats().stopTimers();
