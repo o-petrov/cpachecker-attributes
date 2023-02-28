@@ -12,15 +12,18 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.VerifyException;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.sosy_lab.common.Optionals;
 import org.sosy_lab.common.ShutdownManager;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
@@ -36,10 +39,34 @@ import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.AnalysisOutcome;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
+import org.sosy_lab.cpachecker.core.counterexample.CounterexampleInfo;
+import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
+import org.sosy_lab.cpachecker.core.interfaces.StateSpacePartition;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
+import org.sosy_lab.cpachecker.cpa.arg.ARGState;
+import org.sosy_lab.cpachecker.cpa.arg.path.ARGPath;
+import org.sosy_lab.cpachecker.cpa.automaton.ControlAutomatonCPA;
+import org.sosy_lab.cpachecker.cpa.constraints.ConstraintsCPA;
+import org.sosy_lab.cpachecker.cpa.constraints.domain.ConstraintsSolver;
+import org.sosy_lab.cpachecker.cpa.smg.SMGCPA;
+import org.sosy_lab.cpachecker.cpa.smg.SMGPredicateManager;
+import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelationKind;
+import org.sosy_lab.cpachecker.cpa.smg.UnmodifiableSMGState;
+import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGFeasibilityChecker;
+import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGStrongestPostOperator;
+import org.sosy_lab.cpachecker.cpa.value.ValueAnalysisState;
+import org.sosy_lab.cpachecker.cpa.value.refiner.ValueAnalysisStrongestPostOperator;
+import org.sosy_lab.cpachecker.cpa.value.refiner.utils.ValueAnalysisFeasibilityChecker;
+import org.sosy_lab.cpachecker.cpa.value.symbolic.refiner.SymbolicStrongestPostOperator;
+import org.sosy_lab.cpachecker.cpa.value.symbolic.refiner.SymbolicValueAnalysisFeasibilityChecker;
+import org.sosy_lab.cpachecker.cpa.value.symbolic.refiner.ValueTransferBasedStrongestPostOperator;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
+import org.sosy_lab.cpachecker.util.AbstractStates;
+import org.sosy_lab.cpachecker.util.CPAs;
+import org.sosy_lab.cpachecker.util.refinement.FeasibilityChecker;
+import org.sosy_lab.cpachecker.util.refinement.StrongestPostOperator;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
@@ -105,6 +132,8 @@ public class CPAcheckerMutator extends CPAchecker {
   private final LoggingOptions logOptions;
   private final CFAMutator cfaMutator;
 
+  private FeasibilityChecker<?> feasibilityChecker;
+
   public CPAcheckerMutator(
       Configuration pConfiguration,
       LogManager pLogManager,
@@ -136,6 +165,43 @@ public class CPAcheckerMutator extends CPAchecker {
     cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
   }
 
+  private FeasibilityChecker<?> setupFeasibilityChecker(CFA pCfa)
+      throws InvalidConfigurationException, CPAException, InterruptedException {
+    ConfigurableProgramAnalysis cpa = createCPA(pCfa);
+
+    ConstraintsCPA constraintsCpa = CPAs.retrieveCPA(cpa, ConstraintsCPA.class);
+    if (constraintsCpa != null) {
+      ConstraintsSolver solver = constraintsCpa.getSolver();
+      SymbolicStrongestPostOperator strongestPostOperator =
+          new ValueTransferBasedStrongestPostOperator(solver, logger, config, pCfa);
+      return new SymbolicValueAnalysisFeasibilityChecker(
+          strongestPostOperator, config, logger, pCfa);
+    }
+
+    SMGCPA smgCpa = CPAs.retrieveCPA(cpa, SMGCPA.class);
+    if (smgCpa != null) {
+      SMGPredicateManager predicateManager = smgCpa.getPredicateManager();
+      SMGStrongestPostOperator strongestPostOpForCEX =
+          new SMGStrongestPostOperator(
+              logger,
+              pCfa,
+              predicateManager,
+              smgCpa.getOptions(),
+              SMGTransferRelationKind.STATIC,
+              shutdownNotifier);
+      UnmodifiableSMGState initialState =
+          smgCpa.getInitialState(pCfa.getMainFunction(), StateSpacePartition.getDefaultPartition());
+      Set<ControlAutomatonCPA> automatonCpas =
+          CPAs.asIterable(cpa).filter(ControlAutomatonCPA.class).toSet();
+      return new SMGFeasibilityChecker(
+          strongestPostOpForCEX, logger, pCfa, initialState, automatonCpas);
+    }
+
+    StrongestPostOperator<ValueAnalysisState> strongestPostOp =
+        new ValueAnalysisStrongestPostOperator(logger, config, pCfa);
+    return new ValueAnalysisFeasibilityChecker(strongestPostOp, logger, pCfa, config);
+  }
+
   @Override
   public CPAcheckerResult run(List<String> programDenotation) {
     checkArgument(!programDenotation.isEmpty());
@@ -152,10 +218,13 @@ public class CPAcheckerMutator extends CPAchecker {
       parse(cfaMutator, programDenotation);
       totalStats.setCFACreatorStatistics(cfaMutator.getStatistics());
       cfaMutator.clearCreatorStats();
-      if (getCfa() == null) {
+
+      CFA originalCfa = getCfa();
+      if (originalCfa == null) {
         // invalid input files
         return produceResult();
       }
+      feasibilityChecker = setupFeasibilityChecker(originalCfa);
 
       // set walltime limit for original round
       limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitOriginal));
@@ -209,7 +278,25 @@ public class CPAcheckerMutator extends CPAchecker {
         // XXX it is incorrect to save intermediate stats, as reached is updated?
 
         AnalysisOutcome lastOutcome = lastResult.toAnalysisOutcome(originalResult);
-        logger.log(Level.INFO, lastOutcome);
+
+        if (cfaMutator.shouldCheckFeasibiblity(lastOutcome)) {
+          boolean errorIsFeasible = false;
+          try {
+            totalStats.feasibilityCheck.start();
+            errorIsFeasible = isFeasible(roundLogger, lastResult);
+          } finally {
+            totalStats.feasibilityCheck.stop();
+          }
+
+          if (errorIsFeasible) {
+            logger.log(Level.INFO, "Found feasible error");
+            return lastResult.asMutatorResult(Result.FALSE, cfaMutator, totalStats);
+          }
+
+        } else {
+          logger.log(Level.INFO, lastOutcome);
+        }
+
         CFA rollbacked = cfaMutator.setResult(lastOutcome);
 
         shutdownReason = shouldShutdown();
@@ -261,7 +348,7 @@ public class CPAcheckerMutator extends CPAchecker {
       logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
       return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
 
-    } catch (InvalidConfigurationException e) {
+    } catch (InvalidConfigurationException | CPAException e) {
       logger.logUserException(Level.SEVERE, e, "Invalid configuration");
       // XXX move to #analysisRound?
       // but for first round should catch here?
@@ -388,6 +475,25 @@ public class CPAcheckerMutator extends CPAchecker {
     return new AnalysisResult(cur, t);
   }
 
+  private boolean isFeasible(LogManager pLogger, AnalysisResult pResult)
+      throws InterruptedException {
+
+    ImmutableList<ARGPath> targetPaths = pResult.getPathsToTarget();
+
+    for (ARGPath path : targetPaths) {
+      try {
+        if (feasibilityChecker.isFeasible(path)) {
+          return true;
+        }
+
+      } catch (CPAException e) {
+        pLogger.logDebugException(e, "while searching for a feasible error in mutated CFA");
+      }
+    }
+
+    return false;
+  }
+
   // keep last result and thrown error
   private static class AnalysisResult {
     private final CPAcheckerResult result;
@@ -437,6 +543,16 @@ public class CPAcheckerMutator extends CPAchecker {
               || pOther.thrown.getStackTrace()[0].equals(thrown.getStackTrace()[0]));
     }
 
+    public ImmutableList<ARGPath> getPathsToTarget() {
+      return Optionals.presentInstances(
+              FluentIterable.from(result.getReached())
+                  .filter(AbstractStates::isTargetState)
+                  .filter(ARGState.class)
+                  .transform(ARGState::getCounterexampleInformation))
+          .transform(CounterexampleInfo::getTargetPath)
+          .toList();
+    }
+
     public CPAcheckerResult asMutatorResult(
         Result pResult, CFAMutator pCfaMutator, MainCFAMutationStatistics pTotalStats) {
       if (pTotalStats != null) {
@@ -468,6 +584,8 @@ public class CPAcheckerMutator extends CPAchecker {
         new StatTimerWithMoreOutput("total time for analysis after mutations");
     final StatTimerWithMoreOutput afterRollbacks =
         new StatTimerWithMoreOutput("total time for analysis after rollbacks");
+    final StatTimerWithMoreOutput feasibilityCheck =
+        new StatTimerWithMoreOutput("total time for feasibility check after verdict FALSE");
 
     @Override
     public void printStatistics(PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
@@ -497,6 +615,9 @@ public class CPAcheckerMutator extends CPAchecker {
         put(pOut, 1, afterMutations);
         if (afterRollbacks.getUpdateCount() > 0) {
           put(pOut, 1, afterRollbacks);
+        }
+        if (feasibilityCheck.getUpdateCount() > 0) {
+          put(pOut, 1, feasibilityCheck);
         }
       }
 

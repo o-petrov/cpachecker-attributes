@@ -542,4 +542,10 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     }
     return Joiner.on(' ').join(parts);
   }
+
+  public boolean shouldCheckFeasibiblity(AnalysisOutcome pLastOutcome) {
+    return ddVariant == DDVariant.DDSEARCH
+        && (pLastOutcome == AnalysisOutcome.VERDICT_FALSE
+            || pLastOutcome == AnalysisOutcome.SAME_VERDICT_FALSE);
+  }
 }

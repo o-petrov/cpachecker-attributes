@@ -297,6 +297,12 @@ public class CPAchecker {
             pConfiguration, pLogManager, shutdownNotifier, AggregatedReachedSets.empty());
   }
 
+  protected ConfigurableProgramAnalysis createCPA(CFA pCfa)
+      throws InvalidConfigurationException, CPAException, InterruptedException {
+    return factory.createCPA(
+        pCfa, Specification.fromFiles(specificationFiles, pCfa, config, logger, shutdownNotifier));
+  }
+
   protected CPAcheckerResult produceResult() {
     return new CPAcheckerResult(result, targetDescription, reached, cfa, stats);
   }

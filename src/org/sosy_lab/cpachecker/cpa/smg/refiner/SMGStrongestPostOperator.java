@@ -28,7 +28,7 @@ public class SMGStrongestPostOperator {
 
   private final SMGTransferRelation transfer;
 
-  SMGStrongestPostOperator(
+  public SMGStrongestPostOperator(
       LogManager pLogger,
       CFA pCfa,
       SMGPredicateManager pSMGPredicateManager,
