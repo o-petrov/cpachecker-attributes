@@ -27,7 +27,7 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
 
   protected MutableValueGraph<Element, ElementRelation> graph;
   private ImmutableValueGraph<Element, ElementRelation> mutationBackupGraph;
-  private ImmutableValueGraph<Element, ElementRelation> pruneBackupGraph;
+  private ImmutableValueGraph<Element, ElementRelation> originalBackupGraph;
 
   private ImmutableSet<Element> currentLevel;
   private List<Element> previousLevels = new ArrayList<>();
@@ -58,7 +58,7 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
    */
   public void setupFromCfa(FunctionCFAsWithMetadata pCfa) {
     constructElementGraph(pCfa);
-    pruneBackupGraph = ImmutableValueGraph.copyOf(graph);
+    originalBackupGraph = ImmutableValueGraph.copyOf(graph);
   }
 
   protected abstract void constructElementGraph(FunctionCFAsWithMetadata pCfa);
@@ -202,7 +202,7 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
 
     for (int i = 0; i < result.size(); i++) {
       Element cur = result.get(i);
-      pruneBackupGraph.successors(cur).stream()
+      originalBackupGraph.successors(cur).stream()
           .filter(suc -> !result.contains(suc) /* && graph contains any preds XXX */)
           .forEach(
               suc -> {
@@ -212,14 +212,12 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
                 restoreEdgesWithOtherPresentNodes(cur);
               });
     }
-
-    pruneBackupGraph = ImmutableValueGraph.copyOf(graph);
   }
 
   private void restoreEdgesWithOtherPresentNodes(Element pNode) {
-    for (EndpointPair<Element> edge : pruneBackupGraph.incidentEdges(pNode)) {
+    for (EndpointPair<Element> edge : originalBackupGraph.incidentEdges(pNode)) {
       if (graph.nodes().contains(edge.nodeU()) && graph.nodes().contains(edge.nodeV())) {
-        graph.putEdgeValue(edge, pruneBackupGraph.edgeValue(edge).orElseThrow());
+        graph.putEdgeValue(edge, originalBackupGraph.edgeValue(edge).orElseThrow());
       }
     }
   }
