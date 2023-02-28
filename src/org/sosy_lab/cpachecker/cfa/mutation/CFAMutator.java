@@ -350,7 +350,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     // do not export asynchronously as CFA will be mutated
   }
 
-  public void setup() {
+  public void clearCreatorStats() {
     // reset CFACreator stats so following variable classification
     // and pointer resolving wont add a lot of similar stats to print
     stats = new CFACreatorStatistics(logger);

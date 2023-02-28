@@ -151,6 +151,7 @@ public class CPAcheckerMutator extends CPAchecker {
     try {
       parse(cfaMutator, programDenotation);
       totalStats.setCFACreatorStatistics(cfaMutator.getStatistics());
+      cfaMutator.clearCreatorStats();
       if (getCfa() == null) {
         // invalid input files
         return produceResult();
@@ -169,8 +170,6 @@ public class CPAcheckerMutator extends CPAchecker {
 
       AnalysisOutcome originalOutcome = originalResult.toAnalysisOutcome(originalResult);
       cfaMutator.verifyOutcome(originalOutcome);
-
-      cfaMutator.setup();
 
       // set walltime limit for every single round
       TimeSpan scaledWalltime =
