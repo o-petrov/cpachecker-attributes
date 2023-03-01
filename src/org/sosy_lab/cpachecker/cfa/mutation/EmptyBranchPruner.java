@@ -49,7 +49,7 @@ class EmptyBranchPruner
       otherEdge = null;
 
       CFAEdge le = branchingNode.getLeavingEdge(0).getSuccessor().getLeavingEdge(0);
-      i = -1;
+
       for (i = 0; i < le.getSuccessor().getNumLeavingEdges(); i++) {
         if (le.getSuccessor().getEnteringEdge(i) == le) {
           break;

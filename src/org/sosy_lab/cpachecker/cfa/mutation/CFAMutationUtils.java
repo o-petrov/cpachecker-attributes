@@ -8,6 +8,7 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.base.Preconditions;
 import java.util.Optional;
 import org.sosy_lab.cpachecker.cfa.ast.ADeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionDeclaration;
@@ -92,6 +93,14 @@ class CFAMutationUtils {
         throw new AssertionError();
 
       case ReturnStatementEdge:
+        Preconditions.checkArgument(
+            pSuccessor instanceof FunctionExitNode,
+            "Cannot copy",
+            pEdge,
+            "with",
+            pSuccessor,
+            "as a successor, as it is not a FunctionExitNode");
+
         var rs = ((AReturnStatementEdge) pEdge).getReturnStatement();
         if (pEdge instanceof CReturnStatementEdge) {
           return new CReturnStatementEdge(
