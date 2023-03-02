@@ -30,6 +30,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
   private List<ImmutableList<Element>> removedList = new ArrayList<>();
 
   private DDDirection direction;
+  private boolean noCause;
 
   public DDStar(
       LogManager pLogger,
@@ -47,45 +48,52 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
 
   private ImmutableList<Element> storeOldAndGetNewList() {
     ImmutableList<Element> newCause = super.getCauseElements();
-    if (newCause.isEmpty()) {
-      logInfo("Found no cause");
-    } else {
+    noCause = newCause.isEmpty();
+
+    if (!noCause) {
       causeList.add(newCause);
       logInfo("Found a cause:", shortListToLog(newCause));
     }
 
-    ImmutableList<Element> safeElements = super.getSafeElements();
-    ImmutableList<Element> removedElements = super.getRemovedElements();
+    ImmutableList<Element> list1 = super.getSafeElements();
+    ImmutableList<Element> list2 = super.getRemovedElements();
+    String elementSet;
 
     switch (getStarDirection()) {
       case MAXIMIZATION:
-        safeList.add(safeElements);
-        logInfo("Marked safe:", shortListToLog(safeElements));
-        if (removedElements.isEmpty()) {
-          logInfo("No removed elements to repeat dd on");
-        } else {
-          logInfo("Repeating dd on removed:", shortListToLog(removedElements));
-        }
-        return removedElements;
+        safeList.add(list1);
+        logInfo("Marked safe:", shortListToLog(list1));
+        elementSet = "removed:";
+        break;
 
       case MINIMIZATION:
-        removedList.add(removedElements);
-        logInfo("Were removed:", shortListToLog(removedElements));
-        if (safeElements.isEmpty()) {
-          logInfo("No safe elements to repeat dd on");
-        } else {
-          logInfo("Repeating dd on safe:", shortListToLog(safeElements));
-        }
-        return safeElements;
+        removedList.add(list2);
+        logInfo("Were removed:", shortListToLog(list2));
+        elementSet = "safe:";
+        list2 = list1;
+        break;
 
       default:
         throw new AssertionError();
     }
+
+    if (noCause) {
+      logInfo("Found no cause");
+      return ImmutableList.of();
+
+    } else if (list2.isEmpty()) {
+      logInfo("No elements to repeat DD on");
+
+    } else {
+      logInfo("Repeating DD on", elementSet, shortListToLog(list2));
+    }
+    return list2;
   }
 
   @Override
   protected void finalize(FunctionCFAsWithMetadata pCfa) {
     super.finalize(pCfa);
+    assert stage == DeltaDebuggingStage.FINISHED;
 
     ImmutableList<Element> newUnresolved = storeOldAndGetNewList();
     if (getStarDirection() == DDDirection.MAXIMIZATION) {
@@ -93,25 +101,67 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
       manipulator.restore(pCfa, super.getRemovedElements());
       mutate(pCfa, super.getCauseElements());
     }
-    if (newUnresolved.isEmpty()) {
-      assert stage == DeltaDebuggingStage.FINISHED;
+
+    if (noCause) {
+      logInfo(
+          "DD* has finished, as it can not find",
+          getStarDirection() == DDDirection.MAXIMIZATION
+              ? "a safe CFA to maximize"
+              : "a fail-inducing CFA to minimize");
       return;
+
+    } else if (newUnresolved.isEmpty()) {
+      switch (getStarDirection()) {
+        case MAXIMIZATION:
+          logInfo("DD* has found maximal safe CFA:", getSafeElements());
+          return;
+
+        case MINIMIZATION:
+          logInfo("DD* has found minimal failing CFA:", getCauseElements());
+          return;
+
+        default:
+          throw new AssertionError();
+      }
     }
 
     workOnElements(newUnresolved);
   }
 
   @Override
-  protected void testWholeUnresolved() {
-    switch (getStarDirection()) {
-      case MAXIMIZATION:
-        // removing whole is wrong, we've just returned it inside
-        resetDeltaListWithHalvesOfCurrentDelta();
+  protected void checkWholeResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+    switch (pResult) {
+      case MAXIMIZATION_PROPERTY_HOLDS:
+        // test(whole) == PASS, and we are maximizing
+        // so whole is safe
+        // (if we are minimizing, there is nothing to minimize)
+        assert getStarDirection() == DDDirection.MAXIMIZATION;
+        markRemainingElementsAsSafe();
+        stage = DeltaDebuggingStage.ALL_RESOLVED;
         break;
 
-      case MINIMIZATION:
-        // just return to usual
+      case MINIMIZATION_PROPERTY_HOLDS:
+        // test(whole) == FAIL, and we are minimizing
+        // so just do usual
+        assert getStarDirection() == DDDirection.MINIMIZATION;
         stage = DeltaDebuggingStage.REMOVE_WHOLE;
+
+        break;
+      case NEITHER_PROPERTY_HOLDS:
+        switch (getStarDirection()) {
+          case MAXIMIZATION:
+            // removing whole is wrong, we've just returned it inside
+            resetDeltaListWithHalvesOfCurrentDelta();
+            break;
+
+          case MINIMIZATION:
+            // just return to usual
+            stage = DeltaDebuggingStage.REMOVE_WHOLE;
+            break;
+
+          default:
+            throw new AssertionError();
+        }
         break;
 
       default:

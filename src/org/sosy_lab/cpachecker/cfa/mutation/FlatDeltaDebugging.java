@@ -124,7 +124,7 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     causeElements = new ArrayList<>();
     removedElements = new ArrayList<>();
 
-    logInfo(this.getClass().getSimpleName(), "got", unresolvedElements.size(), getElementTitle());
+    logInfo("DD got", unresolvedElements.size(), getElementTitle());
 
     resetDeltaListWithOneDelta(ImmutableList.copyOf(unresolvedElements));
     stage = DeltaDebuggingStage.READY;
@@ -230,7 +230,10 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     cacheResult(pResult);
 
     // update resolved elements
-    if (pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
+    if (stage == DeltaDebuggingStage.CHECK_WHOLE) {
+      checkWholeResult(pCfa, pResult);
+
+    } else if (pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
         && getDirection() != DDDirection.MAXIMIZATION) {
       reduce(pCfa, stage);
 
@@ -254,6 +257,11 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     return pResult == DDResultOfARun.MINIMIZATION_PROPERTY_HOLDS
         ? MutationRollback.NO_ROLLBACK
         : MutationRollback.ROLLBACK;
+  }
+
+  @SuppressWarnings("unused")
+  protected void checkWholeResult(FunctionCFAsWithMetadata pCfa, DDResultOfARun pResult) {
+    throw new UnsupportedOperationException("basic DD should not call this method");
   }
 
   protected void resetDeltaListWithHalvesOfCurrentDelta() {
@@ -377,6 +385,19 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
     safeElements = ImmutableList.copyOf(safeElements);
     stage = DeltaDebuggingStage.FINISHED;
+
+    logInfo(
+        "All",
+        getElementTitle(),
+        "are resolved, minimal fail-inducing difference of",
+        getCauseElements().size(),
+        getElementTitle(),
+        shortListToLog(getCauseElements()),
+        "found,",
+        getSafeElements().size(),
+        getElementTitle(),
+        "also remain",
+        shortListToLog(getSafeElements()));
     logInfo("DD has finished");
   }
 
@@ -396,22 +417,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     }
   }
 
-  /** how to log result */
-  protected void logFinish() {
-    logInfo(
-        "All",
-        getElementTitle(),
-        "are resolved, minimal fail-inducing difference of",
-        getCauseElements().size(),
-        getElementTitle(),
-        shortListToLog(getCauseElements()),
-        "found,",
-        getSafeElements().size(),
-        getElementTitle(),
-        "also remain",
-        shortListToLog(getSafeElements()));
-  }
-
   /** what to do when a minimization property holds */
   protected void reduce(
       @SuppressWarnings("unused") FunctionCFAsWithMetadata pCfa, DeltaDebuggingStage pStage) {
@@ -429,11 +434,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
         // delta has the cause, complement is safe
         // remove complement from list, i.e. make list of one delta, and then split it.
         resetDeltaListWithHalvesOfCurrentDelta();
-        break;
-
-      case CHECK_WHOLE:
-        // test is failing, so just return to usual
-        stage = DeltaDebuggingStage.REMOVE_WHOLE;
         break;
 
       case REMOVE_WHOLE:
@@ -462,15 +462,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     manipulator.rollback(pCfa);
 
     switch (pStage) {
-      case CHECK_WHOLE:
-        // either maximization does not need to remove anything
-        // or minimization is pointless
-        currentDelta = null;
-        assert unresolvedElements.isEmpty();
-        stage = DeltaDebuggingStage.ALL_RESOLVED;
-        logInfo("All elements were resolved");
-        break;
-
       case REMOVE_COMPLEMENT:
         removeCurrentDeltaFromDeltaList();
         break;
@@ -514,10 +505,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
     manipulator.rollback(pCfa);
 
     switch (stage) {
-      case CHECK_WHOLE:
-        testWholeUnresolved();
-        break;
-
       case REMOVE_WHOLE:
         resetDeltaListWithHalvesOfCurrentDelta();
         break;
@@ -575,10 +562,6 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
       default:
         throw new AssertionError();
     }
-  }
-
-  protected void testWholeUnresolved() {
-    throw new UnsupportedOperationException("basic DD should not call this method");
   }
 
   /**

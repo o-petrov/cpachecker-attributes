@@ -69,11 +69,9 @@ public class DDSearch<Element> extends DDStar<Element> {
     switch (getStarDirection()) {
       case MAXIMIZATION:
         // no removed elements, but cause is deleted
-        logInfo("Found maximal safe CFA (test passes):", getSafeElements());
         return getSafeElements();
       case MINIMIZATION:
         // no safe elements
-        logInfo("Found minimum fail-inducing CFA (test fails):", getCauseElements());
         return getCauseElements();
       default:
         throw new AssertionError();
