@@ -295,7 +295,8 @@ public class CPAcheckerMutator extends CPAchecker {
           }
 
           if (errorIsFeasible) {
-            logger.log(Level.INFO, "Found feasible error");
+            logger.log(
+                Level.INFO, "Found feasible error:", lastResult.result.getTargetDescription());
             return lastResult.asMutatorResult(Result.FALSE, cfaMutator, totalStats);
           }
 
