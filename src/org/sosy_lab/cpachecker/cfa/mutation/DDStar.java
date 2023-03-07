@@ -12,6 +12,7 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import org.sosy_lab.common.log.LogManager;
 
 /**
@@ -96,10 +97,23 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     assert stage == DeltaDebuggingStage.FINISHED;
 
     ImmutableList<Element> newUnresolved = storeOldAndGetNewList();
+
     if (getStarDirection() == DDDirection.MAXIMIZATION) {
-      logInfo("Restoring removed, removing found cause");
-      manipulator.restore(pCfa, super.getRemovedElements());
-      mutate(pCfa, super.getCauseElements());
+      ImmutableList<Element> removed = super.getRemovedElements();
+      if (!removed.isEmpty()) {
+        logInfo("Restoring removed:", shortListToLog(removed));
+        manipulator.restore(pCfa, removed);
+      } else {
+        logInfo("No removed", getElementTitle(), "to restore");
+      }
+
+      ImmutableList<Element> cause = super.getCauseElements();
+      if (!cause.isEmpty()) {
+        logInfo("Removing cause:", shortListToLog(cause));
+        mutate(pCfa, cause);
+      } else {
+        logInfo("No cause to remove");
+      }
     }
 
     if (noCause) {
@@ -135,18 +149,20 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
         // test(whole) == PASS, and we are maximizing
         // so whole is safe
         // (if we are minimizing, there is nothing to minimize)
-        assert getStarDirection() == DDDirection.MAXIMIZATION;
+        if (getStarDirection() != DDDirection.MAXIMIZATION) {
+          getLogger()
+              .log(Level.WARNING, "Maximization property holds on a whole, but DD* is minimizing");
+        }
         markRemainingElementsAsSafe();
         stage = DeltaDebuggingStage.ALL_RESOLVED;
         break;
 
       case MINIMIZATION_PROPERTY_HOLDS:
-        // test(whole) == FAIL, and we are minimizing
-        // so just do usual
-        assert getStarDirection() == DDDirection.MINIMIZATION;
-        stage = DeltaDebuggingStage.REMOVE_WHOLE;
-
-        break;
+        if (getStarDirection() != DDDirection.MINIMIZATION) {
+          getLogger()
+              .log(Level.WARNING, "Minimization property holds on a whole, but DD* is maximizing");
+        }
+        // $FALL-THROUGH$
       case NEITHER_PROPERTY_HOLDS:
         switch (getStarDirection()) {
           case MAXIMIZATION:
