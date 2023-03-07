@@ -113,11 +113,11 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     } else if (newUnresolved.isEmpty()) {
       switch (getStarDirection()) {
         case MAXIMIZATION:
-          logInfo("DD* has found maximal safe CFA:", getSafeElements());
+          logInfo("DD* has found maximal safe CFA:", getAllSafeElements());
           return;
 
         case MINIMIZATION:
-          logInfo("DD* has found minimal failing CFA:", getCauseElements());
+          logInfo("DD* has found minimal failing CFA:", getAllCauseElements());
           return;
 
         default:
@@ -191,8 +191,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     getCurrStats().startPremath();
   }
 
-  @Override
-  public ImmutableList<Element> getCauseElements() {
+  public ImmutableList<Element> getAllCauseElements() {
     return FluentIterable.concat(causeList).toList();
   }
 
@@ -200,8 +199,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     return ImmutableList.copyOf(causeList);
   }
 
-  @Override
-  public ImmutableList<Element> getSafeElements() {
+  public ImmutableList<Element> getAllSafeElements() {
     return FluentIterable.concat(safeList).toList();
   }
 
@@ -209,8 +207,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     return ImmutableList.copyOf(safeList);
   }
 
-  @Override
-  public ImmutableList<Element> getRemovedElements() {
+  public ImmutableList<Element> getAllRemovedElements() {
     return FluentIterable.concat(removedList).toList();
   }
 

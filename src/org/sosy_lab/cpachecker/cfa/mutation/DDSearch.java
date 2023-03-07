@@ -69,10 +69,10 @@ public class DDSearch<Element> extends DDStar<Element> {
     switch (getStarDirection()) {
       case MAXIMIZATION:
         // no removed elements, but cause is deleted
-        return getSafeElements();
+        return getAllSafeElements();
       case MINIMIZATION:
         // no safe elements
-        return getCauseElements();
+        return getAllCauseElements();
       default:
         throw new AssertionError();
     }
@@ -115,7 +115,7 @@ public class DDSearch<Element> extends DDStar<Element> {
   private void findNextOptimum(FunctionCFAsWithMetadata pCfa) {
     switch (getStarDirection()) {
       case MAXIMIZATION:
-        ImmutableList<Element> safeElements = getSafeElements();
+        ImmutableList<Element> safeElements = getAllSafeElements();
         // no removed
         logInfo(
             "Searching for another maximum with a cause forced in on safe:",
@@ -126,7 +126,7 @@ public class DDSearch<Element> extends DDStar<Element> {
         return;
 
       case MINIMIZATION:
-        ImmutableList<Element> removedElements = getRemovedElements();
+        ImmutableList<Element> removedElements = getAllRemovedElements();
         // no safe
         logInfo(
             "Searching for another minimum with a cause forced out on restored:",
