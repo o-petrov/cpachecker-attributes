@@ -190,6 +190,7 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
   /** Restore given elements and update element graph completely. */
   public void restore(
       FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+    logFine("forcing back in CFA:", pChosen);
 
     List<Element> result = new ArrayList<>(pChosen);
 
@@ -209,15 +210,19 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
                 result.add(suc);
                 restoreElement(pCfa, suc);
                 graph.addNode(suc);
-                restoreEdgesWithOtherPresentNodes(cur);
+                restoreEdgesWithOtherPresentNodes(suc);
               });
     }
   }
 
   private void restoreEdgesWithOtherPresentNodes(Element pNode) {
+    logFine("restoring edges for", pNode);
     for (EndpointPair<Element> edge : originalBackupGraph.incidentEdges(pNode)) {
       if (graph.nodes().contains(edge.nodeU()) && graph.nodes().contains(edge.nodeV())) {
+        logFine("restoring edge", edge);
         graph.putEdgeValue(edge, originalBackupGraph.edgeValue(edge).orElseThrow());
+      } else {
+        logFine("not restoring edge", edge, "yet");
       }
     }
   }
