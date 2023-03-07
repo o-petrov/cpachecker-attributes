@@ -607,4 +607,8 @@ class FlatDeltaDebugging<Element> extends AbstractDeltaDebuggingStrategy<Element
   protected void mutate(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
     manipulator.remove(pCfa, pChosen);
   }
+
+  protected void restore(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+    manipulator.restore(pCfa, pChosen);
+  }
 }

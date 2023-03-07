@@ -187,19 +187,25 @@ abstract class CFAElementManipulator<Element, ElementRelation> {
 
   protected abstract void restoreElement(FunctionCFAsWithMetadata pCfa, Element pChosen);
 
-  /** Restore given elements and update element graph completely. */
-  public void restore(
-      FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
-    logFine("forcing back in CFA:", pChosen);
+  /** Restore given removed elements and update element graph completely. */
+  public void restore(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+    logFine("Forcing back in CFA:", pChosen);
 
-    List<Element> result = new ArrayList<>(pChosen);
-
-    result.forEach(
+    pChosen.forEach(
         cur -> {
           restoreElement(pCfa, cur);
           graph.addNode(cur);
           restoreEdgesWithOtherPresentNodes(cur);
         });
+  }
+
+  /** Restore given pruned elements and update element graph completely. */
+  public void restorePruned(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+
+    List<Element> result = new ArrayList<>(pChosen);
+    restore(pCfa, result);
+
+    logFine("Forcing children back in CFA too");
 
     for (int i = 0; i < result.size(); i++) {
       Element cur = result.get(i);

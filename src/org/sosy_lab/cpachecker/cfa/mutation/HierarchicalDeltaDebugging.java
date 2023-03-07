@@ -77,6 +77,11 @@ class HierarchicalDeltaDebugging<Element> extends FlatDeltaDebugging<Element> {
   }
 
   @Override
+  protected void restore(FunctionCFAsWithMetadata pCfa, Collection<Element> pChosen) {
+    manipulator.restorePruned(pCfa, pChosen);
+  }
+
+  @Override
   protected void finalize(FunctionCFAsWithMetadata pCfa) {
     stage = DeltaDebuggingStage.FINISHED;
   }
