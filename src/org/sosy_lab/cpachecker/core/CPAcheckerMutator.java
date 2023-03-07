@@ -95,33 +95,36 @@ public class CPAcheckerMutator extends CPAchecker {
       secure = true,
       name = "walltimeLimit.factor",
       description =
-          "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
-              + "CFA mutator limits walltime for original run (100s by default), and derives "
-              + "walltime for next rounds from _actuall time used_ for original run: multiply "
-              + "by the factor, plus the 'add'. By default it is orig.time * 2.0 + 20s.")
+          "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
+              + "CFA mutator hard caps walltime for every run (200s by default), and also soft "
+              + "caps walltime for the runs after original by multiplying used time by the factor "
+              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
+              + "(first) run gets hard-cap time limit, all others get the lower between the two.")
   private double timelimitFactor = 2.0;
 
   @Option(
       secure = true,
       name = "walltimeLimit.add",
       description =
-          "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
-              + "CFA mutator limits walltime for original run (100s by default), and derives "
-              + "walltime for next rounds from _actuall time used_ for original run: multiply "
-              + "by the factor, plus the 'add'. By default it is orig.time * 2.0 + 20s.")
+          "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
+              + "CFA mutator hard caps walltime for every run (200s by default), and also soft "
+              + "caps walltime for the runs after original by multiplying used time by the factor "
+              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
+              + "(first) run gets hard-cap time limit, all others get the lower between the two.")
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 0)
-  private TimeSpan timelimitBias = TimeSpan.ofSeconds(20);
+  private TimeSpan timelimitBias = TimeSpan.ofSeconds(5);
 
   @Option(
       secure = true,
-      name = "walltimeLimit.original",
+      name = "walltimeLimit.hardcap",
       description =
-          "Sometimes analysis run can be unpredictably long. To run many rounds successfully, "
-              + "CFA mutator limits walltime for original run (100s by default), and derives "
-              + "walltime for next rounds from _actuall time used_ for original run: multiply "
-              + "by the factor, plus the 'add'. By default it is orig.time * 2.0 + 20s.")
-  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 1)
-  private TimeSpan timelimitOriginal = TimeSpan.ofSeconds(100);
+          "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
+              + "CFA mutator hard caps walltime for every run (200s by default), and also soft "
+              + "caps walltime for the runs after original by multiplying used time by the factor "
+              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
+              + "(first) run gets hard-cap time limit, all others get the lower between the two.")
+  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
+  private TimeSpan timelimitCap = TimeSpan.ofSeconds(200);
 
   private interface ResourceLimitsFactory {
     public List<ResourceLimit> create();
@@ -227,7 +230,7 @@ public class CPAcheckerMutator extends CPAchecker {
       feasibilityChecker = setupFeasibilityChecker(originalCfa);
 
       // set walltime limit for original round
-      limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitOriginal));
+      limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitCap));
       logger.log(
           Level.INFO,
           "Using",
@@ -241,14 +244,17 @@ public class CPAcheckerMutator extends CPAchecker {
       cfaMutator.verifyOutcome(originalOutcome);
 
       // set walltime limit for every single round
-      TimeSpan scaledWalltime =
-          TimeSpan.ofMillis(
-              (long) (totalStats.originalTime.getConsumedTime().asMillis() * timelimitFactor));
-      limitsFactory =
-          () ->
-              ImmutableList.of(
-                  WalltimeLimit.fromNowOn(
-                      TimeSpan.sum(TimeSpan.ofMillis(1), timelimitBias, scaledWalltime)));
+      // compute soft cap
+      double capMillis =
+          totalStats.originalTime.getConsumedTime().asMillis() * timelimitFactor
+              + timelimitBias.asMillis();
+      // choose lower of hard and soft caps
+      if (capMillis > timelimitCap.asMillis()) {
+        capMillis = timelimitCap.asMillis();
+      }
+      // construct timelimit
+      TimeSpan lowerCap = TimeSpan.ofMillis((long) capMillis);
+      limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(lowerCap));
       logger.log(
           Level.INFO,
           "Using",

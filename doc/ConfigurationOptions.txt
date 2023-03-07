@@ -960,14 +960,15 @@ cfaMutation.oldStrategies = [
 # on.
 cfaMutation.rollbacksInRowCheck = 5
 
-# Sometimes analysis run can be unpredictably long. To run many rounds
-# successfully, CFA mutator limits walltime for original run (100s by
-# default), and derives walltime for next rounds from _actuall time used_ for
-# original run: multiply by the factor, plus the 'add'. By default it is
-# orig.time * 2.0 + 20s.
-cfaMutation.walltimeLimit.add = 20s
+# Sometimes analysis run can be unpredictably long. To run many runs
+# successfully, CFA mutator hard caps walltime for every run (200s by
+# default), and also soft caps walltime for the runs after original by
+# multiplying used time by the factor and adding the bias. By default soft
+# cap is orig.time * 2.0 + 5s. Original (first) run gets hard-cap time limit,
+# all others get the lower between the two.
+cfaMutation.walltimeLimit.add = 5s
 cfaMutation.walltimeLimit.factor = 2.0
-cfaMutation.walltimeLimit.original = 100s
+cfaMutation.walltimeLimit.hardcap = 200s
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false
