@@ -40,6 +40,7 @@ import org.sosy_lab.cpachecker.cfa.mutation.CFAMutationStrategy.MutationRollback
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
+import org.sosy_lab.cpachecker.util.Pair;
 
 /**
  * Mutates the CFA before next analysis run, mainly to minimize and simplify CFA. Operates on {@link
@@ -194,7 +195,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   private Level fileLogLevel = Level.FINE;
 
   /** local CFA of functions before processing */
-  private FunctionCFAsWithMetadata localCfa = null;
+  private FunctionCFAsWithMetadata localCfa;
   /** Strategy that decides how to change the CFA and implements this change */
   private final CFAMutationStrategy strategy;
 
@@ -341,7 +342,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     localCfa =
         FunctionCFAsWithMetadata.fromParseResult(
             pParseResult, machineModel, pMainFunction, language);
-
     return exportCreateExportCFA();
   }
 
@@ -405,22 +405,25 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
         strategy.setResult(localCfa, outcomeToDDResult(pLastOutcome));
     mutatorStats.stopAftermath();
 
-    CFA rollbackedCfa = null;
-    if (mutationRollback == MutationRollback.ROLLBACK) {
-      // export after rollback as there may be no more mutations
-      mutatorStats.setCfaStats(localCfa);
-      rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
-      mutatorStats.setCfaStats(rollbackedCfa);
-
-      mutatorStats.startExport();
-      exportDirectory =
-          cfaExportDirectory.resolve(
-              String.valueOf(mutatorStats.getRound()) + "-mutation-round-rollbacked");
-      exportCFA(rollbackedCfa);
-      mutatorStats.stopExport();
+    if (mutationRollback == MutationRollback.NO_ROLLBACK) {
+      return null;
     }
 
-    return rollbackedCfa;
+    // export after rollback as there may be no more mutations
+    mutatorStats.setCfaStats(localCfa);
+    CFA rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
+    mutatorStats.setCfaStats(rollbackedCfa);
+
+    mutatorStats.startExport();
+    exportDirectory =
+        cfaExportDirectory.resolve(
+            String.valueOf(mutatorStats.getRound())
+                + "-mutation-round-"
+                + (mutationRollback == MutationRollback.ROLLBACK ? "rollbacked" : "irregular"));
+    exportCFA(rollbackedCfa);
+    mutatorStats.stopExport();
+
+    return mutationRollback == MutationRollback.ROLLBACK ? rollbackedCfa : null;
   }
 
   @Override
@@ -544,8 +547,24 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   }
 
   public boolean shouldCheckFeasibiblity(AnalysisOutcome pLastOutcome) {
-    return ddVariant == DDVariant.DDSEARCH
-        && (pLastOutcome == AnalysisOutcome.VERDICT_FALSE
-            || pLastOutcome == AnalysisOutcome.SAME_VERDICT_FALSE);
+    boolean result =
+        ddVariant == DDVariant.DDSEARCH
+            && (pLastOutcome == AnalysisOutcome.VERDICT_FALSE
+                || pLastOutcome == AnalysisOutcome.SAME_VERDICT_FALSE);
+
+    if (!result) {
+      return false;
+    }
+
+    Pair<ParseResult, FunctionEntryNode> pair = FunctionCFAsWithMetadata.originalCopy();
+
+    try {
+      super.createCFA(pair.getFirst(), pair.getSecond());
+      return true;
+
+    } catch (InvalidConfigurationException | InterruptedException | ParserException e) {
+      logger.logUserException(Level.WARNING, e, "Cannot restore original CFA");
+      return false;
+    }
   }
 }

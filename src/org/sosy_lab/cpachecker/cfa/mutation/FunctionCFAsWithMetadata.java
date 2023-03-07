@@ -8,8 +8,9 @@
 
 package org.sosy_lab.cpachecker.cfa.mutation;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.TreeMultimap;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,13 +38,14 @@ import org.sosy_lab.cpachecker.util.Pair;
  */
 // TODO consistent interface. Class will be immutable?
 public class FunctionCFAsWithMetadata extends ParseResult {
-  private ImmutableSet<CFANode> localNodes = null;
-  private TreeMap<CFANode, Hedgehog> localEdges = null;
+  private TreeMap<CFANode, Hedgehog> localEdges;
   private final MachineModel machinemodel;
   private final FunctionEntryNode mainFunction;
   private final Language language;
 
-  public FunctionCFAsWithMetadata(
+  private static FunctionCFAsWithMetadata original;
+
+  private FunctionCFAsWithMetadata(
       MachineModel pMachineModel,
       NavigableMap<String, FunctionEntryNode> pFunctions,
       TreeMultimap<String, CFANode> pAllNodes,
@@ -52,6 +54,10 @@ public class FunctionCFAsWithMetadata extends ParseResult {
       Language pLanguage,
       List<Pair<ADeclaration, String>> pGlobalDeclarations) {
     super(pFunctions, pAllNodes, pGlobalDeclarations, pFileNames);
+    assert pAllNodes.keySet().equals(pFunctions.keySet());
+    assert pFunctions.values().contains(pMainFunction);
+    assert pFunctions.entrySet().stream()
+        .allMatch(pair -> pAllNodes.get(pair.getKey()).contains(pair.getValue()));
     machinemodel = pMachineModel;
     mainFunction = pMainFunction;
     language = pLanguage;
@@ -79,7 +85,19 @@ public class FunctionCFAsWithMetadata extends ParseResult {
 
     Hedgehog(CFANode pNode) {
       enteringEdges = CFAUtils.enteringEdges(pNode).toList();
+      for (CFAEdge edge : enteringEdges) {
+        assert edge.getPredecessor()
+            .getFunctionName()
+            .equals(edge.getSuccessor().getFunctionName());
+        assert CFAUtils.leavingEdges(edge.getPredecessor()).contains(edge);
+      }
       leavingEdges = CFAUtils.leavingEdges(pNode).toList();
+      for (CFAEdge edge : leavingEdges) {
+        assert edge.getPredecessor()
+            .getFunctionName()
+            .equals(edge.getSuccessor().getFunctionName());
+        assert CFAUtils.enteringEdges(edge.getSuccessor()).contains(edge);
+      }
     }
   }
 
@@ -89,11 +107,13 @@ public class FunctionCFAsWithMetadata extends ParseResult {
    */
   public void saveEdgesInNodes() {
     // store present edges
-    localNodes = ImmutableSet.copyOf(cfaNodes.values());
     localEdges = new TreeMap<>();
     for (CFANode node : cfaNodes.values()) {
       localEdges.put(node, new Hedgehog(node));
     }
+
+    makeConsistent();
+    checkConsistency();
   }
 
   /**
@@ -102,26 +122,57 @@ public class FunctionCFAsWithMetadata extends ParseResult {
    */
   @SuppressWarnings("deprecation") // uses three 'private' methods
   public void resetEdgesInNodes() {
-    if (localEdges == null) {
-      return;
+    if (this != original) {
+      original.resetEdgesInNodes();
     }
 
-    for (CFANode node : localNodes) {
-      assert node != null;
-      assert localEdges.get(node) != null : "new node " + node;
-      assert localEdges.get(node).enteringEdges != null;
-      assert localEdges.get(node).leavingEdges != null;
+    for (CFANode node : localEdges.keySet()) {
+      Hedgehog hedgehog = localEdges.get(node);
       node.resetNodeInfo();
-      node.resetEnteringEdges(localEdges.get(node).enteringEdges);
-      node.resetLeavingEdges(localEdges.get(node).leavingEdges);
+      node.resetEnteringEdges(hedgehog.enteringEdges);
+      node.resetLeavingEdges(hedgehog.leavingEdges);
     }
 
-    localEdges = null;
-    cfaNodes.values().retainAll(localNodes);
-    for (CFANode n : localNodes) {
-      cfaNodes.put(n.getFunctionName(), n);
+    makeConsistent();
+    checkConsistency();
+
+    for (CFANode node : localEdges.keySet()) {
+      assert CFAUtils.enteringEdges(node)
+          .allMatch(
+              edge ->
+                  edge.getPredecessor()
+                      .getFunctionName()
+                      .equals(edge.getSuccessor().getFunctionName()));
+      assert CFAUtils.leavingEdges(node)
+          .allMatch(
+              edge ->
+                  edge.getPredecessor()
+                      .getFunctionName()
+                      .equals(edge.getSuccessor().getFunctionName()));
     }
-    localNodes = null;
+  }
+
+  private void makeConsistent() {
+    cfaNodes.values().retainAll(localEdges.keySet());
+    localEdges.keySet().forEach(node -> cfaNodes.put(node.getFunctionName(), node));
+    functions.keySet().retainAll(cfaNodes.keySet());
+    cfaNodes
+        .keySet()
+        .forEach(
+            name ->
+                functions.put(
+                    name,
+                    FluentIterable.from(cfaNodes.get(name))
+                        .filter(FunctionEntryNode.class)
+                        .first()
+                        .get()));
+  }
+
+  private void checkConsistency() {
+    assert cfaNodes.values().size() == localEdges.keySet().size()
+        : "nodes saved in original ParseResult and map [node -> saved edges] have different count of nodes";
+    assert functions.keySet().equals(cfaNodes.keySet())
+        : "entries and nodes are present for different sets of functions";
   }
 
   public static FunctionCFAsWithMetadata fromParseResult(
@@ -129,30 +180,79 @@ public class FunctionCFAsWithMetadata extends ParseResult {
       MachineModel pMachineModel,
       FunctionEntryNode pMainFunction,
       Language pLanguage) {
+
+    TreeMap<String, FunctionEntryNode> newFunctions = new TreeMap<>();
+    newFunctions.putAll(pParseResult.getFunctions());
+
+    TreeMultimap<String, CFANode> newNodes = TreeMultimap.create();
+    newNodes.putAll(pParseResult.getCFANodes());
+
     FunctionCFAsWithMetadata result =
         new FunctionCFAsWithMetadata(
             pMachineModel,
-            pParseResult.getFunctions(),
-            pParseResult.getCFANodes(),
+            newFunctions,
+            newNodes,
             pMainFunction,
-            pParseResult.getFileNames(),
+            new ArrayList<>(pParseResult.getFileNames()),
             pLanguage,
-            pParseResult.getGlobalDeclarations());
+            new ArrayList<>(pParseResult.getGlobalDeclarations()));
+
     // save edges first time, so they will be restored
     result.saveEdgesInNodes();
+
+    if (original == null) {
+      original = result;
+      // make another copy to return
+      return fromParseResult(pParseResult, pMachineModel, pMainFunction, pLanguage);
+    }
+
     return result;
   }
 
   public ParseResult copyAsParseResult() {
     // save local edges
     saveEdgesInNodes();
+
     // create copies that can be modified in #createCFA
     // so localCfa has clean copies (and edges in nodes are saved above)
     TreeMap<String, FunctionEntryNode> newFunctions = new TreeMap<>();
     newFunctions.putAll(functions);
+
     TreeMultimap<String, CFANode> newNodes = TreeMultimap.create();
     newNodes.putAll(cfaNodes);
+
     return new ParseResult(
         newFunctions, newNodes, new ArrayList<>(globalDeclarations), new ArrayList<>(fileNames));
+  }
+
+  @SuppressWarnings("deprecation")
+  public static Pair<ParseResult, FunctionEntryNode> originalCopy() {
+    Preconditions.checkState(original != null, "original CFA was not set");
+
+    // reset edges in nodes
+    for (CFANode node : original.localEdges.keySet()) {
+      Hedgehog hedgehog = original.localEdges.get(node);
+      node.resetNodeInfo();
+      node.resetEnteringEdges(hedgehog.enteringEdges);
+      node.resetLeavingEdges(hedgehog.leavingEdges);
+    }
+
+    original.makeConsistent();
+    original.checkConsistency();
+
+    // create copies
+    TreeMap<String, FunctionEntryNode> newFunctions = new TreeMap<>();
+    newFunctions.putAll(original.functions);
+
+    TreeMultimap<String, CFANode> newNodes = TreeMultimap.create();
+    newNodes.putAll(original.cfaNodes);
+
+    return Pair.of(
+        new ParseResult(
+            newFunctions,
+            newNodes,
+            new ArrayList<>(original.globalDeclarations),
+            new ArrayList<>(original.fileNames)),
+        original.mainFunction);
   }
 }
