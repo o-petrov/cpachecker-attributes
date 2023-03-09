@@ -21,8 +21,6 @@ import org.sosy_lab.common.log.LogManager;
  * confused with min-/max-properties).
  */
 public class DDSearch<Element> extends DDStar<Element> {
-  // optimum is a list of elements
-  private final List<ImmutableList<Element>> optimums = new ArrayList<>();
   // cause is a list of elements
   private final List<ImmutableList<ImmutableList<Element>>> listOfListsOfCauses = new ArrayList<>();
   // cause that was forced in CFA in this round
@@ -30,6 +28,7 @@ public class DDSearch<Element> extends DDStar<Element> {
   private int indexOfListOfCauses;
   private Iterator<ImmutableList<Element>> itOverListOfCauses;
   private ImmutableList<Element> forcedCause;
+  private ImmutableList<Element> elementsToResolve;
 
   public DDSearch(
       LogManager pLogger,
@@ -63,19 +62,6 @@ public class DDSearch<Element> extends DDStar<Element> {
 
     logInfo("no next cause");
     return ImmutableList.of();
-  }
-
-  private ImmutableList<Element> getFoundOptimum() {
-    switch (getStarDirection()) {
-      case MAXIMIZATION:
-        // no removed elements, but cause is deleted
-        return getAllSafeElements();
-      case MINIMIZATION:
-        // no safe elements
-        return getAllCauseElements();
-      default:
-        throw new AssertionError();
-    }
   }
 
   private void forceCause(FunctionCFAsWithMetadata pCfa, ImmutableList<Element> pForcedCause) {
@@ -113,30 +99,37 @@ public class DDSearch<Element> extends DDStar<Element> {
   }
 
   private void findNextOptimum(FunctionCFAsWithMetadata pCfa) {
+    updateElementsToResolve(pCfa);
+    // reset DD*
+    clear();
+    workOnElements(elementsToResolve);
+    // first, check if min-property still holds
+    stage = DeltaDebuggingStage.CHECK_WHOLE;
+    return;
+  }
+
+  private void updateElementsToResolve(FunctionCFAsWithMetadata pCfa) {
+    if (getAllCauseElements().isEmpty()) {
+      logInfo("Repeating DD* on same elements, but with other forced cause");
+      return;
+    }
+
     switch (getStarDirection()) {
       case MAXIMIZATION:
-        ImmutableList<Element> safeElements = getAllSafeElements();
+        elementsToResolve = getAllSafeElements();
         // no removed
         logInfo(
             "Searching for another maximum with a cause forced in on safe:",
-            shortListToLog(safeElements));
-        // reset DD*
-        clear();
-        workOnElements(safeElements);
+            shortListToLog(elementsToResolve));
         return;
 
       case MINIMIZATION:
-        ImmutableList<Element> removedElements = getAllRemovedElements();
+        elementsToResolve = getAllRemovedElements();
         // no safe
         logInfo(
             "Searching for another minimum with a cause forced out on restored:",
-            shortListToLog(removedElements));
-        manipulator.restore(pCfa, removedElements.reverse());
-        // reset DD*
-        clear();
-        workOnElements(removedElements);
-        // first, check if min-property still holds
-        stage = DeltaDebuggingStage.CHECK_WHOLE;
+            shortListToLog(elementsToResolve));
+        manipulator.restore(pCfa, elementsToResolve.reverse());
         return;
 
       default:
@@ -153,9 +146,10 @@ public class DDSearch<Element> extends DDStar<Element> {
       return;
     }
 
-    optimums.add(getFoundOptimum());
     logInfo("Current list of causes:", shortListToLog(getListOfCauses()));
-    listOfListsOfCauses.add(getListOfCauses());
+    if (!getListOfCauses().isEmpty()) {
+      listOfListsOfCauses.add(getListOfCauses());
+    }
 
     if (forcedCauses.isEmpty()) {
       // no cause was forced out of CFA

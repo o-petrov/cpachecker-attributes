@@ -31,7 +31,6 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
   private List<ImmutableList<Element>> removedList = new ArrayList<>();
 
   private DDDirection direction;
-  private boolean noCause;
 
   public DDStar(
       LogManager pLogger,
@@ -47,48 +46,57 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     return direction;
   }
 
-  private ImmutableList<Element> storeOldAndGetNewList() {
+  private ImmutableList<Element> storeOldAndGetNewList(FunctionCFAsWithMetadata pCfa) {
     ImmutableList<Element> newCause = super.getCauseElements();
-    noCause = newCause.isEmpty();
 
-    if (!noCause) {
+    if (!newCause.isEmpty()) {
       causeList.add(newCause);
       logInfo("Found a cause:", shortListToLog(newCause));
+    } else {
+      logInfo("Found no cause");
     }
 
-    ImmutableList<Element> list1 = super.getSafeElements();
-    ImmutableList<Element> list2 = super.getRemovedElements();
-    String elementSet;
+    ImmutableList<Element> safeElements = super.getSafeElements();
+    ImmutableList<Element> removedElements = super.getRemovedElements();
 
     switch (getStarDirection()) {
       case MAXIMIZATION:
-        safeList.add(list1);
-        logInfo("Marked safe:", shortListToLog(list1));
-        elementSet = "removed:";
-        break;
+        safeList.add(safeElements);
+        logInfo("Marked safe:", shortListToLog(safeElements));
+
+        if (!removedElements.isEmpty()) {
+          logInfo("Restoring removed:", shortListToLog(removedElements));
+          manipulator.restore(pCfa, removedElements);
+        } else {
+          logInfo("No removed", getElementTitle(), "to restore");
+        }
+
+        if (!newCause.isEmpty()) {
+          logInfo("Removing cause:", shortListToLog(newCause));
+          mutate(pCfa, newCause);
+          logInfo(
+              "Repeating DD on previously removed",
+              getElementTitle(),
+              shortListToLog(removedElements));
+
+        }
+
+        return removedElements;
 
       case MINIMIZATION:
-        removedList.add(list2);
-        logInfo("Were removed:", shortListToLog(list2));
-        elementSet = "safe:";
-        list2 = list1;
-        break;
+        removedList.add(removedElements);
+        logInfo("Were removed:", shortListToLog(removedElements));
+
+        if (!newCause.isEmpty()) {
+          logInfo(
+              "Repeating DD on", getElementTitle(), "marked as safe", shortListToLog(safeElements));
+        }
+
+        return safeElements;
 
       default:
         throw new AssertionError();
     }
-
-    if (noCause) {
-      logInfo("Found no cause");
-      return ImmutableList.of();
-
-    } else if (list2.isEmpty()) {
-      logInfo("No elements to repeat DD on");
-
-    } else {
-      logInfo("Repeating DD on", elementSet, shortListToLog(list2));
-    }
-    return list2;
   }
 
   @Override
@@ -96,27 +104,10 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
     super.finalize(pCfa);
     assert stage == DeltaDebuggingStage.FINISHED;
 
-    ImmutableList<Element> newUnresolved = storeOldAndGetNewList();
+    ImmutableList<Element> cause = super.getCauseElements();
+    ImmutableList<Element> newUnresolved = storeOldAndGetNewList(pCfa);
 
-    if (getStarDirection() == DDDirection.MAXIMIZATION) {
-      ImmutableList<Element> removed = super.getRemovedElements();
-      if (!removed.isEmpty()) {
-        logInfo("Restoring removed:", shortListToLog(removed));
-        manipulator.restore(pCfa, removed);
-      } else {
-        logInfo("No removed", getElementTitle(), "to restore");
-      }
-
-      ImmutableList<Element> cause = super.getCauseElements();
-      if (!cause.isEmpty()) {
-        logInfo("Removing cause:", shortListToLog(cause));
-        mutate(pCfa, cause);
-      } else {
-        logInfo("No cause to remove");
-      }
-    }
-
-    if (noCause) {
+    if (cause.isEmpty()) {
       logInfo(
           "DD* has finished, as it can not find",
           getStarDirection() == DDDirection.MAXIMIZATION
