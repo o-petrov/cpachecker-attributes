@@ -19,19 +19,19 @@
     <option name="-svcomp22-without-timelimit"/>
   </rundefinition>
 
-	<rundefinition name="DD+Min+">
-    <option name="-cfa-mutation-svcomp22"/>
-		<option name="-setprop">cfaMutation.dd=DDSEARCH</option>
-		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
-		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
-	</rundefinition>
+  <rundefinition name="DD+Min+">
+    <option name="-config">config/components/cfa-mutation-svcomp22.properties</option>
+    <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
+    <option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+    <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+  </rundefinition>
 
-	<rundefinition name="DD+Max+">
-    <option name="-cfa-mutation-svcomp22"/>
-		<option name="-setprop">cfaMutation.dd=DDSEARCH</option>
-		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
-		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
-	</rundefinition>
+  <rundefinition name="DD+Max+">
+    <option name="-config">config/components/cfa-mutation-svcomp22.properties</option>
+    <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
+    <option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+    <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+  </rundefinition>
 
   <option name="-heap">10000M</option>
 
