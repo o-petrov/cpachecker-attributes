@@ -102,6 +102,12 @@ public class DDSearch<Element> extends DDStar<Element> {
     updateElementsToResolve(pCfa);
     // reset DD*
     clear();
+
+    if (elementsToResolve.isEmpty()) {
+      // nothing to do
+      return;
+    }
+
     workOnElements(elementsToResolve);
     // first, check if min-property still holds
     stage = DeltaDebuggingStage.CHECK_WHOLE;
@@ -116,20 +122,34 @@ public class DDSearch<Element> extends DDStar<Element> {
 
     switch (getStarDirection()) {
       case MAXIMIZATION:
+        // no elements were removed
         elementsToResolve = getAllSafeElements();
-        // no removed
-        logInfo(
-            "Searching for another maximum with a cause forced in on safe:",
-            shortListToLog(elementsToResolve));
+
+        if (elementsToResolve.isEmpty()) {
+          stage = DeltaDebuggingStage.FINISHED;
+          logInfo("No safe elements to search for another maximum");
+
+        } else {
+          logInfo(
+              "Searching for another maximum with a cause forced in on safe:",
+              shortListToLog(elementsToResolve));
+        }
         return;
 
       case MINIMIZATION:
+        // no elements were marked safe
         elementsToResolve = getAllRemovedElements();
-        // no safe
-        logInfo(
-            "Searching for another minimum with a cause forced out on restored:",
-            shortListToLog(elementsToResolve));
-        manipulator.restore(pCfa, elementsToResolve.reverse());
+
+        if (elementsToResolve.isEmpty()) {
+          stage = DeltaDebuggingStage.FINISHED;
+          logInfo("No removed elements to search for another minimum");
+
+        } else {
+          logInfo(
+              "Searching for another minimum with a cause forced out on restored:",
+              shortListToLog(elementsToResolve));
+          manipulator.restore(pCfa, elementsToResolve.reverse());
+        }
         return;
 
       default:

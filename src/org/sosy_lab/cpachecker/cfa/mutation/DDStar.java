@@ -71,14 +71,18 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
           logInfo("No removed", getElementTitle(), "to restore");
         }
 
-        if (!newCause.isEmpty()) {
-          logInfo("Removing cause:", shortListToLog(newCause));
-          mutate(pCfa, newCause);
+        if (newCause.isEmpty()) {
+          return removedElements;
+        }
+
+        logInfo("Removing cause:", shortListToLog(newCause));
+        mutate(pCfa, newCause);
+
+        if (!removedElements.isEmpty()) {
           logInfo(
               "Repeating DD on previously removed",
               getElementTitle(),
               shortListToLog(removedElements));
-
         }
 
         return removedElements;
@@ -87,7 +91,7 @@ public class DDStar<Element> extends FlatDeltaDebugging<Element> {
         removedList.add(removedElements);
         logInfo("Were removed:", shortListToLog(removedElements));
 
-        if (!newCause.isEmpty()) {
+        if (!newCause.isEmpty() && !safeElements.isEmpty()) {
           logInfo(
               "Repeating DD on", getElementTitle(), "marked as safe", shortListToLog(safeElements));
         }
