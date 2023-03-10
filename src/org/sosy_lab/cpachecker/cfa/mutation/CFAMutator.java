@@ -166,7 +166,8 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       name = "manipulator",
       description = "which elements to remove from CFA (one manipulator class)")
   @ClassOption(packagePrefix = "org.sosy_lab.cpachecker.cfa.mutation")
-  private Class<CFAElementManipulator<?, ?>> manipulatorClass;
+  private Class<? extends CFAElementManipulator<?, ?>> manipulatorClass =
+      FunctionBodyManipulator.class;
 
   @Option(
       secure = true,
