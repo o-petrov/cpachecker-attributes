@@ -960,6 +960,11 @@ cfaMutation.oldStrategies = [
 # on.
 cfaMutation.rollbacksInRowCheck = 5
 
+# Time limit for exporting a CFA. If an export exceeds this limit, CFA
+# exports are disabled for the following rounds. This time limit is not
+# checked if this option is set to zero.
+cfaMutation.timelimit.forExport = 2s
+
 # Sometimes analysis run can be unpredictably long. To run many runs
 # successfully, CFA mutator hard caps walltime for every run (200s by
 # default), and also soft caps walltime for the runs after original by

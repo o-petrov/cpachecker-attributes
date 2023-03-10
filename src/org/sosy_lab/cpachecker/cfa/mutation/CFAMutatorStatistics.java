@@ -12,6 +12,7 @@ import com.google.common.base.Preconditions;
 import java.io.PrintStream;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionExitNode;
@@ -200,6 +201,10 @@ class CFAMutatorStatistics extends MultiStatistics {
 
   public void stopExport() {
     exportTimer.stop();
+  }
+
+  public TimeSpan getMaxExportTime() {
+    return exportTimer.getMaxTime();
   }
 
   public void startPreparations() {

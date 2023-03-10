@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -27,10 +28,12 @@ import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
+import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.log.BasicLogManager;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.log.LoggingOptions;
 import org.sosy_lab.common.log.TimestampedLogFormatter;
+import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.ParseResult;
@@ -194,6 +197,18 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
               + "Use main file logging level if that is lower.")
   private Level fileLogLevel = Level.FINE;
 
+  @Option(
+      secure = true,
+      name = "timelimit.forExport",
+      description =
+          "Time limit for exporting a CFA. If an export exceeds this limit, "
+              + "CFA exports are disabled for the following rounds. "
+              + "This time limit is not checked if this option is set to zero.")
+  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 0)
+  private TimeSpan exportTimelimit = TimeSpan.ofSeconds(2);
+
+  boolean exportWasTooLong = false;
+
   /** local CFA of functions before processing */
   private FunctionCFAsWithMetadata localCfa;
   /** Strategy that decides how to change the CFA and implements this change */
@@ -301,8 +316,30 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     }
   }
 
+  @Override
+  protected void exportCFA(CFA pCfa) {
+    if (exportWasTooLong) {
+      return;
+    }
+
+    mutatorStats.startExport();
+    super.exportCFA(pCfa);
+    mutatorStats.stopExport();
+
+    if (exportTimelimit.compareTo(TimeSpan.empty()) > 0
+        && mutatorStats.getMaxExportTime().compareTo(exportTimelimit) > 0) {
+      logger.log(
+          Level.WARNING,
+          "Following exports are disabled because they take longer than",
+          exportTimelimit);
+      exportWasTooLong = true;
+    }
+
+  }
+
   private CFA exportCreateExportCFA()
       throws InvalidConfigurationException, InterruptedException, ParserException {
+
     if (mutatorStats.getRound() == 0) {
       exportDirectory = cfaExportDirectory.resolve("0-original-cfa");
     } else {
@@ -310,25 +347,25 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
           cfaExportDirectory.resolve(String.valueOf(mutatorStats.getRound()) + "-mutation-round");
     }
 
-    mutatorStats.startExport();
-    try {
-      new DOTBuilder2(localCfa)
-          .writeGraphs(exportDirectory.resolve("function-cfas-before-processing"));
-    } catch (IOException e) {
-      logger.logUserException(
-          Level.WARNING, e, "Could not write function CFAs before processing to dot files");
+    if (!exportWasTooLong) {
+      mutatorStats.startExport();
+      try {
+        new DOTBuilder2(localCfa)
+            .writeGraphs(exportDirectory.resolve("function-cfas-before-processing"));
+      } catch (IOException e) {
+        logger.logUserException(
+            Level.WARNING, e, "Could not write function CFAs before processing to dot files");
+      }
+      // new BlockToDotWriter(localCfa).dump(exportDirectory.resolve("function-cfa-blocks"),
+      // logger);
+      mutatorStats.stopExport();
     }
-    // new BlockToDotWriter(localCfa).dump(exportDirectory.resolve("function-cfa-blocks"), logger);
-    mutatorStats.stopExport();
 
     mutatorStats.setCfaStats(localCfa);
     CFA result = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
     mutatorStats.setCfaStats(result);
 
-    mutatorStats.startExport();
     exportCFA(result);
-    mutatorStats.stopExport();
-
     return result;
   }
 
@@ -414,14 +451,12 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     CFA rollbackedCfa = super.createCFA(localCfa.copyAsParseResult(), localCfa.getMainFunction());
     mutatorStats.setCfaStats(rollbackedCfa);
 
-    mutatorStats.startExport();
     exportDirectory =
         cfaExportDirectory.resolve(
             String.valueOf(mutatorStats.getRound())
                 + "-mutation-round-"
                 + (mutationRollback == MutationRollback.ROLLBACK ? "rollbacked" : "irregular"));
     exportCFA(rollbackedCfa);
-    mutatorStats.stopExport();
 
     return mutationRollback == MutationRollback.ROLLBACK ? rollbackedCfa : null;
   }
