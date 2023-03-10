@@ -11,8 +11,8 @@ SPDX-License-Identifier: Apache-2.0
 -->
 
 <!--
-CPAchecker crashes on these input files (that means, these programs are failing tests).
-These programs are used to test CFA mutator when it tries to make minimal failing test.
+CPAchecker timeouts on these input files.
+Mutate CFA so analysis can find an error that is present in original program.
 -->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
@@ -45,21 +45,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- DD MIN -->
 	<rundefinition name="DD-Min-D">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
 	<rundefinition name="DD-Min-C">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="DD-Min-B">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -67,21 +67,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- DD MAX -->
 	<rundefinition name="DD-Max-D">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
 	<rundefinition name="DD-Max-C">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="DD-Max-B">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -89,21 +89,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- DD ISO -->
 	<rundefinition name="DD-Iso-D">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
 	<rundefinition name="DD-Iso-C">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="DD-Iso-B">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DD</option>
 		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -111,21 +111,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- HDD MIN -->
 	<rundefinition name="HDD-Min-D">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
 	<rundefinition name="HDD-Min-C">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="HDD-Min-B">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -133,21 +133,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- HDD MAX -->
 	<rundefinition name="HDD-Max-D">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
 	<rundefinition name="HDD-Max-C">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="HDD-Max-B">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -155,21 +155,21 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- HDD ISO -->
 	<rundefinition name="HDD-Iso-D">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
 	</rundefinition>
 
 	<rundefinition name="HDD-Iso-C">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="HDD-Iso-B">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=HDD</option>
 		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -177,14 +177,14 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- DD* -->
 	<rundefinition name="DD+Min">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DDSTAR</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="DD+Max">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DDSTAR</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
@@ -192,14 +192,14 @@ These programs are used to test CFA mutator when it tries to make minimal failin
 
 <!-- DD** -->
 	<rundefinition name="DD+Min+">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DDSEARCH</option>
 		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
 	</rundefinition>
 
 	<rundefinition name="DD+Max+">
-		<option name="-config">config/components/cfa-mutation-smg-ldv.properties</option>
+		<option name="-config">test/config/cfa-mutation-smg-ldv.properties</option>
 		<option name="-setprop">cfaMutation.dd=DDSEARCH</option>
 		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
 		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>

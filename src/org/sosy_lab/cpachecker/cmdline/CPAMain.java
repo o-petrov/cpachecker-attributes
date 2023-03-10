@@ -144,7 +144,7 @@ public class CPAMain {
       limits = ResourceLimitChecker.fromConfiguration(cpaConfig, logManager, shutdownManager);
       limits.start();
 
-      if (options.minimizeCfaForException) {
+      if (options.cfaMutation) {
         cpachecker =
             new CPAcheckerMutator(cpaConfig, logManager, shutdownManager, limits, logOptions);
       } else {
@@ -297,9 +297,10 @@ public class CPAMain {
         secure = true,
         name = "cfaMutation",
         description =
-            "Try to make CFA of the input program smaller. The goal is to make a small test "
-                + "for a case when CPAchecker analysis crashes.")
-    private boolean minimizeCfaForException = false;
+            "Run multiple runs on mutated CFAs. For example, try to make CFA of the input program smaller "
+                + "when original analysis run throws an exception, i.e. minimize a failing test. "
+                + "See more in the Delta Debugging (dd) options below.")
+    private boolean cfaMutation = false;
   }
 
   private static void dumpConfiguration(

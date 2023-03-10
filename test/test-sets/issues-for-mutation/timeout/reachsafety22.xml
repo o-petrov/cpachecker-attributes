@@ -1,12 +1,19 @@
 <?xml version="1.0"?>
 
-<!-- This file is part of CPAchecker, -->
-<!-- a tool for configurable software verification: -->
-<!-- https://cpachecker.sosy-lab.org -->
-<!-- -->
-<!-- SPDX-FileCopyrightText: 2023 Dirk Beyer <https://www.sosy-lab.org> -->
-<!-- -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!--
+This file is part of CPAchecker,
+a tool for configurable software verification:
+https://cpachecker.sosy-lab.org
+
+SPDX-FileCopyrightText: 2023 Dirk Beyer <https://www.sosy-lab.org>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<!--
+CPAchecker timeouts on these input files.
+Mutate CFA so analysis can find an error that is present in original program.
+-->
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
 <benchmark tool="cpachecker" walltimelimit="2100">
@@ -16,18 +23,18 @@
   <propertyfile>../../../programs/benchmarks/properties/unreach-call.prp</propertyfile>
 
   <rundefinition name="bare-analysis">
-    <option name="-svcomp22-without-timelimit"/>
+    <option name="-config">test/config/svcomp22-without-timelimit.properties</option>
   </rundefinition>
 
   <rundefinition name="DD+Min+">
-    <option name="-config">config/components/cfa-mutation-svcomp22.properties</option>
+    <option name="-config">test/config/cfa-mutation-svcomp22.properties</option>
     <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
     <option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
     <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
   </rundefinition>
 
   <rundefinition name="DD+Max+">
-    <option name="-config">config/components/cfa-mutation-svcomp22.properties</option>
+    <option name="-config">test/config/cfa-mutation-svcomp22.properties</option>
     <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
     <option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
     <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>

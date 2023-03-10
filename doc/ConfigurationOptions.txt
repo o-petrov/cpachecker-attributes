@@ -887,8 +887,10 @@ cfa.variableClassification.printStatsOnStartup = false
 # Dump variable type mapping to a file.
 cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 
-# Try to make CFA of the input program smaller. The goal is to make a small
-# test for a case when CPAchecker analysis crashes.
+# Run multiple runs on mutated CFAs. For example, try to make CFA of the
+# input program smaller when original analysis run throws an exception, i.e.
+# minimize a failing test. See more in the Delta Debugging (dd) options
+# below.
 cfaMutation = false
 
 # which DD algorithm implementation to use to mutate CFA: my previous
