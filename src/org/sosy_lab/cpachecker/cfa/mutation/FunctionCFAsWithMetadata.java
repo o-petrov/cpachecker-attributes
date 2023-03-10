@@ -15,6 +15,7 @@ import com.google.common.collect.TreeMultimap;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
@@ -126,11 +127,10 @@ public class FunctionCFAsWithMetadata extends ParseResult {
       original.resetEdgesInNodes();
     }
 
-    for (CFANode node : localEdges.keySet()) {
-      Hedgehog hedgehog = localEdges.get(node);
-      node.resetNodeInfo();
-      node.resetEnteringEdges(hedgehog.enteringEdges);
-      node.resetLeavingEdges(hedgehog.leavingEdges);
+    for (Entry<CFANode, Hedgehog> entry : localEdges.entrySet()) {
+      entry.getKey().resetNodeInfo();
+      entry.getKey().resetEnteringEdges(entry.getValue().enteringEdges);
+      entry.getKey().resetLeavingEdges(entry.getValue().leavingEdges);
     }
 
     makeConsistent();
