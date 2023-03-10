@@ -603,4 +603,14 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       return false;
     }
   }
+
+  public boolean shouldReturnWithoutMutation(AnalysisOutcome pOriginalOutcome) {
+    if (ddMaxProperty.contains(pOriginalOutcome)) {
+      logger.log(Level.WARNING, "CFA is not mutated.");
+      return true;
+    }
+
+    verifyOutcome(pOriginalOutcome);
+    return false;
+  }
 }

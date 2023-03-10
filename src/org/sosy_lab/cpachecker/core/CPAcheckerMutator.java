@@ -241,7 +241,9 @@ public class CPAcheckerMutator extends CPAchecker {
           analysisRound(getCfa(), logger, totalStats.originalTime);
 
       AnalysisOutcome originalOutcome = originalResult.toAnalysisOutcome(originalResult);
-      cfaMutator.verifyOutcome(originalOutcome);
+      if (cfaMutator.shouldReturnWithoutMutation(originalOutcome)) {
+        return originalResult.result;
+      }
 
       // set walltime limit for every single round
       // compute soft cap
