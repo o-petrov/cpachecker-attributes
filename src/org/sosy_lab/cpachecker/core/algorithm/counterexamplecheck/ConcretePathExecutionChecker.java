@@ -28,6 +28,7 @@ import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.io.IO;
+import org.sosy_lab.common.io.PathTemplate;
 import org.sosy_lab.common.io.TempFile;
 import org.sosy_lab.common.io.TempFile.DeleteOnCloseFile;
 import org.sosy_lab.common.log.LogManager;
@@ -61,9 +62,13 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
   @FileOption(FileOption.Type.REQUIRED_INPUT_FILE)
   private Path pathToCompiler = Path.of("/usr/bin/gcc");
 
-  @Option(secure = true, description = "The file in which the generated C code is saved.")
+  @Option(
+      secure = true,
+      description =
+          "The file in which the generated C code is saved. Specify a path template with %d "
+              + "to save a file for each CEX checked: %d will be replaced with CEX id.")
   @FileOption(FileOption.Type.OUTPUT_FILE)
-  private @Nullable Path dumpFile = null;
+  private @Nullable PathTemplate dumpFile;
 
   @Option(
       secure = true,
@@ -98,7 +103,9 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
       throws CPAException, InterruptedException {
 
     if (dumpFile != null) {
-      return checkCounterexample(pRootState, pErrorState, pErrorPathStates, dumpFile);
+      int cexId = pErrorState.getCounterexampleInformation().orElseThrow().getUniqueId();
+      return checkCounterexample(
+          pRootState, pErrorState, pErrorPathStates, dumpFile.getPath(cexId));
 
     } else {
 

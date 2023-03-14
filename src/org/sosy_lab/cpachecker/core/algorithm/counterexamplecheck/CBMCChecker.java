@@ -31,6 +31,7 @@ import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.io.IO;
+import org.sosy_lab.common.io.PathTemplate;
 import org.sosy_lab.common.io.TempFile;
 import org.sosy_lab.common.io.TempFile.DeleteOnCloseFile;
 import org.sosy_lab.common.log.LogManager;
@@ -62,9 +63,11 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
       description =
           "File name where to put the path program that is generated as input for CBMC. A temporary"
               + " file is used if this is unspecified. If specified, the file name should end with"
-              + " '.i' because otherwise CBMC runs the pre-processor on the file.")
+              + " '.i' because otherwise CBMC runs the pre-processor on the file. "
+              + "Specify a path template with %d to save a file for each CEX checked: "
+              + "%d will be replaced with CEX id.")
   @FileOption(FileOption.Type.OUTPUT_FILE)
-  private @Nullable Path cbmcFile;
+  private @Nullable PathTemplate cbmcFile;
 
   @Option(
       secure = true,
@@ -97,7 +100,8 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
       throws CPAException, InterruptedException {
 
     if (cbmcFile != null) {
-      return checkCounterexample(pRootState, pErrorPathStates, cbmcFile);
+      int cexId = pErrorState.getCounterexampleInformation().orElseThrow().getUniqueId();
+      return checkCounterexample(pRootState, pErrorPathStates, cbmcFile.getPath(cexId));
 
     } else {
 

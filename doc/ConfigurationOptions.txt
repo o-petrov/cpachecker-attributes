@@ -733,7 +733,8 @@ bmc.usePropertyDirection = false
 # File name where to put the path program that is generated as input for
 # CBMC. A temporary file is used if this is unspecified. If specified, the
 # file name should end with '.i' because otherwise CBMC runs the
-# pre-processor on the file.
+# pre-processor on the file. Specify a path template with %d to save a file
+# for each CEX checked: %d will be replaced with CEX id.
 cbmc.dumpCBMCfile = no default value
 
 # maximum time limit for CBMC (use milliseconds or specify a unit; 0 for
@@ -1087,7 +1088,9 @@ counterexample.checker.forceCEXChange = false
 # unspecified.
 counterexample.checker.path.file = no default value
 
-# The file in which the generated C code is saved.
+# The file in which the generated C code is saved. Specify a path template
+# with %d to save a file for each CEX checked: %d will be replaced with CEX
+# id.
 counterexample.concrete.dumpFile = no default value
 
 # Path to the compiler. Can be absolute or only the name of the program if it
