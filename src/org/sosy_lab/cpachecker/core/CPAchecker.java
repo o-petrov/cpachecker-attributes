@@ -299,8 +299,13 @@ public class CPAchecker {
 
   protected ConfigurableProgramAnalysis createCPA(CFA pCfa)
       throws InvalidConfigurationException, CPAException, InterruptedException {
-    return factory.createCPA(
-        pCfa, Specification.fromFiles(specificationFiles, pCfa, config, logger, shutdownNotifier));
+    specification =
+        Specification.fromFiles(specificationFiles, pCfa, config, logger, shutdownNotifier);
+    return factory.createCPA(pCfa, specification);
+  }
+
+  protected Specification getSpecification() {
+    return specification;
   }
 
   protected CPAcheckerResult produceResult() {

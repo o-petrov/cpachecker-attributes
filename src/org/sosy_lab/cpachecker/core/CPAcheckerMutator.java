@@ -12,18 +12,15 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.VerifyException;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.sosy_lab.common.Optionals;
 import org.sosy_lab.common.ShutdownManager;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
@@ -39,34 +36,18 @@ import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.AnalysisOutcome;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
-import org.sosy_lab.cpachecker.core.counterexample.CounterexampleInfo;
+import org.sosy_lab.cpachecker.core.algorithm.Algorithm.AlgorithmStatus;
+import org.sosy_lab.cpachecker.core.algorithm.NoopAlgorithm;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
-import org.sosy_lab.cpachecker.core.interfaces.StateSpacePartition;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
-import org.sosy_lab.cpachecker.cpa.arg.ARGState;
-import org.sosy_lab.cpachecker.cpa.arg.path.ARGPath;
-import org.sosy_lab.cpachecker.cpa.automaton.ControlAutomatonCPA;
-import org.sosy_lab.cpachecker.cpa.constraints.ConstraintsCPA;
-import org.sosy_lab.cpachecker.cpa.constraints.domain.ConstraintsSolver;
-import org.sosy_lab.cpachecker.cpa.smg.SMGCPA;
-import org.sosy_lab.cpachecker.cpa.smg.SMGPredicateManager;
-import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelationKind;
-import org.sosy_lab.cpachecker.cpa.smg.UnmodifiableSMGState;
-import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGFeasibilityChecker;
-import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGStrongestPostOperator;
-import org.sosy_lab.cpachecker.cpa.value.ValueAnalysisState;
-import org.sosy_lab.cpachecker.cpa.value.refiner.ValueAnalysisStrongestPostOperator;
-import org.sosy_lab.cpachecker.cpa.value.refiner.utils.ValueAnalysisFeasibilityChecker;
-import org.sosy_lab.cpachecker.cpa.value.symbolic.refiner.SymbolicStrongestPostOperator;
-import org.sosy_lab.cpachecker.cpa.value.symbolic.refiner.SymbolicValueAnalysisFeasibilityChecker;
-import org.sosy_lab.cpachecker.cpa.value.symbolic.refiner.ValueTransferBasedStrongestPostOperator;
+import org.sosy_lab.cpachecker.core.specification.Specification;
+import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
+import org.sosy_lab.cpachecker.exceptions.InfeasibleCounterexampleException;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
-import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.CPAs;
-import org.sosy_lab.cpachecker.util.refinement.FeasibilityChecker;
-import org.sosy_lab.cpachecker.util.refinement.StrongestPostOperator;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
@@ -126,16 +107,27 @@ public class CPAcheckerMutator extends CPAchecker {
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
   private TimeSpan timelimitCap = TimeSpan.ofSeconds(200);
 
+  @Option(
+      secure = true,
+      name = "timeLimit.cexCheck",
+      description =
+          "Limit time for countrexample feasibility check. This option is used only if CFA mutations "
+              + "are used to find a feasible error.")
+  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
+  private TimeSpan timeForCex = TimeSpan.ofSeconds(60);
+
   private interface ResourceLimitsFactory {
     public List<ResourceLimit> create();
   }
 
-  private ResourceLimitsFactory limitsFactory = null;
+  private ResourceLimitsFactory analysisRoundLimitsFactory;
+  private ResourceLimitsFactory cexCheckLimitsFactory;
   private final ImmutableList<ResourceLimit> globalLimits;
+
   private final LoggingOptions logOptions;
   private final CFAMutator cfaMutator;
 
-  private FeasibilityChecker<?> feasibilityChecker;
+  private CounterexampleCheckAlgorithm cexCheckAlgorithm;
 
   public CPAcheckerMutator(
       Configuration pConfiguration,
@@ -168,41 +160,33 @@ public class CPAcheckerMutator extends CPAchecker {
     cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
   }
 
-  private FeasibilityChecker<?> setupFeasibilityChecker(CFA pCfa)
+  private void setupCexChecker(CFA pCfa)
       throws InvalidConfigurationException, CPAException, InterruptedException {
-    ConfigurableProgramAnalysis cpa = createCPA(pCfa);
+    ConfigurableProgramAnalysis originalCpa = createCPA(pCfa);
+    ConfigurableProgramAnalysis argCpa = CPAs.retrieveCPA(originalCpa, ARGCPA.class);
 
-    ConstraintsCPA constraintsCpa = CPAs.retrieveCPA(cpa, ConstraintsCPA.class);
-    if (constraintsCpa != null) {
-      ConstraintsSolver solver = constraintsCpa.getSolver();
-      SymbolicStrongestPostOperator strongestPostOperator =
-          new ValueTransferBasedStrongestPostOperator(solver, logger, config, pCfa);
-      return new SymbolicValueAnalysisFeasibilityChecker(
-          strongestPostOperator, config, logger, pCfa);
+    if (argCpa == null) {
+      argCpa =
+        ARGCPA
+            .factory()
+            .setChild(originalCpa)
+            .setConfiguration(config)
+            .setLogger(logger)
+            .setShutdownNotifier(shutdownNotifier)
+            .set(getSpecification(), Specification.class)
+            .set(pCfa, CFA.class)
+            .createInstance();
     }
 
-    SMGCPA smgCpa = CPAs.retrieveCPA(cpa, SMGCPA.class);
-    if (smgCpa != null) {
-      SMGPredicateManager predicateManager = smgCpa.getPredicateManager();
-      SMGStrongestPostOperator strongestPostOpForCEX =
-          new SMGStrongestPostOperator(
-              logger,
-              pCfa,
-              predicateManager,
-              smgCpa.getOptions(),
-              SMGTransferRelationKind.STATIC,
-              shutdownNotifier);
-      UnmodifiableSMGState initialState =
-          smgCpa.getInitialState(pCfa.getMainFunction(), StateSpacePartition.getDefaultPartition());
-      Set<ControlAutomatonCPA> automatonCpas =
-          CPAs.asIterable(cpa).filter(ControlAutomatonCPA.class).toSet();
-      return new SMGFeasibilityChecker(
-          strongestPostOpForCEX, logger, pCfa, initialState, automatonCpas);
-    }
-
-    StrongestPostOperator<ValueAnalysisState> strongestPostOp =
-        new ValueAnalysisStrongestPostOperator(logger, config, pCfa);
-    return new ValueAnalysisFeasibilityChecker(strongestPostOp, logger, pCfa, config);
+    cexCheckAlgorithm =
+        new CounterexampleCheckAlgorithm(
+            NoopAlgorithm.INSTANCE,
+            argCpa,
+            config,
+            getSpecification(),
+            logger,
+            shutdownNotifier,
+            pCfa);
   }
 
   @Override
@@ -227,14 +211,16 @@ public class CPAcheckerMutator extends CPAchecker {
         // invalid input files
         return produceResult();
       }
-      feasibilityChecker = setupFeasibilityChecker(originalCfa);
+      setupCexChecker(originalCfa);
 
       // set walltime limit for original round
-      limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitCap));
+      analysisRoundLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitCap));
       logger.log(
           Level.INFO,
           "Using",
-          Joiner.on(", ").join(Iterables.transform(limitsFactory.create(), ResourceLimit::getName)),
+          Joiner.on(", ")
+              .join(
+                  Iterables.transform(analysisRoundLimitsFactory.create(), ResourceLimit::getName)),
           "for the original round");
 
       final AnalysisResult originalResult =
@@ -256,12 +242,16 @@ public class CPAcheckerMutator extends CPAchecker {
       }
       // construct timelimit
       TimeSpan lowerCap = TimeSpan.ofMillis((long) capMillis);
-      limitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(lowerCap));
+      analysisRoundLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(lowerCap));
       logger.log(
           Level.INFO,
           "Using",
-          Joiner.on(", ").join(Iterables.transform(limitsFactory.create(), ResourceLimit::getName)),
+          Joiner.on(", ")
+              .join(
+                  Iterables.transform(analysisRoundLimitsFactory.create(), ResourceLimit::getName)),
           "for the following rounds");
+      // timelimit for feasibility check
+      cexCheckLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timeForCex));
 
       String shutdownReason = shouldShutdown();
       if (shutdownReason != null) {
@@ -387,7 +377,7 @@ public class CPAcheckerMutator extends CPAchecker {
       return shutdownNotifier.getReason();
     }
 
-    List<ResourceLimit> nextRunLimits = limitsFactory.create();
+    List<ResourceLimit> nextRunLimits = analysisRoundLimitsFactory.create();
     for (ResourceLimit localLimit : nextRunLimits) {
       Class<? extends ResourceLimit> cls = localLimit.getClass();
       long localTimeout = localLimit.nanoSecondsToNextCheck(localLimit.getCurrentValue());
@@ -413,15 +403,16 @@ public class CPAcheckerMutator extends CPAchecker {
     ShutdownNotifier parentNotifier = shutdownNotifier;
     ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
     ResourceLimitChecker limits =
-        new ResourceLimitChecker(roundShutdownManager, limitsFactory.create());
+        new ResourceLimitChecker(roundShutdownManager, analysisRoundLimitsFactory.create());
     if (limits.getResourceLimits().isEmpty()) {
-      pLogger.log(Level.INFO, "No resource limits for round specified");
+      pLogger.log(Level.INFO, "No resource limits for analysis round specified");
     } else {
       pLogger.log(
           Level.INFO,
           "Using",
           Joiner.on(", ")
-              .join(Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName)));
+              .join(Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName)),
+          "for analysis round");
     }
     limits.start();
     pTimer.start();
@@ -479,27 +470,63 @@ public class CPAcheckerMutator extends CPAchecker {
     } else {
       // exception was already logged
     }
-    pLogger.log(Level.INFO, "Used", timer.getSumTime());
+    pLogger.log(Level.INFO, "Used", timer.getSumTime(), "for analysis round");
 
     return new AnalysisResult(cur, t);
   }
 
-  private boolean isFeasible(LogManager pLogger, AnalysisResult pResult)
-      throws InterruptedException {
+  private boolean isFeasible(LogManager pLogger, AnalysisResult pResult) {
+    Timer timer = new Timer();
+    timer.start();
 
-    ImmutableList<ARGPath> targetPaths = pResult.getPathsToTarget();
+    ShutdownNotifier parentNotifier = shutdownNotifier;
+    ShutdownManager feasibilityShutdownManager = ShutdownManager.createWithParent(parentNotifier);
+    ResourceLimitChecker limits =
+        new ResourceLimitChecker(feasibilityShutdownManager, cexCheckLimitsFactory.create());
+    if (limits.getResourceLimits().isEmpty()) {
+      pLogger.log(Level.INFO, "No resource limits for feasibility check specified");
+    } else {
+      pLogger.log(
+          Level.INFO,
+          "Using",
+          Joiner.on(", ")
+              .join(Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName)),
+          "for feasibility check");
+    }
+    limits.start();
+    // pTimer.start();
 
-    for (ARGPath path : targetPaths) {
-      try {
-        if (feasibilityChecker.isFeasible(path)) {
-          return true;
-        }
-
-      } catch (CPAException e) {
-        pLogger.logDebugException(e, "while searching for a feasible error in mutated CFA");
+    AlgorithmStatus status;
+    try {
+      status = cexCheckAlgorithm.run(pResult.result.getReached());
+      assert !status.wasPropertyChecked();
+      if (status.isPrecise()) {
+        // found feasible cex
+        return true;
       }
+
+      assert false : "No counterexamples found, but feasibility is checked";
+
+    } catch (InfeasibleCounterexampleException e) {
+      pLogger.log(Level.INFO, "Counterexamples are infeasible");
+
+    } catch (CPAException e) {
+      pLogger.logUserException(Level.WARNING, e, "while checking counterexample feasibiblity");
+
+    } catch (InterruptedException e) {
+      assert feasibilityShutdownManager.getNotifier().shouldShutdown();
+      // this feasibility check was too long
+      logger.logf(
+          Level.INFO,
+          "Feasibility check interrupted (%s)",
+          feasibilityShutdownManager.getNotifier().getReason());
+
+    } finally {
+      limits.cancel();
+      timer.stop();
     }
 
+    pLogger.log(Level.INFO, "Used", timer.getSumTime(), "for feasibility check");
     return false;
   }
 
@@ -550,16 +577,6 @@ public class CPAcheckerMutator extends CPAchecker {
           && pOther.thrown.getClass().equals(thrown.getClass())
           && (thrown.getStackTrace().length == 0 // optimized by JVM if many exceptions
               || pOther.thrown.getStackTrace()[0].equals(thrown.getStackTrace()[0]));
-    }
-
-    public ImmutableList<ARGPath> getPathsToTarget() {
-      return Optionals.presentInstances(
-              FluentIterable.from(result.getReached())
-                  .filter(AbstractStates::isTargetState)
-                  .filter(ARGState.class)
-                  .transform(ARGState::getCounterexampleInformation))
-          .transform(CounterexampleInfo::getTargetPath)
-          .toList();
     }
 
     public CPAcheckerResult asMutatorResult(

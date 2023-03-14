@@ -962,6 +962,10 @@ cfaMutation.oldStrategies = [
 # on.
 cfaMutation.rollbacksInRowCheck = 5
 
+# Limit time for countrexample feasibility check. This option is used only if
+# CFA mutations are used to find a feasible error.
+cfaMutation.timeLimit.cexCheck = 60s
+
 # Time limit for exporting a CFA. If an export exceeds this limit, CFA
 # exports are disabled for the following rounds. This time limit is not
 # checked if this option is set to zero.
