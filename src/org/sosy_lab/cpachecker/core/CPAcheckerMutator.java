@@ -12,7 +12,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.VerifyException;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -26,7 +25,6 @@ import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.log.LoggingOptions;
-import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.AnalysisOutcome;
@@ -46,22 +44,13 @@ import org.sosy_lab.cpachecker.exceptions.ParserException;
 import org.sosy_lab.cpachecker.util.CPAs;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
-import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
-public class CPAcheckerMutator extends CPAchecker {
+public final class CPAcheckerMutator extends CPAchecker {
 
   private CFAMutationOptions cfaMutationOptions;
-
-  private interface ResourceLimitsFactory {
-    public List<ResourceLimit> create();
-  }
-
-  private ResourceLimitsFactory analysisRoundLimitsFactory;
-  private ResourceLimitsFactory cexCheckLimitsFactory;
-  private final ImmutableList<ResourceLimit> globalLimits;
 
   private final LoggingOptions logOptions;
   private final CFAMutator cfaMutator;
@@ -77,7 +66,7 @@ public class CPAcheckerMutator extends CPAchecker {
       throws InvalidConfigurationException {
 
     super(pConfiguration, pLogManager, pShutdownManager);
-    cfaMutationOptions = new CFAMutationOptions(pConfiguration);
+    cfaMutationOptions = new CFAMutationOptions(pConfiguration, pLimits);
 
     if (getSerializedCfaFile() != null) {
       throw new InvalidConfigurationException(
@@ -85,7 +74,6 @@ public class CPAcheckerMutator extends CPAchecker {
               + "and loading CFA with 'analysis.serializedCfaFile' simultaneously.");
     }
 
-    globalLimits = ImmutableList.copyOf(pLimits.getResourceLimits());
     logOptions = pLogOptions;
     cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
   }
@@ -143,17 +131,6 @@ public class CPAcheckerMutator extends CPAchecker {
       }
       setupCexChecker(originalCfa);
 
-      // set walltime limit for original round
-      analysisRoundLimitsFactory =
-          () -> ImmutableList.of(WalltimeLimit.fromNowOn(cfaMutationOptions.getTimelimitCap()));
-      logger.log(
-          Level.INFO,
-          "Using",
-          Joiner.on(", ")
-              .join(
-                  Iterables.transform(analysisRoundLimitsFactory.create(), ResourceLimit::getName)),
-          "for the original round");
-
       final AnalysisResult originalResult =
           analysisRound(getCfa(), logger, totalStats.originalTime);
 
@@ -162,27 +139,7 @@ public class CPAcheckerMutator extends CPAchecker {
         return originalResult.result;
       }
 
-      // set walltime limit for every single round
-      // compute soft cap
-      double capMillis =
-          totalStats.originalTime.getConsumedTime().asMillis() * cfaMutationOptions.getTimelimitFactor()
-              + cfaMutationOptions.getTimelimitBias().asMillis();
-      // choose lower of hard and soft caps
-      if (capMillis > cfaMutationOptions.getTimelimitCap().asMillis()) {
-        capMillis = cfaMutationOptions.getTimelimitCap().asMillis();
-      }
-      // construct timelimit
-      TimeSpan lowerCap = TimeSpan.ofMillis((long) capMillis);
-      analysisRoundLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(lowerCap));
-      logger.log(
-          Level.INFO,
-          "Using",
-          Joiner.on(", ")
-              .join(
-                  Iterables.transform(analysisRoundLimitsFactory.create(), ResourceLimit::getName)),
-          "for the following rounds");
-      // timelimit for feasibility check
-      cexCheckLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(cfaMutationOptions.getTimeForCex()));
+      cfaMutationOptions.setOriginalTime(totalStats.originalTime.getConsumedTime(), logger);
 
       String shutdownReason = shouldShutdown();
       if (shutdownReason != null) {
@@ -308,20 +265,7 @@ public class CPAcheckerMutator extends CPAchecker {
       return shutdownNotifier.getReason();
     }
 
-    List<ResourceLimit> nextRunLimits = analysisRoundLimitsFactory.create();
-    for (ResourceLimit localLimit : nextRunLimits) {
-      Class<? extends ResourceLimit> cls = localLimit.getClass();
-      long localTimeout = localLimit.nanoSecondsToNextCheck(localLimit.getCurrentValue());
-
-      for (ResourceLimit globalLimit : globalLimits) {
-        if (cls.isInstance(globalLimit)
-            && globalLimit.isExceeded(globalLimit.getCurrentValue() + localTimeout)) {
-          return globalLimit.getName() + " will exceed during next analysis run";
-        }
-      }
-    }
-
-    return null;
+    return cfaMutationOptions.shouldShutdown();
   }
 
   // run analysis, but for already stored CFA, and catch its errors
@@ -334,7 +278,7 @@ public class CPAcheckerMutator extends CPAchecker {
     ShutdownNotifier parentNotifier = shutdownNotifier;
     ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
     ResourceLimitChecker limits =
-        new ResourceLimitChecker(roundShutdownManager, analysisRoundLimitsFactory.create());
+        cfaMutationOptions.getResourceLimitCheckerForAnalysis(roundShutdownManager);
     if (limits.getResourceLimits().isEmpty()) {
       pLogger.log(Level.INFO, "No resource limits for analysis round specified");
     } else {
@@ -413,7 +357,7 @@ public class CPAcheckerMutator extends CPAchecker {
     ShutdownNotifier parentNotifier = shutdownNotifier;
     ShutdownManager feasibilityShutdownManager = ShutdownManager.createWithParent(parentNotifier);
     ResourceLimitChecker limits =
-        new ResourceLimitChecker(feasibilityShutdownManager, cexCheckLimitsFactory.create());
+        cfaMutationOptions.getResourceLimitCheckerForFeasibility(feasibilityShutdownManager);
     if (limits.getResourceLimits().isEmpty()) {
       pLogger.log(Level.INFO, "No resource limits for feasibility check specified");
     } else {
