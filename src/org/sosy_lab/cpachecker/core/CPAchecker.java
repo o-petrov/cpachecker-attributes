@@ -316,6 +316,10 @@ public class CPAchecker {
     CPAs.closeIfPossible(algorithm, logger);
   }
 
+  protected Path getSerializedCfaFile() {
+    return serializedCfaFile;
+  }
+
   protected MainCPAStatistics getStats() {
     return stats;
   }

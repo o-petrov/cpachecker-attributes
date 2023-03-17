@@ -18,16 +18,12 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.ShutdownManager;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
-import org.sosy_lab.common.configuration.Option;
-import org.sosy_lab.common.configuration.Options;
-import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.log.LoggingOptions;
 import org.sosy_lab.common.time.TimeSpan;
@@ -55,66 +51,9 @@ import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
 import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
-@Options(prefix = "cfaMutation")
 public class CPAcheckerMutator extends CPAchecker {
 
-  @Option(
-      secure = true,
-      name = "rollbacksInRowCheck",
-      description =
-          "If a mutation round is unsuccessfull (i.e. sought-for bug does not occur), "
-              + "the mutation is rollbacked. If this count of rollbacks occur in row, "
-              + "check that rollbacked CFA produces the sought-for bug.\n"
-              + "If set to 0, do not check any rollbacks.\n"
-              + "If set to 1, check that bug occurs after every rollback.\n"
-              + "If set to 2, check every other one that occurs immediately after "
-              + "another one, so if 5 rollbacks occur in a row, 2nd and 4th "
-              + "will be checked. And so on.")
-  private int checkAfterRollbacks = 5;
-
-  @Option(
-      secure = true,
-      name = "walltimeLimit.factor",
-      description =
-          "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
-              + "CFA mutator hard caps walltime for every run (200s by default), and also soft "
-              + "caps walltime for the runs after original by multiplying used time by the factor "
-              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
-              + "(first) run gets hard-cap time limit, all others get the lower between the two.")
-  private double timelimitFactor = 2.0;
-
-  @Option(
-      secure = true,
-      name = "walltimeLimit.add",
-      description =
-          "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
-              + "CFA mutator hard caps walltime for every run (200s by default), and also soft "
-              + "caps walltime for the runs after original by multiplying used time by the factor "
-              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
-              + "(first) run gets hard-cap time limit, all others get the lower between the two.")
-  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 0)
-  private TimeSpan timelimitBias = TimeSpan.ofSeconds(5);
-
-  @Option(
-      secure = true,
-      name = "walltimeLimit.hardcap",
-      description =
-          "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
-              + "CFA mutator hard caps walltime for every run (200s by default), and also soft "
-              + "caps walltime for the runs after original by multiplying used time by the factor "
-              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
-              + "(first) run gets hard-cap time limit, all others get the lower between the two.")
-  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
-  private TimeSpan timelimitCap = TimeSpan.ofSeconds(200);
-
-  @Option(
-      secure = true,
-      name = "timeLimit.cexCheck",
-      description =
-          "Limit time for countrexample feasibility check. This option is used only if CFA mutations "
-              + "are used to find a feasible error.")
-  @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
-  private TimeSpan timeForCex = TimeSpan.ofSeconds(60);
+  private CFAMutationOptions cfaMutationOptions;
 
   private interface ResourceLimitsFactory {
     public List<ResourceLimit> create();
@@ -136,23 +75,14 @@ public class CPAcheckerMutator extends CPAchecker {
       ResourceLimitChecker pLimits,
       LoggingOptions pLogOptions)
       throws InvalidConfigurationException {
+
     super(pConfiguration, pLogManager, pShutdownManager);
-    config.inject(this, CPAcheckerMutator.class);
+    cfaMutationOptions = new CFAMutationOptions(pConfiguration);
 
-    if (serializedCfaFile != null) {
+    if (getSerializedCfaFile() != null) {
       throw new InvalidConfigurationException(
-          "CFA mutation needs source files to be parsed into CFA. "
-              + "Either specify 'cfaMutation=true' or specify "
-              + "loading CFA with 'analysis.serializedCfaFile'.");
-    }
-
-    // XXX other way?
-    @SuppressWarnings("deprecation")
-    String withAcsl = config.getProperty("parser.collectACSLAnnotations");
-    if ("true".equals(withAcsl)) {
-      throw new InvalidConfigurationException(
-          "CFA mutation can not handle ACSL annotations. Do not specify "
-              + "'cfaMutation=true' and 'parser.collectACSLAnnotations=true' simultaneously");
+          "CFA mutation needs source files to be parsed into CFA. Do not specify 'cfaMutation=true' "
+              + "and loading CFA with 'analysis.serializedCfaFile' simultaneously.");
     }
 
     globalLimits = ImmutableList.copyOf(pLimits.getResourceLimits());
@@ -214,7 +144,8 @@ public class CPAcheckerMutator extends CPAchecker {
       setupCexChecker(originalCfa);
 
       // set walltime limit for original round
-      analysisRoundLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timelimitCap));
+      analysisRoundLimitsFactory =
+          () -> ImmutableList.of(WalltimeLimit.fromNowOn(cfaMutationOptions.getTimelimitCap()));
       logger.log(
           Level.INFO,
           "Using",
@@ -234,11 +165,11 @@ public class CPAcheckerMutator extends CPAchecker {
       // set walltime limit for every single round
       // compute soft cap
       double capMillis =
-          totalStats.originalTime.getConsumedTime().asMillis() * timelimitFactor
-              + timelimitBias.asMillis();
+          totalStats.originalTime.getConsumedTime().asMillis() * cfaMutationOptions.getTimelimitFactor()
+              + cfaMutationOptions.getTimelimitBias().asMillis();
       // choose lower of hard and soft caps
-      if (capMillis > timelimitCap.asMillis()) {
-        capMillis = timelimitCap.asMillis();
+      if (capMillis > cfaMutationOptions.getTimelimitCap().asMillis()) {
+        capMillis = cfaMutationOptions.getTimelimitCap().asMillis();
       }
       // construct timelimit
       TimeSpan lowerCap = TimeSpan.ofMillis((long) capMillis);
@@ -251,7 +182,7 @@ public class CPAcheckerMutator extends CPAchecker {
                   Iterables.transform(analysisRoundLimitsFactory.create(), ResourceLimit::getName)),
           "for the following rounds");
       // timelimit for feasibility check
-      cexCheckLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(timeForCex));
+      cexCheckLimitsFactory = () -> ImmutableList.of(WalltimeLimit.fromNowOn(cfaMutationOptions.getTimeForCex()));
 
       String shutdownReason = shouldShutdown();
       if (shutdownReason != null) {
@@ -309,11 +240,11 @@ public class CPAcheckerMutator extends CPAchecker {
         }
 
         // Check that property is still preserved after rollback
-        if (rollbacked == null || checkAfterRollbacks == 0) {
+        if (rollbacked == null || cfaMutationOptions.getCheckAfterRollbacks() == 0) {
           // options say pass the check this time
           rollbacksInRow = 0;
 
-        } else if (++rollbacksInRow % checkAfterRollbacks == 0) {
+        } else if (++rollbacksInRow % cfaMutationOptions.getCheckAfterRollbacks() == 0) {
           logger.log(
               Level.INFO, "Running analysis after", rollbacksInRow, "mutation rollback in row");
 
