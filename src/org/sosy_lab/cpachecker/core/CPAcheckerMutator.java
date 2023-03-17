@@ -50,7 +50,7 @@ import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
 public final class CPAcheckerMutator extends CPAchecker {
 
-  private CFAMutationOptions cfaMutationOptions;
+  private CFAMutationLimits cfaMutationLimits;
 
   private final LoggingOptions logOptions;
   private final CFAMutator cfaMutator;
@@ -66,7 +66,8 @@ public final class CPAcheckerMutator extends CPAchecker {
       throws InvalidConfigurationException {
 
     super(pConfiguration, pLogManager, pShutdownManager);
-    cfaMutationOptions = new CFAMutationOptions(pConfiguration, pLimits);
+    cfaMutationLimits =
+        new CFAMutationLimits(pConfiguration, pLogManager, pShutdownManager, pLimits);
 
     if (getSerializedCfaFile() != null) {
       throw new InvalidConfigurationException(
@@ -139,14 +140,10 @@ public final class CPAcheckerMutator extends CPAchecker {
         return originalResult.result;
       }
 
-      cfaMutationOptions.setOriginalTime(totalStats.originalTime.getConsumedTime(), logger);
+      cfaMutationLimits.setOriginalTime(totalStats.originalTime.getConsumedTime(), logger);
 
-      String shutdownReason = shouldShutdown();
-      if (shutdownReason != null) {
-        logger.logf(
-            Level.INFO,
-            "CFA mutation interrupted before it started to mutate the CFA (%s)",
-            shutdownReason);
+      if (cfaMutationLimits.exceedsLimitsForAnalysis(
+          "CFA mutation interrupted before it started to mutate the CFA:")) {
         return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
       }
 
@@ -166,6 +163,10 @@ public final class CPAcheckerMutator extends CPAchecker {
         AnalysisOutcome lastOutcome = lastResult.toAnalysisOutcome(originalResult);
 
         if (cfaMutator.shouldCheckFeasibiblity(lastOutcome)) {
+          if (cfaMutationLimits.exceedsLimitsForFeasibility()) {
+            return lastResult.asMutatorResult(Result.FALSE, cfaMutator, totalStats);
+          }
+
           boolean errorIsFeasible = false;
           try {
             totalStats.feasibilityCheck.start();
@@ -186,22 +187,17 @@ public final class CPAcheckerMutator extends CPAchecker {
 
         CFA rollbacked = cfaMutator.setResult(lastOutcome);
 
-        shutdownReason = shouldShutdown();
-        if (shutdownReason != null) {
-          logger.logf(
-              Level.INFO,
-              "CFA mutation interrupted after %s. analysis round (%s)",
-              round,
-              shutdownReason);
+        if (cfaMutationLimits.exceedsLimitsForAnalysis(
+            String.format("CFA mutation interrupted after %s. analysis round", round))) {
           return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
         }
 
         // Check that property is still preserved after rollback
-        if (rollbacked == null || cfaMutationOptions.getCheckAfterRollbacks() == 0) {
+        if (rollbacked == null || cfaMutationLimits.getCheckAfterRollbacks() == 0) {
           // options say pass the check this time
           rollbacksInRow = 0;
 
-        } else if (++rollbacksInRow % cfaMutationOptions.getCheckAfterRollbacks() == 0) {
+        } else if (++rollbacksInRow % cfaMutationLimits.getCheckAfterRollbacks() == 0) {
           logger.log(
               Level.INFO, "Running analysis after", rollbacksInRow, "mutation rollback in row");
 
@@ -215,13 +211,9 @@ public final class CPAcheckerMutator extends CPAchecker {
             cfaMutator.verifyOutcome(analysisOutcome);
           }
 
-          shutdownReason = shouldShutdown();
-          if (shutdownReason != null) {
-            logger.logf(
-                Level.INFO,
-                "CFA mutation interrupted after rollback after %s. analysis round (%s)",
-                round,
-                shutdownReason);
+          if (cfaMutationLimits.exceedsLimitsForAnalysis(
+              String.format(
+                  "CFA mutation interrupted after rollback after %s. analysis round", round))) {
             return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
           }
         }
@@ -259,15 +251,6 @@ public final class CPAcheckerMutator extends CPAchecker {
     return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
   }
 
-  // check for requested shutdown and whether it is enough time for next analysis run
-  private @Nullable String shouldShutdown() {
-    if (shutdownNotifier.shouldShutdown()) {
-      return shutdownNotifier.getReason();
-    }
-
-    return cfaMutationOptions.shouldShutdown();
-  }
-
   // run analysis, but for already stored CFA, and catch its errors
   private AnalysisResult analysisRound(CFA pCfa, LogManager pLogger, StatTimer pTimer)
       throws InvalidConfigurationException {
@@ -278,7 +261,7 @@ public final class CPAcheckerMutator extends CPAchecker {
     ShutdownNotifier parentNotifier = shutdownNotifier;
     ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
     ResourceLimitChecker limits =
-        cfaMutationOptions.getResourceLimitCheckerForAnalysis(roundShutdownManager);
+        cfaMutationLimits.getResourceLimitCheckerForAnalysis(roundShutdownManager);
     if (limits.getResourceLimits().isEmpty()) {
       pLogger.log(Level.INFO, "No resource limits for analysis round specified");
     } else {
@@ -357,7 +340,7 @@ public final class CPAcheckerMutator extends CPAchecker {
     ShutdownNotifier parentNotifier = shutdownNotifier;
     ShutdownManager feasibilityShutdownManager = ShutdownManager.createWithParent(parentNotifier);
     ResourceLimitChecker limits =
-        cfaMutationOptions.getResourceLimitCheckerForFeasibility(feasibilityShutdownManager);
+        cfaMutationLimits.getResourceLimitCheckerForFeasibility(feasibilityShutdownManager);
     if (limits.getResourceLimits().isEmpty()) {
       pLogger.log(Level.INFO, "No resource limits for feasibility check specified");
     } else {
