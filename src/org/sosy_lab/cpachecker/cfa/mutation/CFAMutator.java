@@ -200,7 +200,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   @Option(
       secure = true,
-      name = "timelimit.forExport",
+      name = "dontExportLonger",
       description =
           "Time limit for exporting a CFA. If an export exceeds this limit, "
               + "CFA exports are disabled for the following rounds. "

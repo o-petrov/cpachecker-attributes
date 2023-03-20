@@ -895,6 +895,12 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # below.
 cfaMutation = false
 
+# Limit time for countrexample feasibility check. This option is used only if
+# CFA mutations are used to find a feasible error. As with analysis
+# timelimit, timelimits with respect to global time limits' types are
+# produced.
+cfaMutation.cex.timelimit = 60s
+
 # which DD algorithm implementation to use to mutate CFA: my previous
 # implementation of original (flat) DD; new implementation of original (flat)
 # DD; DD*, that iterates cause-isolating DD to minimize or maximize;
@@ -934,6 +940,11 @@ cfaMutation.dd.minProperty = {AnalysisOutcome.FAILURE_BECAUSE_OF_SAME_EXCEPTION}
 cfaMutation.dd.parts = DELTAS_AND_COMPLEMENTS
   enum:     [ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
 
+# Time limit for exporting a CFA. If an export exceeds this limit, CFA
+# exports are disabled for the following rounds. This time limit is not
+# checked if this option is set to zero.
+cfaMutation.dontExportLonger = 2s
+
 # directory to dump function CFAs with marked up structured blocks
 cfaMutation.exportBlocksDir = "cfa-structured-blocks"
 
@@ -964,24 +975,19 @@ cfaMutation.oldStrategies = [
 # on.
 cfaMutation.rollbacksInRowCheck = 5
 
-# Limit time for countrexample feasibility check. This option is used only if
-# CFA mutations are used to find a feasible error.
-cfaMutation.timeLimit.cexCheck = 60s
-
-# Time limit for exporting a CFA. If an export exceeds this limit, CFA
-# exports are disabled for the following rounds. This time limit is not
-# checked if this option is set to zero.
-cfaMutation.timelimit.forExport = 2s
-
 # Sometimes analysis run can be unpredictably long. To run many runs
-# successfully, CFA mutator hard caps walltime for every run (200s by
-# default), and also soft caps walltime for the runs after original by
-# multiplying used time by the factor and adding the bias. By default soft
-# cap is orig.time * 2.0 + 5s. Original (first) run gets hard-cap time limit,
-# all others get the lower between the two.
-cfaMutation.walltimeLimit.add = 5s
-cfaMutation.walltimeLimit.factor = 2.0
-cfaMutation.walltimeLimit.hardcap = 200s
+# successfully, CFA mutator hard-caps time for every run (200s by default),
+# and also soft-caps time for the runs after original by multiplying used
+# time by the factor and adding the bias. By default soft cap is orig.time *
+# 2.0 + 5s. Original (first) run gets hard-cap time limit, all others get the
+# lower between the two.
+# For every global timelimit specified for whole mutation process, a
+# timelimit for every type of present global timelimit will be produced.
+# E.g., if both CPU and walltime limits specified, every analysis round gets
+# two timelimits (of CPU and walltime type) with same time span.
+cfaMutation.timelimit.add = 5s
+cfaMutation.timelimit.factor = 2.0
+cfaMutation.timelimit.hardcap = 200s
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false

@@ -54,14 +54,14 @@ final class CFAMutationLimits {
       name = "timelimit.factor",
       description =
           "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
-              + "CFA mutator hard caps time for every run (200s by default), and also soft "
-              + "caps time for the runs after original by multiplying used time by the factor "
-              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
-              + "(first) run gets hardcap time limit, all others get the lower between the two."
-              + "For every global timelimit specified for whole mutation process, "
-              + "a round timelimit of the same type will be produced."
-              + "(E.g., if both cpu and wall time limit specified, every analysis round gets "
-              + "cpu and wall time limits with same time span.)")
+              + "CFA mutator hard-caps time for every run (200s by default), and also soft-caps "
+              + "time for the runs after original by multiplying used time by the factor and "
+              + "adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original (first) "
+              + "run gets hard-cap time limit, all others get the lower between the two.\n"
+              + "For every global timelimit specified for whole mutation process, a timelimit for "
+              + "every type of present global timelimit will be produced. E.g., if both CPU and "
+              + "walltime limits specified, every analysis round gets two timelimits (of CPU and "
+              + "walltime type) with same time span.")
   private double timelimitFactor = 2.0;
 
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 0)
@@ -70,14 +70,14 @@ final class CFAMutationLimits {
       name = "timelimit.add",
       description =
           "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
-              + "CFA mutator hard caps time for every run (200s by default), and also soft "
-              + "caps time for the runs after original by multiplying used time by the factor "
-              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
-              + "(first) run gets hardcap time limit, all others get the lower between the two."
-              + "For every global timelimit specified for whole mutation process, "
-              + "a round timelimit of the same type will be produced."
-              + "(E.g., if both cpu and wall time limit specified, every analysis round gets "
-              + "cpu and wall time limits with same time span.)")
+              + "CFA mutator hard-caps time for every run (200s by default), and also soft-caps "
+              + "time for the runs after original by multiplying used time by the factor and "
+              + "adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original (first) "
+              + "run gets hard-cap time limit, all others get the lower between the two.\n"
+              + "For every global timelimit specified for whole mutation process, a timelimit for "
+              + "every type of present global timelimit will be produced. E.g., if both CPU and "
+              + "walltime limits specified, every analysis round gets two timelimits (of CPU and "
+              + "walltime type) with same time span.")
   private TimeSpan timelimitBias = TimeSpan.ofSeconds(5);
 
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
@@ -86,23 +86,24 @@ final class CFAMutationLimits {
       name = "timelimit.hardcap",
       description =
           "Sometimes analysis run can be unpredictably long. To run many runs successfully, "
-              + "CFA mutator hard caps time for every run (200s by default), and also soft "
-              + "caps time for the runs after original by multiplying used time by the factor "
-              + "and adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original "
-              + "(first) run gets hardcap time limit, all others get the lower between the two."
-              + "For every global timelimit specified for whole mutation process, "
-              + "a round timelimit of the same type will be produced."
-              + "(E.g., if both cpu and wall time limit specified, every analysis round gets "
-              + "cpu and wall time limits with same time span.)")
+              + "CFA mutator hard-caps time for every run (200s by default), and also soft-caps "
+              + "time for the runs after original by multiplying used time by the factor and "
+              + "adding the bias. By default soft cap is orig.time * 2.0 + 5s. Original (first) "
+              + "run gets hard-cap time limit, all others get the lower between the two.\n"
+              + "For every global timelimit specified for whole mutation process, a timelimit for "
+              + "every type of present global timelimit will be produced. E.g., if both CPU and "
+              + "walltime limits specified, every analysis round gets two timelimits (of CPU and "
+              + "walltime type) with same time span.")
   private TimeSpan hardcap = TimeSpan.ofSeconds(200);
 
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
   @Option(
       secure = true,
-      name = "timeLimit.cexCheck",
+      name = "cex.timelimit",
       description =
-          "Limit time for countrexample feasibility check. This option is used only if CFA mutations "
-              + "are used to find a feasible error.")
+          "Limit time for countrexample feasibility check. This option is used only if CFA "
+              + "mutations are used to find a feasible error. As with analysis timelimit, "
+              + "timelimits with respect to global time limits' types are produced.")
   private TimeSpan timeForCex = TimeSpan.ofSeconds(60);
 
   private TimeSpan originalRun;
