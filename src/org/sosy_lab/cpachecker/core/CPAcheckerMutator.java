@@ -10,9 +10,8 @@ package org.sosy_lab.cpachecker.core;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.VerifyException;
-import com.google.common.collect.Iterables;
+import java.io.File;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,29 +19,25 @@ import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.ShutdownManager;
-import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.FileOption;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.configuration.converters.FileTypeConverter;
 import org.sosy_lab.common.log.LogManager;
-import org.sosy_lab.common.log.LoggingOptions;
-import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.AnalysisOutcome;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm.AlgorithmStatus;
-import org.sosy_lab.cpachecker.core.algorithm.NoopAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
+import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.core.specification.Specification;
-import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.exceptions.InfeasibleCounterexampleException;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
-import org.sosy_lab.cpachecker.util.CPAs;
-import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
@@ -50,24 +45,34 @@ import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
 public final class CPAcheckerMutator extends CPAchecker {
 
+  static enum ExportDirectory {
+    FOR_ORIGINAL_RUN,
+    FOR_ANALYSIS,
+    FOR_FEASIBILITY_CHECK,
+    AFTER_ROLLBACK,
+  }
+
   private CFAMutationLimits cfaMutationLimits;
 
-  private final LoggingOptions logOptions;
   private final CFAMutator cfaMutator;
 
-  private CounterexampleCheckAlgorithm cexCheckAlgorithm;
+  private final String defaultOutputDirectory;
+
+  private int round = 0;
 
   public CPAcheckerMutator(
       Configuration pConfiguration,
       LogManager pLogManager,
       ShutdownManager pShutdownManager,
-      ResourceLimitChecker pLimits,
-      LoggingOptions pLogOptions)
+      ResourceLimitChecker pLimits)
       throws InvalidConfigurationException {
 
     super(pConfiguration, pLogManager, pShutdownManager);
     cfaMutationLimits =
         new CFAMutationLimits(pConfiguration, pLogManager, pShutdownManager, pLimits);
+    defaultOutputDirectory =
+        ((FileTypeConverter) Configuration.getDefaultConverters().get(FileOption.class))
+            .getOutputDirectory();
 
     if (getSerializedCfaFile() != null) {
       throw new InvalidConfigurationException(
@@ -75,37 +80,7 @@ public final class CPAcheckerMutator extends CPAchecker {
               + "and loading CFA with 'analysis.serializedCfaFile' simultaneously.");
     }
 
-    logOptions = pLogOptions;
     cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
-  }
-
-  private void setupCexChecker(CFA pCfa)
-      throws InvalidConfigurationException, CPAException, InterruptedException {
-    ConfigurableProgramAnalysis originalCpa = createCPA(pCfa);
-    ConfigurableProgramAnalysis argCpa = CPAs.retrieveCPA(originalCpa, ARGCPA.class);
-
-    if (argCpa == null) {
-      argCpa =
-        ARGCPA
-            .factory()
-            .setChild(originalCpa)
-            .setConfiguration(config)
-            .setLogger(logger)
-            .setShutdownNotifier(shutdownNotifier)
-            .set(getSpecification(), Specification.class)
-            .set(pCfa, CFA.class)
-            .createInstance();
-    }
-
-    cexCheckAlgorithm =
-        new CounterexampleCheckAlgorithm(
-            NoopAlgorithm.INSTANCE,
-            argCpa,
-            config,
-            getSpecification(),
-            logger,
-            shutdownNotifier,
-            pCfa);
   }
 
   @Override
@@ -121,6 +96,7 @@ public final class CPAcheckerMutator extends CPAchecker {
     AnalysisResult lastResult = null;
 
     try {
+      resetExportDirectory(ExportDirectory.FOR_ORIGINAL_RUN);
       parse(cfaMutator, programDenotation);
       totalStats.setCFACreatorStatistics(cfaMutator.getStatistics());
       cfaMutator.clearCreatorStats();
@@ -130,17 +106,20 @@ public final class CPAcheckerMutator extends CPAchecker {
         // invalid input files
         return produceResult();
       }
-      setupCexChecker(originalCfa);
+
+      ConfigurableProgramAnalysis originalCpa = createCPA(originalCfa);
+      Specification originalSpec = getSpecification();
 
       final AnalysisResult originalResult =
-          analysisRound(getCfa(), logger, totalStats.originalTime);
+          analysisRound(originalCfa, totalStats.originalTime, ExportDirectory.FOR_ORIGINAL_RUN);
 
       AnalysisOutcome originalOutcome = originalResult.toAnalysisOutcome(originalResult);
       if (cfaMutator.shouldReturnWithoutMutation(originalOutcome)) {
         return originalResult.result;
       }
 
-      cfaMutationLimits.setOriginalTime(totalStats.originalTime.getConsumedTime(), logger);
+      cfaMutationLimits.setOriginals(
+          originalCpa, originalCfa, originalSpec, totalStats.originalTime.getConsumedTime());
 
       if (cfaMutationLimits.exceedsLimitsForAnalysis(
           "CFA mutation interrupted before it started to mutate the CFA:")) {
@@ -151,12 +130,13 @@ public final class CPAcheckerMutator extends CPAchecker {
       // so no need to pass CFA as argument in next calls
 
       int rollbacksInRow = 0;
-      for (int round = 1; cfaMutator.canMutate(); round++) {
+      for (round = 1; cfaMutator.canMutate(); round++) {
         logger.log(Level.INFO, "Mutation round", round);
 
+        resetExportDirectory(ExportDirectory.FOR_ANALYSIS);
         CFA mutated = cfaMutator.mutate();
-        LogManager roundLogger = cfaMutator.createRoundLogger(logOptions);
-        lastResult = analysisRound(mutated, roundLogger, totalStats.afterMutations);
+        lastResult =
+            analysisRound(mutated, totalStats.afterMutations, ExportDirectory.FOR_ANALYSIS);
         // TODO export intermediate results
         // XXX it is incorrect to save intermediate stats, as reached is updated?
 
@@ -167,10 +147,11 @@ public final class CPAcheckerMutator extends CPAchecker {
             return lastResult.asMutatorResult(Result.FALSE, cfaMutator, totalStats);
           }
 
+          resetExportDirectory(ExportDirectory.FOR_FEASIBILITY_CHECK);
           boolean errorIsFeasible = false;
           try {
             totalStats.feasibilityCheck.start();
-            errorIsFeasible = isFeasible(roundLogger, lastResult);
+            errorIsFeasible = isFeasible(lastResult);
           } finally {
             totalStats.feasibilityCheck.stop();
           }
@@ -185,6 +166,7 @@ public final class CPAcheckerMutator extends CPAchecker {
           logger.log(Level.INFO, lastOutcome);
         }
 
+        resetExportDirectory(ExportDirectory.AFTER_ROLLBACK);
         CFA rollbacked = cfaMutator.setResult(lastOutcome);
 
         if (cfaMutationLimits.exceedsLimitsForAnalysis(
@@ -201,8 +183,8 @@ public final class CPAcheckerMutator extends CPAchecker {
           logger.log(
               Level.INFO, "Running analysis after", rollbacksInRow, "mutation rollback in row");
 
-          LogManager checkLogger = cfaMutator.createRoundLogger(logOptions);
-          lastResult = analysisRound(rollbacked, checkLogger, totalStats.afterRollbacks);
+          lastResult =
+              analysisRound(rollbacked, totalStats.afterRollbacks, ExportDirectory.AFTER_ROLLBACK);
           AnalysisOutcome analysisOutcome = lastResult.toAnalysisOutcome(originalResult);
           // If analysis ended because of a global shutdown, the result may be TIMEOUT
           // otherwise, check it is expected one
@@ -251,31 +233,42 @@ public final class CPAcheckerMutator extends CPAchecker {
     return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
   }
 
-  // run analysis, but for already stored CFA, and catch its errors
-  private AnalysisResult analysisRound(CFA pCfa, LogManager pLogger, StatTimer pTimer)
-      throws InvalidConfigurationException {
-    Timer timer = new Timer();
-    timer.start();
+  public void resetExportDirectory(ExportDirectory pExport) throws InvalidConfigurationException {
+    String exportPath = defaultOutputDirectory + File.separatorChar;
 
-    Throwable t = null;
-    ShutdownNotifier parentNotifier = shutdownNotifier;
-    ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
-    ResourceLimitChecker limits =
-        cfaMutationLimits.getResourceLimitCheckerForAnalysis(roundShutdownManager);
-    if (limits.getResourceLimits().isEmpty()) {
-      pLogger.log(Level.INFO, "No resource limits for analysis round specified");
-    } else {
-      pLogger.log(
-          Level.INFO,
-          "Using",
-          Joiner.on(", ")
-              .join(Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName)),
-          "for analysis round");
+    switch (pExport) {
+      case FOR_ORIGINAL_RUN:
+        assert round == 0;
+        exportPath += "0-original-round";
+        break;
+
+      case FOR_ANALYSIS:
+        exportPath += String.valueOf(round) + "-mutation-round";
+        break;
+
+      case FOR_FEASIBILITY_CHECK:
+        exportPath += String.valueOf(round) + "-mutation-round-feasibility";
+        break;
+
+      case AFTER_ROLLBACK:
+        exportPath += String.valueOf(round) + "-mutation-round-rollback";
+        break;
+
+      default:
+        throw new AssertionError();
     }
-    limits.start();
-    pTimer.start();
 
-    CPAchecker cpachecker = new CPAchecker(config, pLogger, roundShutdownManager);
+    FileTypeConverter fileTypeConverter = FileTypeConverter.create(Configuration.builder().setOption("output.path", exportPath).build());
+    Configuration.getDefaultConverters().put(FileOption.class, fileTypeConverter);
+  }
+
+  // run analysis, but for already stored CFA, and catch its errors
+  private AnalysisResult analysisRound(CFA pCfa, StatTimer pTimer, ExportDirectory pExport)
+      throws InvalidConfigurationException {
+
+    pTimer.start();
+    Throwable t = null;
+    CPAchecker cpachecker = cfaMutationLimits.createCpacheckerAndStartLimits(pExport);
 
     try {
       cpachecker.setupMainStats();
@@ -316,10 +309,9 @@ public final class CPAcheckerMutator extends CPAchecker {
       t = e;
 
     } finally {
-      limits.cancel();
+      cfaMutationLimits.cancelAnalysisLimits();
       cpachecker.closeCPAsIfPossible();
       pTimer.stop();
-      timer.stop();
     }
 
     CPAcheckerResult cur = cpachecker.produceResult();
@@ -328,36 +320,24 @@ public final class CPAcheckerMutator extends CPAchecker {
     } else {
       // exception was already logged
     }
-    pLogger.log(Level.INFO, "Used", timer.getSumTime(), "for analysis round");
 
     return new AnalysisResult(cur, t);
   }
 
-  private boolean isFeasible(LogManager pLogger, AnalysisResult pResult) {
-    Timer timer = new Timer();
-    timer.start();
+  private boolean isFeasible(AnalysisResult pResult)
+      throws InvalidConfigurationException, UnsupportedOperationException {
 
-    ShutdownNotifier parentNotifier = shutdownNotifier;
-    ShutdownManager feasibilityShutdownManager = ShutdownManager.createWithParent(parentNotifier);
-    ResourceLimitChecker limits =
-        cfaMutationLimits.getResourceLimitCheckerForFeasibility(feasibilityShutdownManager);
-    if (limits.getResourceLimits().isEmpty()) {
-      pLogger.log(Level.INFO, "No resource limits for feasibility check specified");
-    } else {
-      pLogger.log(
-          Level.INFO,
-          "Using",
-          Joiner.on(", ")
-              .join(Iterables.transform(limits.getResourceLimits(), ResourceLimit::getName)),
-          "for feasibility check");
-    }
-    limits.start();
-    // pTimer.start();
+    AlgorithmStatus status = AlgorithmStatus.SOUND_AND_PRECISE;
 
-    AlgorithmStatus status;
     try {
-      status = cexCheckAlgorithm.run(pResult.result.getReached());
-      assert !status.wasPropertyChecked();
+      CounterexampleCheckAlgorithm cexCheckAlgorithm =
+          cfaMutationLimits.createLoggerAndStartLimitsForCheck();
+
+      ReachedSet reached = pResult.result.getReached();
+      // hack to make cex check run once...
+      reached.reAddToWaitlist(reached.getFirstState());
+
+      status = cexCheckAlgorithm.run(reached);
       if (status.isPrecise()) {
         // found feasible cex
         return true;
@@ -366,25 +346,19 @@ public final class CPAcheckerMutator extends CPAchecker {
       assert false : "No counterexamples found, but feasibility is checked";
 
     } catch (InfeasibleCounterexampleException e) {
-      pLogger.log(Level.INFO, "Counterexamples are infeasible");
+      logger.log(Level.INFO, "Counterexamples are infeasible");
 
     } catch (CPAException e) {
-      pLogger.logUserException(Level.WARNING, e, "while checking counterexample feasibiblity");
+      logger.logUserException(Level.WARNING, e, "while checking counterexample feasibiblity");
 
     } catch (InterruptedException e) {
-      assert feasibilityShutdownManager.getNotifier().shouldShutdown();
       // this feasibility check was too long
-      logger.logf(
-          Level.INFO,
-          "Feasibility check interrupted (%s)",
-          feasibilityShutdownManager.getNotifier().getReason());
+      logger.logf(Level.INFO, "Feasibility check interrupted (%s)", e.getMessage());
 
     } finally {
-      limits.cancel();
-      timer.stop();
+      cfaMutationLimits.cancelCheckLimits();
     }
 
-    pLogger.log(Level.INFO, "Used", timer.getSumTime(), "for feasibility check");
     return false;
   }
 

@@ -53,7 +53,7 @@ import org.sosy_lab.cpachecker.util.AbstractStates;
 public class CounterexampleCheckAlgorithm
     implements Algorithm, StatisticsProvider, Statistics, ReachedSetUpdater {
 
-  enum CounterexampleCheckerType {
+  public enum CounterexampleCheckerType {
     CBMC,
     CPACHECKER,
     CONCRETE_EXECUTION;

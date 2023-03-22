@@ -12,27 +12,23 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.io.MoreFiles;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
 import java.util.logging.Level;
 import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.ClassOption;
 import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.FileOption;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.configuration.TimeSpanOption;
-import org.sosy_lab.common.log.BasicLogManager;
+import org.sosy_lab.common.configuration.converters.FileTypeConverter;
 import org.sosy_lab.common.log.LogManager;
-import org.sosy_lab.common.log.LoggingOptions;
-import org.sosy_lab.common.log.TimestampedLogFormatter;
 import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CFACreator;
@@ -192,14 +188,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
   @Option(
       secure = true,
-      name = "logFilesLevel",
-      description =
-          "Create log file for every round with this logging level.\n"
-              + "Use main file logging level if that is lower.")
-  private Level fileLogLevel = Level.FINE;
-
-  @Option(
-      secure = true,
       name = "dontExportLonger",
       description =
           "Time limit for exporting a CFA. If an export exceeds this limit, "
@@ -215,8 +203,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   /** Strategy that decides how to change the CFA and implements this change */
   private final CFAMutationStrategy strategy;
 
-  private final Path cfaExportDirectory;
-
   private final CFAMutatorStatistics mutatorStats;
 
   private enum CanMutate {
@@ -231,11 +217,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
       throws InvalidConfigurationException {
     super(pConfig, pLogger, pShutdownNotifier);
     config.inject(this, CFAMutator.class);
-
-    if (exportDirectory == null) {
-      throw new InvalidConfigurationException("Enable output to get results of CFA mutation");
-    }
-    cfaExportDirectory = exportDirectory;
 
     if (ddVariant == DDVariant.OLD) {
       // use previous impl
@@ -317,12 +298,19 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     }
   }
 
+  // current output directory changes every round
+  private Path getDirectory() {
+    return ((FileTypeConverter) Configuration.getDefaultConverters().get(FileOption.class))
+        .getOutputPath();
+  }
+
   @Override
   protected void exportCFA(CFA pCfa) {
     if (exportWasTooLong) {
       return;
     }
 
+    exportDirectory = getDirectory();
     mutatorStats.startExport();
     super.exportCFA(pCfa);
     mutatorStats.stopExport();
@@ -341,18 +329,11 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   private CFA exportCreateExportCFA()
       throws InvalidConfigurationException, InterruptedException, ParserException {
 
-    if (mutatorStats.getRound() == 0) {
-      exportDirectory = cfaExportDirectory.resolve("0-original-cfa");
-    } else {
-      exportDirectory =
-          cfaExportDirectory.resolve(String.valueOf(mutatorStats.getRound()) + "-mutation-round");
-    }
-
     if (!exportWasTooLong) {
       mutatorStats.startExport();
       try {
         new DOTBuilder2(localCfa)
-            .writeGraphs(exportDirectory.resolve("function-cfas-before-processing"));
+            .writeGraphs(getDirectory().resolve("function-cfas-before-processing"));
       } catch (IOException e) {
         logger.logUserException(
             Level.WARNING, e, "Could not write function CFAs before processing to dot files");
@@ -411,7 +392,8 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
     if (strategy instanceof AbstractDeltaDebuggingStrategy<?>) {
       mutatorStats.startExport();
-      ((AbstractDeltaDebuggingStrategy<?>) strategy).exportGraph(exportDirectory);
+      ((AbstractDeltaDebuggingStrategy<?>) strategy)
+          .exportGraph(getDirectory().resolve("strategy-export"));
       mutatorStats.stopExport();
     }
 
@@ -453,7 +435,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
     mutatorStats.setCfaStats(rollbackedCfa);
 
     exportDirectory =
-        cfaExportDirectory.resolve(
+        exportDirectory.resolveSibling(
             String.valueOf(mutatorStats.getRound())
                 + "-mutation-round-"
                 + (mutationRollback == MutationRollback.ROLLBACK ? "rollbacked" : "irregular"));
@@ -466,37 +448,6 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
   public void collectStatistics(Collection<Statistics> pStatsCollection) {
     pStatsCollection.add(mutatorStats);
     strategy.collectStatistics(pStatsCollection);
-  }
-
-  public LogManager createRoundLogger(LoggingOptions pLogOptions) {
-    LogManager result = LogManager.createNullLogManager();
-
-    Path logFile = pLogOptions.getOutputFile();
-    if (logFile == null || pLogOptions.getFileLevel() == Level.OFF) {
-      return result;
-    }
-    logFile = exportDirectory.resolve(logFile.getFileName());
-
-    // create logger to given file
-    Level fileLevel =
-        fileLogLevel.intValue() <= pLogOptions.getFileLevel().intValue()
-            ? fileLogLevel
-            : pLogOptions.getFileLevel();
-
-    try {
-      MoreFiles.createParentDirectories(logFile);
-      Handler outfileHandler = new FileHandler(logFile.toAbsolutePath().toString(), false);
-      outfileHandler.setFilter(null);
-      outfileHandler.setFormatter(TimestampedLogFormatter.withoutColors());
-      outfileHandler.setLevel(fileLevel);
-      result = BasicLogManager.createWithHandler(outfileHandler);
-
-    } catch (IOException e) {
-      // redirect log messages to console
-      logger.logUserException(Level.WARNING, e, "Can not log to file");
-    }
-
-    return result;
   }
 
   public String getApproachName() {

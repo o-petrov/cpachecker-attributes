@@ -10,21 +10,47 @@ package org.sosy_lab.cpachecker.core;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.io.MoreFiles;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.FileHandler;
+import java.util.logging.Handler;
 import java.util.logging.Level;
 import javax.management.JMException;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.sosy_lab.common.ShutdownManager;
+import org.sosy_lab.common.ShutdownNotifier;
 import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.ConfigurationBuilder;
+import org.sosy_lab.common.configuration.FileOption;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.configuration.TimeSpanOption;
+import org.sosy_lab.common.log.BasicLogManager;
 import org.sosy_lab.common.log.LogManager;
+import org.sosy_lab.common.log.LoggingOptions;
+import org.sosy_lab.common.log.TimestampedLogFormatter;
 import org.sosy_lab.common.time.TimeSpan;
+import org.sosy_lab.common.time.Timer;
+import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CParser;
 import org.sosy_lab.cpachecker.cfa.CParser.ParserOptions;
+import org.sosy_lab.cpachecker.core.CPAcheckerMutator.ExportDirectory;
+import org.sosy_lab.cpachecker.core.algorithm.NoopAlgorithm;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm.CounterexampleCheckerType;
+import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
+import org.sosy_lab.cpachecker.core.specification.Specification;
+import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
+import org.sosy_lab.cpachecker.exceptions.CPAException;
+import org.sosy_lab.cpachecker.util.CPAs;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTime;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTimeLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
@@ -34,6 +60,14 @@ import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
 
 @Options(prefix = "cfaMutation")
 final class CFAMutationLimits {
+
+  @Option(
+      secure = true,
+      name = "logFilesLevel",
+      description =
+          "Create log file for every round with this logging level.\n"
+              + "Use main file logging level if that is lower.")
+  private Level fileLogLevel = Level.FINE;
 
   @Option(
       secure = true,
@@ -96,6 +130,21 @@ final class CFAMutationLimits {
               + "walltime type) with same time span.")
   private TimeSpan hardcap = TimeSpan.ofSeconds(200);
 
+  @Option(
+      secure = true,
+      name = "cex.checker",
+      description =
+          "Which model checker to use for verifying counterexample when an error is found using "
+              + "CFA mutations. Currently CBMC, CPAchecker with a different config, or the concrete "
+              + "execution checker can be used.")
+  private CounterexampleCheckerType checkerType = CounterexampleCheckerType.CBMC;
+
+  @Option(
+      secure = true,
+      name = "cex.checker.config",
+      description = "If CPAchecker is used as CEX-checker, it uses this configuration file.")
+  private @Nullable String cpacheckerConfigFile;
+
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
   @Option(
       secure = true,
@@ -110,9 +159,21 @@ final class CFAMutationLimits {
 
   private final ImmutableList<ResourceLimit> globalLimits;
 
+  private final Configuration config;
   private final LogManager logger;
-
   private final ShutdownManager shutdownManager;
+
+  private ConfigurableProgramAnalysis originalCpa;
+
+  private CFA originalCfa;
+
+  private Specification originalSpec;
+
+  private ResourceLimitChecker currentLimits;
+
+  private final Timer currentTimer = new Timer();
+
+  private LogManager currentLogger;
 
   public CFAMutationLimits(
       Configuration pConfig,
@@ -121,10 +182,18 @@ final class CFAMutationLimits {
       ResourceLimitChecker pLimits)
       throws InvalidConfigurationException {
 
+    config = Preconditions.checkNotNull(pConfig);
     logger = Preconditions.checkNotNull(pLogger);
     shutdownManager = Preconditions.checkNotNull(pShutdownManager);
 
-    pConfig.inject(this, CFAMutationLimits.class);
+    config.inject(this, CFAMutationLimits.class);
+
+    if (checkerType == CounterexampleCheckerType.CPACHECKER
+        && Strings.isNullOrEmpty(cpacheckerConfigFile)) {
+      throw new InvalidConfigurationException(
+          "CEX check to validate an error found during CFA mutations uses CPAchecker, "
+              + "but no config was specified for it");
+    }
 
     ParserOptions parserOptions = CParser.Factory.getOptions(pConfig);
     if (parserOptions.shouldCollectACSLAnnotations()) {
@@ -210,24 +279,19 @@ final class CFAMutationLimits {
     return produceLimitsFromNowOn(lowerCap);
   }
 
-  public ResourceLimitChecker getResourceLimitCheckerForAnalysis(ShutdownManager pShutdownManager) {
-    return new ResourceLimitChecker(pShutdownManager, getLimitsForAnalysis());
-  }
-
-  public ResourceLimitChecker getResourceLimitCheckerForFeasibility(
-      ShutdownManager pShutdownManager) {
-    return new ResourceLimitChecker(pShutdownManager, produceLimitsFromNowOn(timeForCex));
-  }
-
-  public void setOriginalTime(TimeSpan pConsumedTime, LogManager pLogger) {
+  public void setOriginals(ConfigurableProgramAnalysis pCpa, CFA pCfa,  Specification pSpec, TimeSpan pConsumedTime) {
     Preconditions.checkState(originalRun == null);
     originalRun = pConsumedTime;
 
-    pLogger.log(
+    logger.log(
         Level.INFO,
         "Using",
         Joiner.on(", ").join(Iterables.transform(getLimitsForAnalysis(), ResourceLimit::getName)),
         "for the following rounds");
+
+    originalCpa = pCpa;
+    originalCfa = pCfa;
+    originalSpec = pSpec;
   }
 
   public boolean exceedsLimitsForAnalysis(String pDescription) {
@@ -265,5 +329,203 @@ final class CFAMutationLimits {
     }
 
     return false;
+  }
+
+
+  public Configuration createRoundConfig(ExportDirectory pExport)
+      throws InvalidConfigurationException {
+    ConfigurationBuilder builder = Configuration.builder().copyFrom(config);
+
+    if (pExport == ExportDirectory.FOR_FEASIBILITY_CHECK) {
+      builder.setOption("counterexample.checker", checkerType.name());
+
+      switch (checkerType) {
+        case CBMC:
+          builder.setOption("cbmc.timelimit", timeForCex.toString());
+          break;
+
+        case CONCRETE_EXECUTION:
+          builder.setOption("counterexample.concrete.timelimit", timeForCex.toString());
+          break;
+
+        case CPACHECKER:
+          builder.setOption("counterexample.checker.config", cpacheckerConfigFile);
+          // other checkers use only one time limit (XXX cpu or wall, lets say cpu)
+          builder.setOption("limits.time.cpu", timeForCex.toString());
+          break;
+
+        default:
+          throw new AssertionError("unexpected CEX checker type " + checkerType);
+      }
+
+    } else {
+      // analysis
+      builder.setOptions(getRoundLimitOptions());
+    }
+
+    return builder
+        .addConverter(FileOption.class, Configuration.getDefaultConverters().get(FileOption.class))
+        .build();
+  }
+
+  private Map<String, String> getRoundLimitOptions() {
+    ImmutableMap.Builder<String, String> result = ImmutableMap.builder();
+    ImmutableList<ResourceLimit> roundLimits = getLimitsForAnalysis();
+
+    for (ResourceLimit limit : roundLimits) {
+      String key;
+      if (limit instanceof ProcessCpuTimeLimit) {
+        key = "limits.time.cpu";
+      } else if (limit instanceof ThreadCpuTimeLimit) {
+        key = "limits.time.cpu.thread";
+      } else if (limit instanceof WalltimeLimit) {
+        key = "limits.time.wall";
+      } else {
+        throw new AssertionError("unexpeted " + limit.getClass() + " class of time limit " + limit);
+      }
+
+      result.put(key, String.format("%dns", limit.nanoSecondsToNextCheck(limit.getCurrentValue())));
+    }
+
+    return result.build();
+  }
+
+  public LogManager createRoundLogger(Configuration pConfig) throws InvalidConfigurationException {
+    LoggingOptions logOptions = new LoggingOptions(pConfig);
+    LogManager result = LogManager.createNullLogManager();
+
+    Path logFile = logOptions.getOutputFile();
+    if (logFile == null || logOptions.getFileLevel() == Level.OFF) {
+      return result;
+    }
+
+    // create logger to given file
+    Level fileLevel =
+        fileLogLevel.intValue() <= logOptions.getFileLevel().intValue()
+            ? fileLogLevel
+            : logOptions.getFileLevel();
+
+    try {
+      MoreFiles.createParentDirectories(logFile);
+      Handler outfileHandler = new FileHandler(logFile.toAbsolutePath().toString(), false);
+      outfileHandler.setFilter(null);
+      outfileHandler.setFormatter(TimestampedLogFormatter.withoutColors());
+      outfileHandler.setLevel(fileLevel);
+      result = BasicLogManager.createWithHandler(outfileHandler);
+
+    } catch (IOException e) {
+      // redirect log messages to console
+      logger.logUserException(Level.WARNING, e, "Can not log to file");
+    }
+
+    return result;
+  }
+
+  private void startAnalysisLimits(LogManager roundLogger, ShutdownManager pShutdownManager) {
+    currentLogger = roundLogger;
+    currentTimer.start();
+
+    ImmutableList<ResourceLimit> timeSpans = getLimitsForAnalysis();
+    currentLimits = new ResourceLimitChecker(pShutdownManager, timeSpans);
+
+    if (timeSpans.isEmpty()) {
+      roundLogger.log(Level.INFO, "No resource limits for analysis round specified");
+
+    } else {
+      roundLogger.log(
+          Level.INFO,
+          "Using",
+          Joiner.on(", ").join(Iterables.transform(timeSpans, ResourceLimit::getName)),
+          "for analysis round");
+    }
+
+    currentLimits.start();
+  }
+
+  public CPAchecker createCpacheckerAndStartLimits(ExportDirectory pExport)
+      throws InvalidConfigurationException {
+    Configuration roundConfig = createRoundConfig(pExport);
+    LogManager roundLogger = createRoundLogger(roundConfig);
+
+    ShutdownNotifier parentNotifier = shutdownManager.getNotifier();
+    ShutdownManager roundShutdownManager = ShutdownManager.createWithParent(parentNotifier);
+
+    startAnalysisLimits(roundLogger, roundShutdownManager);
+    return new CPAchecker(roundConfig, roundLogger, roundShutdownManager);
+  }
+
+  public void cancelAnalysisLimits() {
+    currentLimits.cancel();
+    currentTimer.stop();
+    currentLogger.log(
+        Level.INFO, "Used", currentTimer.getLengthOfLastInterval(), "for analysis round");
+  }
+
+  private void startCheckLimits(LogManager checkLogger, ShutdownManager pShutdownManager) {
+    currentLogger = checkLogger;
+    currentTimer.start();
+
+    ImmutableList<ResourceLimit> timeSpans = produceLimitsFromNowOn(timeForCex);
+    currentLimits = new ResourceLimitChecker(pShutdownManager, timeSpans);
+
+    if (timeSpans.isEmpty()) {
+      currentLogger.log(Level.INFO, "No resource limits for feasibility check specified");
+
+    } else {
+      currentLogger.log(
+          Level.INFO,
+          "Using",
+          Joiner.on(", ").join(Iterables.transform(timeSpans, ResourceLimit::getName)),
+          "for feasibility check");
+    }
+
+    currentLimits.start();
+  }
+
+  public CounterexampleCheckAlgorithm createLoggerAndStartLimitsForCheck()
+      throws InvalidConfigurationException, UnsupportedOperationException, CPAException,
+          InterruptedException {
+    Configuration checkConfig = createRoundConfig(ExportDirectory.FOR_FEASIBILITY_CHECK);
+    LogManager checkLogger = createRoundLogger(checkConfig);
+    checkLogger.log(Level.FINE, "FINE.");
+
+    ShutdownNotifier parentNotifier = shutdownManager.getNotifier();
+    ShutdownManager fMan = ShutdownManager.createWithParent(parentNotifier);
+
+    ConfigurableProgramAnalysis argCpa = CPAs.retrieveCPA(originalCpa, ARGCPA.class);
+
+    if (argCpa == null) {
+      checkLogger.log(Level.FINE, "Adding ARG CPA as root");
+      argCpa =
+          ARGCPA
+              .factory()
+              .setChild(originalCpa)
+              .setConfiguration(checkConfig)
+              .setLogger(checkLogger)
+              .setShutdownNotifier(fMan.getNotifier())
+              .set(originalSpec, Specification.class)
+              .set(originalCfa, CFA.class)
+              .createInstance();
+    }
+
+    System.out.println(logger);
+    System.out.println(checkLogger);
+
+    startCheckLimits(checkLogger, fMan);
+    return new CounterexampleCheckAlgorithm(
+        NoopAlgorithm.CLEAR_WAITLIST,
+        argCpa,
+        checkConfig,
+        originalSpec,
+        checkLogger,
+        fMan.getNotifier(),
+        originalCfa);
+  }
+
+  public void cancelCheckLimits() {
+    currentLimits.cancel();
+    currentTimer.stop();
+    currentLogger.log(
+        Level.INFO, "Used", currentTimer.getLengthOfLastInterval(), "for feasibility check");
   }
 }

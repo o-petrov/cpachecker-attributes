@@ -145,8 +145,7 @@ public class CPAMain {
       limits.start();
 
       if (options.cfaMutation) {
-        cpachecker =
-            new CPAcheckerMutator(cpaConfig, logManager, shutdownManager, limits, logOptions);
+        cpachecker = new CPAcheckerMutator(cpaConfig, logManager, shutdownManager, limits);
       } else {
         cpachecker = new CPAchecker(cpaConfig, logManager, shutdownManager);
       }

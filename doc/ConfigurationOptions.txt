@@ -895,6 +895,15 @@ cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
 # below.
 cfaMutation = false
 
+# Which model checker to use for verifying counterexample when an error is
+# found using CFA mutations. Currently CBMC, CPAchecker with a different
+# config, or the concrete execution checker can be used.
+cfaMutation.cex.checker = CBMC
+  enum:     [CBMC, CPACHECKER, CONCRETE_EXECUTION]
+
+# If CPAchecker is used as CEX-checker, it uses this configuration file.
+cfaMutation.cex.checker.config = no default value
+
 # Limit time for countrexample feasibility check. This option is used only if
 # CFA mutations are used to find a feasible error. As with analysis
 # timelimit, timelimits with respect to global time limits' types are
