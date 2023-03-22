@@ -12,15 +12,10 @@ import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 
 public enum NoopAlgorithm implements Algorithm {
-  INSTANCE,
-  CLEAR_WAITLIST;
+  INSTANCE;
 
   @Override
   public AlgorithmStatus run(ReachedSet pReachedSet) throws CPAException, InterruptedException {
-
-    if (this == NoopAlgorithm.CLEAR_WAITLIST) {
-      pReachedSet.clearWaitlist();
-    }
 
     return AlgorithmStatus.NO_PROPERTY_CHECKED;
   }

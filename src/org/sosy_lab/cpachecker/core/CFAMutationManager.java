@@ -43,12 +43,16 @@ import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CParser;
 import org.sosy_lab.cpachecker.cfa.CParser.ParserOptions;
 import org.sosy_lab.cpachecker.core.CPAcheckerMutator.AnalysisRun;
-import org.sosy_lab.cpachecker.core.algorithm.NoopAlgorithm;
-import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CBMCChecker;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.ConcretePathExecutionChecker;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCPAchecker;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm.CounterexampleCheckerType;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleChecker;
+import org.sosy_lab.cpachecker.core.counterexample.AssumptionToEdgeAllocator;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.specification.Specification;
 import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
+import org.sosy_lab.cpachecker.cpa.arg.ARGUtils;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.util.CPAs;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTime;
@@ -480,9 +484,8 @@ final class CFAMutationManager {
     currentLimits.start();
   }
 
-  public CounterexampleCheckAlgorithm createCEXCheckerAndStartLimits()
-      throws InvalidConfigurationException, UnsupportedOperationException, CPAException,
-          InterruptedException {
+  public CounterexampleChecker createCEXCheckerAndStartLimits()
+      throws InvalidConfigurationException, InterruptedException {
     Configuration checkConfig = createRoundConfig(AnalysisRun.FEASIBILITY_CHECK);
     LogManager checkLogger = createRoundLogger(checkConfig);
 
@@ -493,27 +496,51 @@ final class CFAMutationManager {
 
     if (argCpa == null) {
       checkLogger.log(Level.INFO, "Adding ARG CPA as root");
-      argCpa =
-          ARGCPA
-              .factory()
-              .setChild(originalCpa)
-              .setConfiguration(checkConfig)
-              .setLogger(checkLogger)
-              .setShutdownNotifier(fMan.getNotifier())
-              .set(originalSpec, Specification.class)
-              .set(originalCfa, CFA.class)
-              .createInstance();
+      try {
+        argCpa =
+            ARGCPA
+                .factory()
+                .setChild(originalCpa)
+                .setConfiguration(checkConfig)
+                .setLogger(checkLogger)
+                .setShutdownNotifier(fMan.getNotifier())
+                .set(originalSpec, Specification.class)
+                .set(originalCfa, CFA.class)
+                .createInstance();
+      } catch (UnsupportedOperationException | CPAException e) {
+        logger.logUserException(Level.SEVERE, e, null);
+        throw new InvalidConfigurationException(
+            "Cannot add ARG CPA as root of CPAs. Counterexample checks are not possible");
+      }
+      originalCpa = argCpa;
     }
 
     startCheckLimits(checkLogger, fMan);
-    return new CounterexampleCheckAlgorithm(
-        NoopAlgorithm.CLEAR_WAITLIST,
-        argCpa,
-        checkConfig,
-        originalSpec,
-        checkLogger,
-        fMan.getNotifier(),
-        originalCfa);
+
+    switch (checkerType) {
+      case CBMC:
+        return new CBMCChecker(checkConfig, checkLogger, originalCfa);
+
+      case CPACHECKER:
+        AssumptionToEdgeAllocator assumptionToEdgeAllocator =
+            AssumptionToEdgeAllocator.create(
+                checkConfig, checkLogger, originalCfa.getMachineModel());
+        return new CounterexampleCPAchecker(
+            checkConfig,
+            originalSpec,
+            logger,
+            fMan.getNotifier(),
+            originalCfa,
+            s ->
+                ARGUtils.tryGetOrCreateCounterexampleInformation(
+                    s, originalCpa, assumptionToEdgeAllocator));
+
+      case CONCRETE_EXECUTION:
+        return new ConcretePathExecutionChecker(checkConfig, checkLogger, originalCfa);
+
+      default:
+        throw new AssertionError("Unhandled case statement: " + checkerType);
+    }
   }
 
   public void cancelCheckLimits() {
@@ -521,5 +548,9 @@ final class CFAMutationManager {
     currentTimer.stop();
     currentLogger.log(
         Level.INFO, "Used", currentTimer.getLengthOfLastInterval(), "for feasibility check");
+  }
+
+  public LogManager getCurrentLogger() {
+    return currentLogger;
   }
 }

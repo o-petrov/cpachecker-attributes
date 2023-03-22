@@ -9,8 +9,10 @@
 package org.sosy_lab.cpachecker.core;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.FluentIterable.from;
 
 import com.google.common.base.VerifyException;
+import com.google.common.collect.ImmutableSet;
 import java.io.File;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -28,16 +30,18 @@ import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.mutation.AnalysisOutcome;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
-import org.sosy_lab.cpachecker.core.algorithm.Algorithm.AlgorithmStatus;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleChecker;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.core.specification.Specification;
+import org.sosy_lab.cpachecker.cpa.arg.ARGState;
+import org.sosy_lab.cpachecker.cpa.arg.ARGUtils;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
-import org.sosy_lab.cpachecker.exceptions.InfeasibleCounterexampleException;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
+import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 import org.sosy_lab.cpachecker.util.statistics.StatTimer;
 import org.sosy_lab.cpachecker.util.statistics.StatTimerWithMoreOutput;
@@ -324,32 +328,58 @@ public final class CPAcheckerMutator extends CPAchecker {
     return new AnalysisResult(cur, t);
   }
 
-  private boolean isFeasible(AnalysisResult pResult)
-      throws InvalidConfigurationException, UnsupportedOperationException {
-
-    AlgorithmStatus status = AlgorithmStatus.SOUND_AND_PRECISE;
+  /** Mostly copied from {@link CounterexampleCheckAlgorithm} */
+  private boolean isFeasible(AnalysisResult pResult) throws InvalidConfigurationException {
 
     try {
-      CounterexampleCheckAlgorithm cexCheckAlgorithm =
-          cfaMutationManager.createCEXCheckerAndStartLimits();
-
+      CounterexampleChecker cexChecker = cfaMutationManager.createCEXCheckerAndStartLimits();
+      LogManager curLogger = cfaMutationManager.getCurrentLogger();
       ReachedSet reached = pResult.result.getReached();
-      // hack to make cex check run once...
-      reached.reAddToWaitlist(reached.getFirstState());
 
-      status = cexCheckAlgorithm.run(reached);
-      if (status.isPrecise()) {
-        // found feasible cex
-        return true;
+      assert ARGUtils.checkARG(reached);
+
+      final List<ARGState> errorStates =
+          from(reached)
+              .transform(AbstractStates.toState(ARGState.class))
+              .filter(AbstractStates::isTargetState)
+              .toList();
+
+      assert !errorStates.isEmpty() : "no error states while CEX check";
+
+      // check counterexample
+      for (ARGState errorState : errorStates) {
+        curLogger.log(
+            Level.FINE,
+            "Path to error state",
+            errorState.getClass().getSimpleName(),
+            errorState.getStateId(),
+            errorState
+                .getCounterexampleInformation()
+                .map(cex -> String.format("(CEX #%d)", cex.getUniqueId()))
+                .orElse("(without CEX info)"),
+            "found, starting counterexample check");
+
+        try {
+          // if (ambigiousARG) {
+          //   statesOnErrorPath = SlicingAbstractionsUtils.getStatesOnErrorPath(errorState);
+          ImmutableSet<ARGState> statesOnErrorPath = ARGUtils.getAllStatesOnPathsTo(errorState);
+
+          if (cexChecker.checkCounterexample(
+              (ARGState) reached.getFirstState(), errorState, statesOnErrorPath)) {
+            logger.log(Level.INFO, "Error path confirmed by counterexample check");
+            return true;
+          }
+
+        } catch (CPAException e) {
+          logger.logUserException(
+              Level.WARNING, e, "Counterexample found, but feasibility could not be verified");
+        }
+
+        curLogger.log(Level.FINE, "This error path identified as infeasible.");
       }
 
-      assert false : "No counterexamples found, but feasibility is checked";
-
-    } catch (InfeasibleCounterexampleException e) {
-      logger.log(Level.INFO, "Counterexamples are infeasible");
-
-    } catch (CPAException e) {
-      logger.logUserException(Level.WARNING, e, "while checking counterexample feasibiblity");
+      logger.log(Level.INFO, "No feasible error path found");
+      return false;
 
     } catch (InterruptedException e) {
       // this feasibility check was too long
