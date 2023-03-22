@@ -45,14 +45,14 @@ import org.sosy_lab.cpachecker.util.statistics.StatisticsUtils;
 
 public final class CPAcheckerMutator extends CPAchecker {
 
-  static enum ExportDirectory {
-    FOR_ORIGINAL_RUN,
-    FOR_ANALYSIS,
-    FOR_FEASIBILITY_CHECK,
+  static enum AnalysisRun {
+    ORIGINAL,
+    AFTER_MUTATION,
+    FEASIBILITY_CHECK,
     AFTER_ROLLBACK,
   }
 
-  private CFAMutationLimits cfaMutationLimits;
+  private CFAMutationManager cfaMutationManager;
 
   private final CFAMutator cfaMutator;
 
@@ -68,8 +68,8 @@ public final class CPAcheckerMutator extends CPAchecker {
       throws InvalidConfigurationException {
 
     super(pConfiguration, pLogManager, pShutdownManager);
-    cfaMutationLimits =
-        new CFAMutationLimits(pConfiguration, pLogManager, pShutdownManager, pLimits);
+    cfaMutationManager =
+        new CFAMutationManager(pConfiguration, pLogManager, pShutdownManager, pLimits);
     defaultOutputDirectory =
         ((FileTypeConverter) Configuration.getDefaultConverters().get(FileOption.class))
             .getOutputDirectory();
@@ -96,7 +96,7 @@ public final class CPAcheckerMutator extends CPAchecker {
     AnalysisResult lastResult = null;
 
     try {
-      resetExportDirectory(ExportDirectory.FOR_ORIGINAL_RUN);
+      resetExportDirectory(AnalysisRun.ORIGINAL);
       parse(cfaMutator, programDenotation);
       totalStats.setCFACreatorStatistics(cfaMutator.getStatistics());
       cfaMutator.clearCreatorStats();
@@ -111,17 +111,17 @@ public final class CPAcheckerMutator extends CPAchecker {
       Specification originalSpec = getSpecification();
 
       final AnalysisResult originalResult =
-          analysisRound(originalCfa, totalStats.originalTime, ExportDirectory.FOR_ORIGINAL_RUN);
+          analysisRound(originalCfa, totalStats.originalTime, AnalysisRun.ORIGINAL);
 
       AnalysisOutcome originalOutcome = originalResult.toAnalysisOutcome(originalResult);
       if (cfaMutator.shouldReturnWithoutMutation(originalOutcome)) {
         return originalResult.result;
       }
 
-      cfaMutationLimits.setOriginals(
+      cfaMutationManager.setOriginals(
           originalCpa, originalCfa, originalSpec, totalStats.originalTime.getConsumedTime());
 
-      if (cfaMutationLimits.exceedsLimitsForAnalysis(
+      if (cfaMutationManager.exceedsLimitsForAnalysis(
           "CFA mutation interrupted before it started to mutate the CFA:")) {
         return originalResult.asMutatorResult(Result.NOT_YET_STARTED, cfaMutator, totalStats);
       }
@@ -133,21 +133,21 @@ public final class CPAcheckerMutator extends CPAchecker {
       for (round = 1; cfaMutator.canMutate(); round++) {
         logger.log(Level.INFO, "Mutation round", round);
 
-        resetExportDirectory(ExportDirectory.FOR_ANALYSIS);
+        resetExportDirectory(AnalysisRun.AFTER_MUTATION);
         CFA mutated = cfaMutator.mutate();
         lastResult =
-            analysisRound(mutated, totalStats.afterMutations, ExportDirectory.FOR_ANALYSIS);
+            analysisRound(mutated, totalStats.afterMutations, AnalysisRun.AFTER_MUTATION);
         // TODO export intermediate results
         // XXX it is incorrect to save intermediate stats, as reached is updated?
 
         AnalysisOutcome lastOutcome = lastResult.toAnalysisOutcome(originalResult);
 
         if (cfaMutator.shouldCheckFeasibiblity(lastOutcome)) {
-          if (cfaMutationLimits.exceedsLimitsForFeasibility()) {
+          if (cfaMutationManager.exceedsLimitsForFeasibility()) {
             return lastResult.asMutatorResult(Result.FALSE, cfaMutator, totalStats);
           }
 
-          resetExportDirectory(ExportDirectory.FOR_FEASIBILITY_CHECK);
+          resetExportDirectory(AnalysisRun.FEASIBILITY_CHECK);
           boolean errorIsFeasible = false;
           try {
             totalStats.feasibilityCheck.start();
@@ -166,25 +166,25 @@ public final class CPAcheckerMutator extends CPAchecker {
           logger.log(Level.INFO, lastOutcome);
         }
 
-        resetExportDirectory(ExportDirectory.AFTER_ROLLBACK);
+        resetExportDirectory(AnalysisRun.AFTER_ROLLBACK);
         CFA rollbacked = cfaMutator.setResult(lastOutcome);
 
-        if (cfaMutationLimits.exceedsLimitsForAnalysis(
+        if (cfaMutationManager.exceedsLimitsForAnalysis(
             String.format("CFA mutation interrupted after %s. analysis round", round))) {
           return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
         }
 
         // Check that property is still preserved after rollback
-        if (rollbacked == null || cfaMutationLimits.getCheckAfterRollbacks() == 0) {
+        if (rollbacked == null || cfaMutationManager.getCheckAfterRollbacks() == 0) {
           // options say pass the check this time
           rollbacksInRow = 0;
 
-        } else if (++rollbacksInRow % cfaMutationLimits.getCheckAfterRollbacks() == 0) {
+        } else if (++rollbacksInRow % cfaMutationManager.getCheckAfterRollbacks() == 0) {
           logger.log(
               Level.INFO, "Running analysis after", rollbacksInRow, "mutation rollback in row");
 
           lastResult =
-              analysisRound(rollbacked, totalStats.afterRollbacks, ExportDirectory.AFTER_ROLLBACK);
+              analysisRound(rollbacked, totalStats.afterRollbacks, AnalysisRun.AFTER_ROLLBACK);
           AnalysisOutcome analysisOutcome = lastResult.toAnalysisOutcome(originalResult);
           // If analysis ended because of a global shutdown, the result may be TIMEOUT
           // otherwise, check it is expected one
@@ -193,7 +193,7 @@ public final class CPAcheckerMutator extends CPAchecker {
             cfaMutator.verifyOutcome(analysisOutcome);
           }
 
-          if (cfaMutationLimits.exceedsLimitsForAnalysis(
+          if (cfaMutationManager.exceedsLimitsForAnalysis(
               String.format(
                   "CFA mutation interrupted after rollback after %s. analysis round", round))) {
             return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
@@ -233,20 +233,20 @@ public final class CPAcheckerMutator extends CPAchecker {
     return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
   }
 
-  public void resetExportDirectory(ExportDirectory pExport) throws InvalidConfigurationException {
+  public void resetExportDirectory(AnalysisRun pRun) throws InvalidConfigurationException {
     String exportPath = defaultOutputDirectory + File.separatorChar;
 
-    switch (pExport) {
-      case FOR_ORIGINAL_RUN:
+    switch (pRun) {
+      case ORIGINAL:
         assert round == 0;
         exportPath += "0-original-round";
         break;
 
-      case FOR_ANALYSIS:
+      case AFTER_MUTATION:
         exportPath += String.valueOf(round) + "-mutation-round";
         break;
 
-      case FOR_FEASIBILITY_CHECK:
+      case FEASIBILITY_CHECK:
         exportPath += String.valueOf(round) + "-mutation-round-feasibility";
         break;
 
@@ -263,12 +263,12 @@ public final class CPAcheckerMutator extends CPAchecker {
   }
 
   // run analysis, but for already stored CFA, and catch its errors
-  private AnalysisResult analysisRound(CFA pCfa, StatTimer pTimer, ExportDirectory pExport)
+  private AnalysisResult analysisRound(CFA pCfa, StatTimer pTimer, AnalysisRun pRun)
       throws InvalidConfigurationException {
 
     pTimer.start();
     Throwable t = null;
-    CPAchecker cpachecker = cfaMutationLimits.createCpacheckerAndStartLimits(pExport);
+    CPAchecker cpachecker = cfaMutationManager.createCpacheckerAndStartLimits(pRun);
 
     try {
       cpachecker.setupMainStats();
@@ -309,7 +309,7 @@ public final class CPAcheckerMutator extends CPAchecker {
       t = e;
 
     } finally {
-      cfaMutationLimits.cancelAnalysisLimits();
+      cfaMutationManager.cancelAnalysisLimits();
       cpachecker.closeCPAsIfPossible();
       pTimer.stop();
     }
@@ -331,7 +331,7 @@ public final class CPAcheckerMutator extends CPAchecker {
 
     try {
       CounterexampleCheckAlgorithm cexCheckAlgorithm =
-          cfaMutationLimits.createLoggerAndStartLimitsForCheck();
+          cfaMutationManager.createCEXCheckerAndStartLimits();
 
       ReachedSet reached = pResult.result.getReached();
       // hack to make cex check run once...
@@ -356,7 +356,7 @@ public final class CPAcheckerMutator extends CPAchecker {
       logger.logf(Level.INFO, "Feasibility check interrupted (%s)", e.getMessage());
 
     } finally {
-      cfaMutationLimits.cancelCheckLimits();
+      cfaMutationManager.cancelCheckLimits();
     }
 
     return false;

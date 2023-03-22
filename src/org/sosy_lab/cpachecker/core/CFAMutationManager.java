@@ -42,7 +42,7 @@ import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CParser;
 import org.sosy_lab.cpachecker.cfa.CParser.ParserOptions;
-import org.sosy_lab.cpachecker.core.CPAcheckerMutator.ExportDirectory;
+import org.sosy_lab.cpachecker.core.CPAcheckerMutator.AnalysisRun;
 import org.sosy_lab.cpachecker.core.algorithm.NoopAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm.CounterexampleCheckerType;
@@ -59,7 +59,7 @@ import org.sosy_lab.cpachecker.util.resources.ThreadCpuTimeLimit;
 import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
 
 @Options(prefix = "cfaMutation")
-final class CFAMutationLimits {
+final class CFAMutationManager {
 
   @Option(
       secure = true,
@@ -175,7 +175,7 @@ final class CFAMutationLimits {
 
   private LogManager currentLogger;
 
-  public CFAMutationLimits(
+  public CFAMutationManager(
       Configuration pConfig,
       LogManager pLogger,
       ShutdownManager pShutdownManager,
@@ -186,7 +186,7 @@ final class CFAMutationLimits {
     logger = Preconditions.checkNotNull(pLogger);
     shutdownManager = Preconditions.checkNotNull(pShutdownManager);
 
-    config.inject(this, CFAMutationLimits.class);
+    config.inject(this, CFAMutationManager.class);
 
     if (checkerType == CounterexampleCheckerType.CPACHECKER
         && Strings.isNullOrEmpty(cpacheckerConfigFile)) {
@@ -331,12 +331,10 @@ final class CFAMutationLimits {
     return false;
   }
 
-
-  public Configuration createRoundConfig(ExportDirectory pExport)
-      throws InvalidConfigurationException {
+  public Configuration createRoundConfig(AnalysisRun pRun) throws InvalidConfigurationException {
     ConfigurationBuilder builder = Configuration.builder().copyFrom(config);
 
-    if (pExport == ExportDirectory.FOR_FEASIBILITY_CHECK) {
+    if (pRun == AnalysisRun.FEASIBILITY_CHECK) {
       builder.setOption("counterexample.checker", checkerType.name());
 
       switch (checkerType) {
@@ -442,9 +440,9 @@ final class CFAMutationLimits {
     currentLimits.start();
   }
 
-  public CPAchecker createCpacheckerAndStartLimits(ExportDirectory pExport)
+  public CPAchecker createCpacheckerAndStartLimits(AnalysisRun pRun)
       throws InvalidConfigurationException {
-    Configuration roundConfig = createRoundConfig(pExport);
+    Configuration roundConfig = createRoundConfig(pRun);
     LogManager roundLogger = createRoundLogger(roundConfig);
 
     ShutdownNotifier parentNotifier = shutdownManager.getNotifier();
@@ -482,12 +480,11 @@ final class CFAMutationLimits {
     currentLimits.start();
   }
 
-  public CounterexampleCheckAlgorithm createLoggerAndStartLimitsForCheck()
+  public CounterexampleCheckAlgorithm createCEXCheckerAndStartLimits()
       throws InvalidConfigurationException, UnsupportedOperationException, CPAException,
           InterruptedException {
-    Configuration checkConfig = createRoundConfig(ExportDirectory.FOR_FEASIBILITY_CHECK);
+    Configuration checkConfig = createRoundConfig(AnalysisRun.FEASIBILITY_CHECK);
     LogManager checkLogger = createRoundLogger(checkConfig);
-    checkLogger.log(Level.FINE, "FINE.");
 
     ShutdownNotifier parentNotifier = shutdownManager.getNotifier();
     ShutdownManager fMan = ShutdownManager.createWithParent(parentNotifier);
@@ -495,7 +492,7 @@ final class CFAMutationLimits {
     ConfigurableProgramAnalysis argCpa = CPAs.retrieveCPA(originalCpa, ARGCPA.class);
 
     if (argCpa == null) {
-      checkLogger.log(Level.FINE, "Adding ARG CPA as root");
+      checkLogger.log(Level.INFO, "Adding ARG CPA as root");
       argCpa =
           ARGCPA
               .factory()
@@ -507,9 +504,6 @@ final class CFAMutationLimits {
               .set(originalCfa, CFA.class)
               .createInstance();
     }
-
-    System.out.println(logger);
-    System.out.println(checkLogger);
 
     startCheckLimits(checkLogger, fMan);
     return new CounterexampleCheckAlgorithm(
