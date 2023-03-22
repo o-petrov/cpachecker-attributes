@@ -100,7 +100,8 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
       throws CPAException, InterruptedException {
 
     if (cbmcFile != null) {
-      int cexId = pErrorState.getCounterexampleInformation().orElseThrow().getUniqueId();
+      int cexId =
+          pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
       return checkCounterexample(pRootState, pErrorPathStates, cbmcFile.getPath(cexId));
 
     } else {

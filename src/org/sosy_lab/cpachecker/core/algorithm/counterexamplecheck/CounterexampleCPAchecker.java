@@ -37,6 +37,7 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.io.IO;
+import org.sosy_lab.common.io.PathTemplate;
 import org.sosy_lab.common.io.TempFile;
 import org.sosy_lab.common.io.TempFile.DeleteOnCloseFile;
 import org.sosy_lab.common.log.LogManager;
@@ -97,7 +98,7 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
           "File name where to put the path specification that is generated as input for the"
               + " counterexample check. A temporary file is used if this is unspecified.")
   @FileOption(FileOption.Type.OUTPUT_FILE)
-  private @Nullable Path specFile;
+  private @Nullable PathTemplate specFile;
 
   @Option(
       secure = true,
@@ -152,7 +153,10 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
 
     try {
       if (specFile != null) {
-        return checkCounterexample(pRootState, pErrorState, pErrorPathStates, specFile);
+        int cexId =
+            pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
+        return checkCounterexample(
+            pRootState, pErrorState, pErrorPathStates, specFile.getPath(cexId));
       }
 
       // This temp file will be automatically deleted when the try block terminates.

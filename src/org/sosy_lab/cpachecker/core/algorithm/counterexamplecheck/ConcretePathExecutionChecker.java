@@ -103,7 +103,8 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
       throws CPAException, InterruptedException {
 
     if (dumpFile != null) {
-      int cexId = pErrorState.getCounterexampleInformation().orElseThrow().getUniqueId();
+      int cexId =
+          pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
       return checkCounterexample(
           pRootState, pErrorState, pErrorPathStates, dumpFile.getPath(cexId));
 
