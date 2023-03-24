@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.core;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.FluentIterable.from;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableSet;
 import java.io.File;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.sosy_lab.common.MoreStrings;
 import org.sosy_lab.common.ShutdownManager;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.FileOption;
@@ -331,64 +333,69 @@ public final class CPAcheckerMutator extends CPAchecker {
   /** Mostly copied from {@link CounterexampleCheckAlgorithm} */
   private boolean isFeasible(AnalysisResult pResult) throws InvalidConfigurationException {
 
+    CounterexampleChecker cexChecker;
     try {
-      CounterexampleChecker cexChecker = cfaMutationManager.createCEXCheckerAndStartLimits();
-      LogManager curLogger = cfaMutationManager.getCurrentLogger();
-      ReachedSet reached = pResult.result.getReached();
+      cexChecker = cfaMutationManager.createCEXCheckerAndStartLimits();
+    } catch (InterruptedException e) {
+      logger.logf(
+          Level.INFO, "Counterexample checker construction interrupted (%s)", e.getMessage());
+      throw new UnsupportedOperationException();
+    }
 
-      assert ARGUtils.checkARG(reached);
+    LogManager curLogger = cfaMutationManager.getCurrentLogger();
+    ReachedSet reached = pResult.result.getReached();
+    assert ARGUtils.checkARG(reached);
+    ARGState rootState = (ARGState) reached.getFirstState();
 
-      final List<ARGState> errorStates =
-          from(reached)
-              .transform(AbstractStates.toState(ARGState.class))
-              .filter(AbstractStates::isTargetState)
-              .toList();
+    final List<ARGState> errorStates =
+        from(reached)
+            .transform(AbstractStates.toState(ARGState.class))
+            .filter(AbstractStates::isTargetState)
+            .toList();
 
-      assert !errorStates.isEmpty() : "no error states while CEX check";
+    assert !errorStates.isEmpty() : "no error states while CEX check";
 
-      // check counterexample
-      for (ARGState errorState : errorStates) {
-        curLogger.log(
-            Level.FINE,
-            "Path to error state",
-            errorState.getClass().getSimpleName(),
-            errorState.getStateId(),
-            errorState
-                .getCounterexampleInformation()
-                .map(cex -> String.format("(CEX #%d)", cex.getUniqueId()))
-                .orElse("(without CEX info)"),
-            "found, starting counterexample check");
+    // check counterexample
+    for (ARGState errorState : errorStates) {
+      curLogger.log(
+          Level.FINE,
+          "Path to error state",
+          errorState.getClass().getSimpleName(),
+          errorState.getStateId(),
+          errorState
+              .getCounterexampleInformation()
+              .map(cex -> String.format("(CEX #%d)", cex.getUniqueId()))
+              .orElse("(without CEX info)"),
+          "found, starting counterexample check");
 
-        try {
-          // if (ambigiousARG) {
-          //   statesOnErrorPath = SlicingAbstractionsUtils.getStatesOnErrorPath(errorState);
-          ImmutableSet<ARGState> statesOnErrorPath = ARGUtils.getAllStatesOnPathsTo(errorState);
+      // if (ambigiousARG) {
+      // statesOnErrorPath = SlicingAbstractionsUtils.getStatesOnErrorPath(errorState);
+      ImmutableSet<ARGState> statesOnErrorPath = ARGUtils.getAllStatesOnPathsTo(errorState);
+      curLogger.log(
+          Level.FINE,
+          MoreStrings.lazyString(
+              () -> from(statesOnErrorPath).transform(ARGState::getStateId).join(Joiner.on(", "))));
 
-          if (cexChecker.checkCounterexample(
-              (ARGState) reached.getFirstState(), errorState, statesOnErrorPath)) {
-            logger.log(Level.INFO, "Error path confirmed by counterexample check");
-            return true;
-          }
-
-        } catch (CPAException e) {
-          logger.logUserException(
-              Level.WARNING, e, "Counterexample found, but feasibility could not be verified");
+      try {
+        if (cexChecker.checkCounterexample(rootState, errorState, statesOnErrorPath)) {
+          logger.log(Level.INFO, "Error path confirmed by counterexample check");
+          return true;
         }
 
         curLogger.log(Level.FINE, "This error path identified as infeasible.");
+
+      } catch (CPAException e) {
+        logger.logUserException(
+            Level.WARNING, e, "Counterexample found, but feasibility could not be verified");
+
+      } catch (InterruptedException e) {
+        // this feasibility check was too long
+        logger.logf(Level.INFO, "Feasibility check interrupted (%s)", e.getMessage());
       }
-
-      logger.log(Level.INFO, "No feasible error path found");
-      return false;
-
-    } catch (InterruptedException e) {
-      // this feasibility check was too long
-      logger.logf(Level.INFO, "Feasibility check interrupted (%s)", e.getMessage());
-
-    } finally {
-      cfaMutationManager.cancelCheckLimits();
     }
 
+    cfaMutationManager.cancelCheckLimits();
+    logger.log(Level.INFO, "No feasible error path found");
     return false;
   }
 
