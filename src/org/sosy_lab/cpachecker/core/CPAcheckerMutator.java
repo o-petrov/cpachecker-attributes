@@ -42,6 +42,7 @@ import org.sosy_lab.cpachecker.core.specification.Specification;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
 import org.sosy_lab.cpachecker.cpa.arg.ARGUtils;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
+import org.sosy_lab.cpachecker.exceptions.CounterexampleAnalysisFailed;
 import org.sosy_lab.cpachecker.exceptions.ParserException;
 import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
@@ -74,8 +75,9 @@ public final class CPAcheckerMutator extends CPAchecker {
       throws InvalidConfigurationException {
 
     super(pConfiguration, pLogManager, pShutdownManager);
+    cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
     cfaMutationManager =
-        new CFAMutationManager(pConfiguration, pLogManager, pShutdownManager, pLimits);
+        new CFAMutationManager(pConfiguration, pLogManager, pShutdownManager, pLimits, cfaMutator);
     defaultOutputDirectory =
         ((FileTypeConverter) Configuration.getDefaultConverters().get(FileOption.class))
             .getOutputDirectory();
@@ -85,8 +87,6 @@ public final class CPAcheckerMutator extends CPAchecker {
           "CFA mutation needs source files to be parsed into CFA. Do not specify 'cfaMutation=true' "
               + "and loading CFA with 'analysis.serializedCfaFile' simultaneously.");
     }
-
-    cfaMutator = new CFAMutator(config, logger, shutdownNotifier);
   }
 
   @Override
@@ -113,8 +113,7 @@ public final class CPAcheckerMutator extends CPAchecker {
         return produceResult();
       }
 
-      ConfigurableProgramAnalysis originalCpa = createCPA(originalCfa);
-      Specification originalSpec = getSpecification();
+      Specification originalSpec = getSpecification(originalCfa);
 
       final AnalysisResult originalResult =
           analysisRound(originalCfa, totalStats.originalTime, AnalysisRun.ORIGINAL);
@@ -124,8 +123,8 @@ public final class CPAcheckerMutator extends CPAchecker {
         return originalResult.result;
       }
 
-      cfaMutationManager.setOriginals(
-          originalCpa, originalCfa, originalSpec, totalStats.originalTime.getConsumedTime());
+      cfaMutationManager.setSpecification(originalSpec);
+      cfaMutationManager.setOriginalTime(totalStats.originalTime.getConsumedTime());
 
       if (cfaMutationManager.exceedsLimitsForAnalysis(
           "CFA mutation interrupted before it started to mutate the CFA:")) {
@@ -215,7 +214,7 @@ public final class CPAcheckerMutator extends CPAchecker {
       logger.log(Level.INFO, "CFA mutation ended, as no more minimizatins can be found");
       return lastResult.asMutatorResult(Result.DONE, cfaMutator, totalStats);
 
-    } catch (InvalidConfigurationException | CPAException e) {
+    } catch (InvalidConfigurationException e) {
       logger.logUserException(Level.SEVERE, e, "Invalid configuration");
       // XXX move to #analysisRound?
       // but for first round should catch here?
@@ -333,15 +332,7 @@ public final class CPAcheckerMutator extends CPAchecker {
   /** Mostly copied from {@link CounterexampleCheckAlgorithm} */
   private boolean isFeasible(AnalysisResult pResult) throws InvalidConfigurationException {
 
-    CounterexampleChecker cexChecker;
-    try {
-      cexChecker = cfaMutationManager.createCEXCheckerAndStartLimits();
-    } catch (InterruptedException e) {
-      logger.logf(
-          Level.INFO, "Counterexample checker construction interrupted (%s)", e.getMessage());
-      throw new UnsupportedOperationException();
-    }
-
+    CounterexampleChecker cexChecker = cfaMutationManager.createCexCheckerAndStartLimits(pResult);
     LogManager curLogger = cfaMutationManager.getCurrentLogger();
     ReachedSet reached = pResult.result.getReached();
     assert ARGUtils.checkARG(reached);
@@ -373,6 +364,7 @@ public final class CPAcheckerMutator extends CPAchecker {
       ImmutableSet<ARGState> statesOnErrorPath = ARGUtils.getAllStatesOnPathsTo(errorState);
       curLogger.log(
           Level.FINE,
+          "Paths include states ",
           MoreStrings.lazyString(
               () -> from(statesOnErrorPath).transform(ARGState::getStateId).join(Joiner.on(", "))));
 
@@ -384,7 +376,7 @@ public final class CPAcheckerMutator extends CPAchecker {
 
         curLogger.log(Level.FINE, "This error path identified as infeasible.");
 
-      } catch (CPAException e) {
+      } catch (CounterexampleAnalysisFailed e) {
         logger.logUserException(
             Level.WARNING, e, "Counterexample found, but feasibility could not be verified");
 
@@ -400,7 +392,7 @@ public final class CPAcheckerMutator extends CPAchecker {
   }
 
   // keep last result and thrown error
-  private static class AnalysisResult {
+  static class AnalysisResult {
     private final CPAcheckerResult result;
     private final @Nullable Throwable thrown;
 
@@ -466,6 +458,14 @@ public final class CPAcheckerMutator extends CPAchecker {
 
     public MainCPAStatistics getStats() {
       return (MainCPAStatistics) result.getStatistics();
+    }
+
+    public CFA getCfa() {
+      return result.getCfa();
+    }
+
+    public ConfigurableProgramAnalysis getCpa() {
+      return result.getReached().getCPA();
     }
   }
 

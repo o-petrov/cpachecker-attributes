@@ -538,21 +538,7 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
         ddVariant == DDVariant.DDSEARCH
             && (pLastOutcome == AnalysisOutcome.VERDICT_FALSE
                 || pLastOutcome == AnalysisOutcome.SAME_VERDICT_FALSE);
-
-    if (!result) {
-      return false;
-    }
-
-    Pair<ParseResult, FunctionEntryNode> pair = FunctionCFAsWithMetadata.originalCopy();
-
-    try {
-      super.createCFA(pair.getFirst(), pair.getSecond());
-      return true;
-
-    } catch (InvalidConfigurationException | InterruptedException | ParserException e) {
-      logger.logUserException(Level.WARNING, e, "Cannot restore original CFA");
-      return false;
-    }
+    return result;
   }
 
   public boolean shouldReturnWithoutMutation(AnalysisOutcome pOriginalOutcome) {
@@ -563,5 +549,11 @@ public class CFAMutator extends CFACreator implements StatisticsProvider {
 
     verifyOutcome(pOriginalOutcome);
     return false;
+  }
+
+  public CFA restoreCfa()
+      throws InvalidConfigurationException, InterruptedException, ParserException {
+    Pair<ParseResult, FunctionEntryNode> pair = FunctionCFAsWithMetadata.originalCopy();
+    return super.createCFA(pair.getFirst(), pair.getSecond());
   }
 }

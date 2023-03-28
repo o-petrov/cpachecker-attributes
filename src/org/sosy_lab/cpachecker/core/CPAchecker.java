@@ -297,14 +297,12 @@ public class CPAchecker {
             pConfiguration, pLogManager, shutdownNotifier, AggregatedReachedSets.empty());
   }
 
-  protected ConfigurableProgramAnalysis createCPA(CFA pCfa)
-      throws InvalidConfigurationException, CPAException, InterruptedException {
-    specification =
-        Specification.fromFiles(specificationFiles, pCfa, config, logger, shutdownNotifier);
-    return factory.createCPA(pCfa, specification);
-  }
-
-  protected Specification getSpecification() {
+  protected Specification getSpecification(CFA pCfa)
+      throws InvalidConfigurationException, InterruptedException {
+    if (specification == null) {
+      specification =
+          Specification.fromFiles(specificationFiles, pCfa, config, logger, shutdownNotifier);
+    }
     return specification;
   }
 
