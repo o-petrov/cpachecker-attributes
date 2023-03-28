@@ -69,6 +69,10 @@ public class TranslatorConfig {
     return includeHeader;
   }
 
+  public void setIncludeHeader(boolean pInclude) {
+    includeHeader = pInclude;
+  }
+
   public BlockTreatmentAtFunctionEnd doHandleCompoundStatementAtEndOfFunction() {
     return handleCompoundStatementAtEndOfFunction;
   }

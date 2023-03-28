@@ -84,8 +84,12 @@ public class CFAToCTranslator {
   private Collection<FunctionDefinition> functions;
   private final TranslatorConfig config;
 
+  public CFAToCTranslator(TranslatorConfig pConfig) {
+    config = pConfig;
+  }
+
   public CFAToCTranslator(Configuration pConfig) throws InvalidConfigurationException {
-    config = new TranslatorConfig(pConfig);
+    this(new TranslatorConfig(pConfig));
   }
 
   /**

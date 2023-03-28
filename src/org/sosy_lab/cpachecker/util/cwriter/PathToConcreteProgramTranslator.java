@@ -81,7 +81,7 @@ public class PathToConcreteProgramTranslator extends PathTranslator {
     mGlobalDefinitionsList.add(
         3, "void *__VERIFIER_nondet_pointer() { return malloc(100); }"); // assume a size
     mGlobalDefinitionsList.add(4, "char __VERIFIER_nondet_char() {return '0';}");
-    mGlobalDefinitionsList.add(5, "int __VERIFIER_nondet_bool() {return 0;}");
+    mGlobalDefinitionsList.add(5, "_Bool __VERIFIER_nondet_bool() {return 0;}");
     mGlobalDefinitionsList.add(6, "float __VERIFIER_nondet_float() {return 0.0;}");
     mGlobalDefinitionsList.add(7, "short __VERIFIER_nondet_short() {return 0;}");
     mGlobalDefinitionsList.add(8, "void main();");
