@@ -8,9 +8,10 @@
 
 package org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck;
 
+import java.nio.file.Path;
 import java.util.Set;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
-import org.sosy_lab.cpachecker.exceptions.CPAException;
+import org.sosy_lab.cpachecker.exceptions.CounterexampleAnalysisFailed;
 
 /**
  * Interface for components that can verify the feasibility of a counterexample.
@@ -27,10 +28,14 @@ public interface CounterexampleChecker {
    * @param errorState The sink of the counterexample paths.
    * @param errorPathStates All state that belong to the counterexample paths.
    * @return True if the counterexample is feasible.
-   * @throws CPAException If something goes wrong.
+   * @throws CounterexampleAnalysisFailed If something goes wrong.
    * @throws InterruptedException If the thread was interrupted.
    */
   boolean checkCounterexample(
       ARGState rootState, ARGState errorState, Set<ARGState> errorPathStates)
-      throws CPAException, InterruptedException;
+      throws CounterexampleAnalysisFailed, InterruptedException;
+
+  void writeCexFile(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
+      throws CounterexampleAnalysisFailed, InterruptedException;
 }

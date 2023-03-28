@@ -44,7 +44,6 @@ import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
-import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.exceptions.CounterexampleAnalysisFailed;
 import org.sosy_lab.cpachecker.util.CBMCExecutor;
 import org.sosy_lab.cpachecker.util.cwriter.PathToCTranslator;
@@ -90,19 +89,21 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
       throw new UnsupportedOperationException("CBMC can't be used with the language Java");
     }
 
-    config.inject(this);
+    config.inject(this, CBMCChecker.class);
     machineModel = cfa.getMachineModel();
   }
 
   @Override
   public boolean checkCounterexample(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates)
-      throws CPAException, InterruptedException {
+      throws CounterexampleAnalysisFailed, InterruptedException {
 
     if (cbmcFile != null) {
       int cexId =
           pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
-      return checkCounterexample(pRootState, pErrorPathStates, cbmcFile.getPath(cexId));
+      Path cFile = cbmcFile.getPath(cexId);
+      writeCexFile(pRootState, pErrorState, pErrorPathStates, cFile);
+      return checkCounterexample(pRootState, cFile);
 
     } else {
 
@@ -110,7 +111,8 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
       // Suffix .i tells CBMC to not call the pre-processor on this file.
       try (DeleteOnCloseFile tempFile =
           TempFile.builder().prefix("path").suffix(".i").createDeleteOnClose()) {
-        return checkCounterexample(pRootState, pErrorPathStates, tempFile.toPath());
+        writeCexFile(pRootState, pErrorState, pErrorPathStates, tempFile.toPath());
+        return checkCounterexample(pRootState, tempFile.toPath());
 
       } catch (IOException e) {
         throw new CounterexampleAnalysisFailed(
@@ -119,21 +121,8 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
     }
   }
 
-  private boolean checkCounterexample(
-      ARGState pRootState, Set<ARGState> pErrorPathStates, Path cFile)
-      throws CPAException, InterruptedException {
-    assert cFile != null;
-
-    Appender pathProgram = PathToCTranslator.translatePaths(pRootState, pErrorPathStates);
-
-    // write program to disk
-    try (Writer w = IO.openOutputFile(cFile, Charset.defaultCharset())) {
-      pathProgram.appendTo(w);
-    } catch (IOException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Could not write path program to file " + e.getMessage(), e);
-    }
-
+  private boolean checkCounterexample(ARGState pRootState, Path cFile)
+      throws CounterexampleAnalysisFailed, InterruptedException {
     String mainFunctionName = extractLocation(pRootState).getFunctionName();
 
     // run CBMC
@@ -194,6 +183,23 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
     // exit code and stderr are already logged with level WARNING
     throw new CounterexampleAnalysisFailed(
         "CBMC could not verify the program (CBMC exit code was " + exitCode + ")!");
+  }
+
+  @Override
+  public void writeCexFile(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
+      throws CounterexampleAnalysisFailed {
+    assert cFile != null;
+
+    Appender pathProgram = PathToCTranslator.translatePaths(pRootState, pErrorPathStates);
+
+    // write program to disk
+    try (Writer w = IO.openOutputFile(cFile, Charset.defaultCharset())) {
+      pathProgram.appendTo(w);
+    } catch (IOException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Could not write path program to file " + e.getMessage(), e);
+    }
   }
 
   private List<String> getParamForMachineModel() {

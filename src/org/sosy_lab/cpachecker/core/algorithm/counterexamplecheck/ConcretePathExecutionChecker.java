@@ -41,7 +41,6 @@ import org.sosy_lab.cpachecker.core.counterexample.CounterexampleInfo;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
-import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.exceptions.CounterexampleAnalysisFailed;
 import org.sosy_lab.cpachecker.util.cwriter.PathToConcreteProgramTranslator;
 
@@ -93,32 +92,31 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
           "Concrete execution checker can only be used with C.");
     }
 
-    config.inject(this);
+    config.inject(this, ConcretePathExecutionChecker.class);
     this.logger = logger;
   }
 
   @Override
   public boolean checkCounterexample(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates)
-      throws CPAException, InterruptedException {
+      throws CounterexampleAnalysisFailed, InterruptedException {
 
     if (dumpFile != null) {
       int cexId =
           pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
-      return checkCounterexample(
-          pRootState, pErrorState, pErrorPathStates, dumpFile.getPath(cexId));
+      writeCexFile(pRootState, pErrorState, pErrorPathStates, dumpFile.getPath(cexId));
+      return checkCounterexample(dumpFile.getPath(cexId));
+    }
 
-    } else {
+    // This temp file will be automatically deleted when the try block terminates.
+    try (DeleteOnCloseFile tempFile =
+        TempFile.builder().prefix("concretePath").suffix(".c").createDeleteOnClose()) {
+      writeCexFile(pRootState, pErrorState, pErrorPathStates, tempFile.toPath());
+      return checkCounterexample(tempFile.toPath());
 
-      // This temp file will be automatically deleted when the try block terminates.
-      try (DeleteOnCloseFile tempFile =
-          TempFile.builder().prefix("concretePath").suffix(".c").createDeleteOnClose()) {
-        return checkCounterexample(pRootState, pErrorState, pErrorPathStates, tempFile.toPath());
-
-      } catch (IOException e) {
-        throw new CounterexampleAnalysisFailed(
-            "Could not create temporary file " + e.getMessage(), e);
-      }
+    } catch (IOException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Could not create temporary file " + e.getMessage(), e);
     }
   }
 
@@ -176,27 +174,12 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
     }
   }
 
-  private boolean checkCounterexample(
-      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
-      throws CPAException, InterruptedException {
+  private boolean checkCounterexample(Path cFile)
+      throws CounterexampleAnalysisFailed, InterruptedException {
     assert cFile != null;
-
-    timer.start();
-    CounterexampleInfo ceInfo = pErrorState.getCounterexampleInformation().orElseThrow();
-
-    Appender pathProgram =
-        PathToConcreteProgramTranslator.translatePaths(
-            pRootState, pErrorPathStates, ceInfo.getCFAPathWithAssignments());
-
-    // write program to disk
-    try (Writer w = IO.openOutputFile(cFile, Charset.defaultCharset())) {
-      pathProgram.appendTo(w);
-    } catch (IOException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Could not write path program to file " + e.getMessage(), e);
-    }
-
     String absFile = cFile.toAbsolutePath().toString();
+    timer.start();
+
     try {
       // run compiler
       compilePathProgram(absFile);
@@ -214,6 +197,25 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
     } finally {
       timer.stop();
       logger.log(Level.FINER, "Execution of concrete error path program finished.");
+    }
+  }
+
+  @Override
+  public void writeCexFile(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
+      throws CounterexampleAnalysisFailed {
+    CounterexampleInfo ceInfo = pErrorState.getCounterexampleInformation().orElseThrow();
+
+    Appender pathProgram =
+        PathToConcreteProgramTranslator.translatePaths(
+            pRootState, pErrorPathStates, ceInfo.getCFAPathWithAssignments());
+
+    // write program to disk
+    try (Writer w = IO.openOutputFile(cFile, Charset.defaultCharset())) {
+      pathProgram.appendTo(w);
+    } catch (IOException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Could not write path program to file " + e.getMessage(), e);
     }
   }
 

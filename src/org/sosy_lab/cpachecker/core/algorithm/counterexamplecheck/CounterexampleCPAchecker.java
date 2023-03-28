@@ -139,7 +139,7 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
     this.logger = logger;
     this.config = config;
     specification = pSpecification;
-    config.inject(this);
+    config.inject(this, CounterexampleCPAchecker.class);
     shutdownNotifier = pShutdownNotifier;
     cfa = pCfa;
     getCounterexampleInfo = Objects.requireNonNull(pGetCounterexampleInfo);
@@ -149,27 +149,24 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
   @Override
   public boolean checkCounterexample(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates)
-      throws CPAException, InterruptedException {
+      throws CounterexampleAnalysisFailed, InterruptedException {
 
-    try {
-      if (specFile != null) {
-        int cexId =
-            pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
-        return checkCounterexample(
-            pRootState, pErrorState, pErrorPathStates, specFile.getPath(cexId));
-      }
+    if (specFile != null) {
+      int cexId =
+          pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
+      writeCexFile(pRootState, pErrorState, pErrorPathStates, specFile.getPath(cexId));
+      return checkCounterexample(
+          pRootState, pErrorState, pErrorPathStates, specFile.getPath(cexId));
+    }
 
-      // This temp file will be automatically deleted when the try block terminates.
-      try (DeleteOnCloseFile automatonFile =
-          TempFile.builder()
-              .prefix("counterexample-automaton")
-              .suffix(".graphml")
-              .createDeleteOnClose()) {
-
-        return checkCounterexample(
-            pRootState, pErrorState, pErrorPathStates, automatonFile.toPath());
-      }
-
+    // This temp file will be automatically deleted when the try block terminates.
+    try (DeleteOnCloseFile automatonFile =
+        TempFile.builder()
+            .prefix("counterexample-automaton")
+            .suffix(".graphml")
+            .createDeleteOnClose()) {
+      writeCexFile(pRootState, pErrorState, pErrorPathStates, automatonFile.toPath());
+      return checkCounterexample(pRootState, pErrorState, pErrorPathStates, automatonFile.toPath());
     } catch (IOException e) {
       throw new CounterexampleAnalysisFailed(
           "Could not write path automaton to file " + e.getMessage(), e);
@@ -178,40 +175,14 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
 
   private boolean checkCounterexample(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path automatonFile)
-      throws IOException, CPAException, InterruptedException {
-
-    final Predicate<ARGState> relevantState = Predicates.in(pErrorPathStates);
-    final Witness witness =
-        witnessExporter.generateErrorWitness(
-            pRootState,
-            relevantState,
-            BiPredicates.bothSatisfy(relevantState),
-            getCounterexampleInfo.apply(pErrorState).orElse(null));
-    try (Writer w = IO.openOutputFile(automatonFile, Charset.defaultCharset())) {
-      WitnessToOutputFormatsUtils.writeToGraphMl(witness, w);
-    }
+      throws CounterexampleAnalysisFailed, InterruptedException {
 
     // We assume only one initial node for an analysis, even for mutli-threaded tasks.
     CFANode entryNode = Iterables.getOnlyElement(extractLocations(pRootState));
     LogManager lLogger = logger.withComponentName("CounterexampleCheck");
 
     try {
-      ConfigurationBuilder lConfigBuilder = Configuration.builder().loadFromFile(configFile);
-
-      for (String option : OVERWRITE_OPTIONS) {
-        lConfigBuilder.copyOptionFromIfPresent(config, option);
-      }
-
-      if (provideCEXInfoFromCEXCheck) {
-        CFAEdge targetEdge = pErrorState.getParents().iterator().next().getEdgeToChild(pErrorState);
-        lConfigBuilder.setOption(
-            "testcase.targets.edge",
-            targetEdge.getPredecessor().getNodeNumber()
-                + "#"
-                + System.identityHashCode(targetEdge));
-      }
-
-      Configuration lConfig = lConfigBuilder.build();
+      Configuration lConfig = buildConfiguration(pErrorState);
       ShutdownManager lShutdownManager = ShutdownManager.createWithParent(shutdownNotifier);
       ResourceLimitChecker.fromConfiguration(lConfig, lLogger, lShutdownManager).start();
 
@@ -263,11 +234,70 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
     } catch (InvalidConfigurationException e) {
       throw new CounterexampleAnalysisFailed(
           "Invalid configuration in counterexample-check config: " + e.getMessage(), e);
-    } catch (IOException e) {
-      throw new CounterexampleAnalysisFailed(e.getMessage(), e);
+
     } catch (InterruptedException e) {
       shutdownNotifier.shutdownIfNecessary();
       throw new CounterexampleAnalysisFailed("Counterexample check aborted", e);
+
+    } catch (CPAException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Analysis during counterexample check failed: " + e.getMessage(), e);
+    }
+  }
+
+  private Configuration buildConfiguration(ARGState pErrorState)
+      throws CounterexampleAnalysisFailed {
+    ConfigurationBuilder lConfigBuilder;
+
+    try {
+      lConfigBuilder = Configuration.builder().loadFromFile(configFile);
+
+    } catch (IOException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Cannot load configuration from file " + e.getMessage(), e);
+
+    } catch (InvalidConfigurationException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Invalid configuration in counterexample-check config: " + e.getMessage(), e);
+    }
+
+    for (String option : OVERWRITE_OPTIONS) {
+      lConfigBuilder.copyOptionFromIfPresent(config, option);
+    }
+
+    if (provideCEXInfoFromCEXCheck) {
+      CFAEdge targetEdge = pErrorState.getParents().iterator().next().getEdgeToChild(pErrorState);
+      lConfigBuilder.setOption(
+          "testcase.targets.edge",
+          targetEdge.getPredecessor().getNodeNumber() + "#" + System.identityHashCode(targetEdge));
+    }
+
+    try {
+      return lConfigBuilder.build();
+
+    } catch (InvalidConfigurationException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Invalid configuration in counterexample-check config: " + e.getMessage(), e);
+    }
+  }
+
+  @Override
+  public void writeCexFile(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path automatonFile)
+      throws CounterexampleAnalysisFailed, InterruptedException {
+    final Predicate<ARGState> relevantState = Predicates.in(pErrorPathStates);
+    Witness witness =
+        witnessExporter.generateErrorWitness(
+            pRootState,
+            relevantState,
+            BiPredicates.bothSatisfy(relevantState),
+            getCounterexampleInfo.apply(pErrorState).orElse(null));
+
+    try (Writer w = IO.openOutputFile(automatonFile, Charset.defaultCharset())) {
+      WitnessToOutputFormatsUtils.writeToGraphMl(witness, w);
+    } catch (IOException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Cannot write error witness file " + e.getMessage(), e);
     }
   }
 
