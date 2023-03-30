@@ -33,7 +33,7 @@ import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.io.PathTemplate;
 import org.sosy_lab.common.io.TempFile;
-import org.sosy_lab.common.io.TempFile.DeleteOnCloseFile;
+import org.sosy_lab.common.io.TempFile.TempFileBuilder;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.common.time.Timer;
@@ -50,7 +50,7 @@ import org.sosy_lab.cpachecker.util.cwriter.PathToCTranslator;
 
 /** Counterexample checker that creates a C program for the counterexample and calls CBMC on it. */
 @Options
-public class CBMCChecker implements CounterexampleChecker, Statistics {
+public class CBMCChecker extends CounterexampleChecker implements Statistics {
 
   private final LogManager logger;
 
@@ -94,34 +94,38 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
   }
 
   @Override
-  public boolean checkCounterexample(
-      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates)
-      throws CounterexampleAnalysisFailed, InterruptedException {
+  protected TempFileBuilder getTempFileBuilder() {
+    // This temp file will be automatically deleted when the try block terminates.
+    // Suffix .i tells CBMC to not call the pre-processor on this file.
+    return TempFile.builder().prefix("path").suffix(".i");
+  }
 
-    if (cbmcFile != null) {
-      int cexId =
-          pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
-      Path cFile = cbmcFile.getPath(cexId);
-      writeCexFile(pRootState, pErrorState, pErrorPathStates, cFile);
-      return checkCounterexample(pRootState, cFile);
+  @Override
+  protected @Nullable PathTemplate getCexFileTemplate() {
+    return cbmcFile;
+  }
 
-    } else {
+  @Override
+  protected void writeCexFile(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
+      throws CounterexampleAnalysisFailed {
+    assert cFile != null;
 
-      // This temp file will be automatically deleted when the try block terminates.
-      // Suffix .i tells CBMC to not call the pre-processor on this file.
-      try (DeleteOnCloseFile tempFile =
-          TempFile.builder().prefix("path").suffix(".i").createDeleteOnClose()) {
-        writeCexFile(pRootState, pErrorState, pErrorPathStates, tempFile.toPath());
-        return checkCounterexample(pRootState, tempFile.toPath());
+    Appender pathProgram = PathToCTranslator.translatePaths(pRootState, pErrorPathStates);
 
-      } catch (IOException e) {
-        throw new CounterexampleAnalysisFailed(
-            "Could not create temporary file " + e.getMessage(), e);
-      }
+    // write program to disk
+    try (Writer w = IO.openOutputFile(cFile, Charset.defaultCharset())) {
+      pathProgram.appendTo(w);
+    } catch (IOException e) {
+      throw new CounterexampleAnalysisFailed(
+          "Could not write path program to file " + e.getMessage(), e);
     }
   }
 
-  private boolean checkCounterexample(ARGState pRootState, Path cFile)
+  // needs only root and file actually
+  @Override
+  protected boolean checkCounterexample0(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
       throws CounterexampleAnalysisFailed, InterruptedException {
     String mainFunctionName = extractLocation(pRootState).getFunctionName();
 
@@ -183,23 +187,6 @@ public class CBMCChecker implements CounterexampleChecker, Statistics {
     // exit code and stderr are already logged with level WARNING
     throw new CounterexampleAnalysisFailed(
         "CBMC could not verify the program (CBMC exit code was " + exitCode + ")!");
-  }
-
-  @Override
-  public void writeCexFile(
-      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
-      throws CounterexampleAnalysisFailed {
-    assert cFile != null;
-
-    Appender pathProgram = PathToCTranslator.translatePaths(pRootState, pErrorPathStates);
-
-    // write program to disk
-    try (Writer w = IO.openOutputFile(cFile, Charset.defaultCharset())) {
-      pathProgram.appendTo(w);
-    } catch (IOException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Could not write path program to file " + e.getMessage(), e);
-    }
   }
 
   private List<String> getParamForMachineModel() {

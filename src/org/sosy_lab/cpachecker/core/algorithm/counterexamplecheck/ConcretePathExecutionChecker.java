@@ -30,7 +30,7 @@ import org.sosy_lab.common.configuration.TimeSpanOption;
 import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.io.PathTemplate;
 import org.sosy_lab.common.io.TempFile;
-import org.sosy_lab.common.io.TempFile.DeleteOnCloseFile;
+import org.sosy_lab.common.io.TempFile.TempFileBuilder;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.common.time.Timer;
@@ -51,7 +51,7 @@ import org.sosy_lab.cpachecker.util.cwriter.PathToConcreteProgramTranslator;
  */
 @Options(prefix = "counterexample.concrete")
 @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
-public class ConcretePathExecutionChecker implements CounterexampleChecker, Statistics {
+public class ConcretePathExecutionChecker extends CounterexampleChecker implements Statistics {
 
   @Option(
       secure = false,
@@ -94,30 +94,6 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
 
     config.inject(this, ConcretePathExecutionChecker.class);
     this.logger = logger;
-  }
-
-  @Override
-  public boolean checkCounterexample(
-      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates)
-      throws CounterexampleAnalysisFailed, InterruptedException {
-
-    if (dumpFile != null) {
-      int cexId =
-          pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
-      writeCexFile(pRootState, pErrorState, pErrorPathStates, dumpFile.getPath(cexId));
-      return checkCounterexample(dumpFile.getPath(cexId));
-    }
-
-    // This temp file will be automatically deleted when the try block terminates.
-    try (DeleteOnCloseFile tempFile =
-        TempFile.builder().prefix("concretePath").suffix(".c").createDeleteOnClose()) {
-      writeCexFile(pRootState, pErrorState, pErrorPathStates, tempFile.toPath());
-      return checkCounterexample(tempFile.toPath());
-
-    } catch (IOException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Could not create temporary file " + e.getMessage(), e);
-    }
   }
 
   /**
@@ -174,7 +150,10 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
     }
   }
 
-  private boolean checkCounterexample(Path cFile)
+  // actually needs only file
+  @Override
+  protected boolean checkCounterexample0(
+      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
       throws CounterexampleAnalysisFailed, InterruptedException {
     assert cFile != null;
     String absFile = cFile.toAbsolutePath().toString();
@@ -201,7 +180,17 @@ public class ConcretePathExecutionChecker implements CounterexampleChecker, Stat
   }
 
   @Override
-  public void writeCexFile(
+  protected TempFileBuilder getTempFileBuilder() {
+    return TempFile.builder().prefix("concretePath").suffix(".c");
+  }
+
+  @Override
+  protected @Nullable PathTemplate getCexFileTemplate() {
+    return dumpFile;
+  }
+
+  @Override
+  protected void writeCexFile(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
       throws CounterexampleAnalysisFailed {
     CounterexampleInfo ceInfo = pErrorState.getCounterexampleInformation().orElseThrow();

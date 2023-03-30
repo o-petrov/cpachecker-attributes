@@ -13,24 +13,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.io.MoreFiles;
 import java.io.IOException;
-import java.io.Writer;
-import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.NavigableSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -45,7 +33,6 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.configuration.TimeSpanOption;
-import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.log.BasicLogManager;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.log.LoggingOptions;
@@ -55,51 +42,41 @@ import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CParser;
 import org.sosy_lab.cpachecker.cfa.CParser.ParserOptions;
-import org.sosy_lab.cpachecker.cfa.Language;
-import org.sosy_lab.cpachecker.cfa.model.CFANode;
-import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
-import org.sosy_lab.cpachecker.cfa.types.MachineModel;
 import org.sosy_lab.cpachecker.core.CPAcheckerMutator.AnalysisResult;
 import org.sosy_lab.cpachecker.core.CPAcheckerMutator.AnalysisRun;
-import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CBMCChecker;
-import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.ConcretePathExecutionChecker;
-import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCPAchecker;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleCheckAlgorithm.CounterexampleCheckerType;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleChecker;
-import org.sosy_lab.cpachecker.core.counterexample.AssumptionToEdgeAllocator;
-import org.sosy_lab.cpachecker.core.counterexample.CounterexampleInfo;
+import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.DelegatingCheckerWithRestoredFunctions;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.specification.Specification;
 import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
-import org.sosy_lab.cpachecker.cpa.arg.ARGState;
-import org.sosy_lab.cpachecker.cpa.arg.ARGUtils;
-import org.sosy_lab.cpachecker.exceptions.CPAException;
-import org.sosy_lab.cpachecker.exceptions.CounterexampleAnalysisFailed;
-import org.sosy_lab.cpachecker.exceptions.ParserException;
 import org.sosy_lab.cpachecker.util.CPAs;
-import org.sosy_lab.cpachecker.util.LiveVariables;
-import org.sosy_lab.cpachecker.util.LoopStructure;
-import org.sosy_lab.cpachecker.util.cwriter.CFAToCTranslator;
-import org.sosy_lab.cpachecker.util.cwriter.TranslatorConfig;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTime;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTimeLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimit;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 import org.sosy_lab.cpachecker.util.resources.ThreadCpuTimeLimit;
 import org.sosy_lab.cpachecker.util.resources.WalltimeLimit;
-import org.sosy_lab.cpachecker.util.variableclassification.VariableClassification;
 
 @Options(prefix = "cfaMutation")
 final class CFAMutationManager {
 
   @Option(
       secure = true,
-      name = "logFilesLevel",
+      name = "logFile.level",
       description =
           "Create log file for every round with this logging level.\n"
               + "Use main file logging level if that is lower.")
   private Level fileLogLevel = Level.FINE;
+
+  @Option(
+      secure = true,
+      name = "logFile",
+      description =
+          "Create log file for every round with this logging level.\n"
+              + "Use main file logging level if that is lower.")
+  private String roundLogFile = "this-round.log";
 
   @Option(
       secure = true,
@@ -167,14 +144,16 @@ final class CFAMutationManager {
       name = "cex.checker",
       description =
           "Which model checker to use for verifying counterexample when an error is found using "
-              + "CFA mutations. Currently CBMC, CPAchecker with a different config, or the concrete "
-              + "execution checker can be used.")
+              + "CFA mutations. Currently CBMC, CPAchecker with same or different config, or the "
+              + "concrete execution checker can be used.")
   private CounterexampleCheckerType checkerType = CounterexampleCheckerType.CBMC;
 
   @Option(
       secure = true,
       name = "cex.checker.config",
-      description = "If CPAchecker is used as CEX-checker, it uses this configuration file.")
+      description =
+          "If CPAchecker is used as CEX-checker, it uses this configuration file or "
+              + "defaults to same configuration that found CEX.")
   private @Nullable String cpacheckerConfigFile;
 
   @TimeSpanOption(codeUnit = TimeUnit.SECONDS, defaultUserUnit = TimeUnit.SECONDS, min = 10)
@@ -216,13 +195,6 @@ final class CFAMutationManager {
     cfaMutator = Preconditions.checkNotNull(pCfaMutator);
 
     config.inject(this, CFAMutationManager.class);
-
-    if (checkerType == CounterexampleCheckerType.CPACHECKER
-        && Strings.isNullOrEmpty(cpacheckerConfigFile)) {
-      throw new InvalidConfigurationException(
-          "CEX check to validate an error found during CFA mutations uses CPAchecker, "
-              + "but no config was specified for it");
-    }
 
     ParserOptions parserOptions = CParser.Factory.getOptions(pConfig);
     if (parserOptions.shouldCollectACSLAnnotations()) {
@@ -362,7 +334,8 @@ final class CFAMutationManager {
   }
 
   public Configuration createRoundConfig(AnalysisRun pRun) throws InvalidConfigurationException {
-    ConfigurationBuilder builder = Configuration.builder().copyFrom(config);
+    ConfigurationBuilder builder =
+        Configuration.builder().copyFrom(config).setOption("log.file", roundLogFile);
 
     if (pRun == AnalysisRun.FEASIBILITY_CHECK) {
       builder.setOption("counterexample.checker", checkerType.name());
@@ -377,7 +350,15 @@ final class CFAMutationManager {
           break;
 
         case CPACHECKER:
-          builder.setOption("counterexample.checker.config", cpacheckerConfigFile);
+          if (!Strings.isNullOrEmpty(cpacheckerConfigFile)) {
+            try {
+              builder.loadFromFile(cpacheckerConfigFile);
+            } catch (IOException e) {
+              throw new InvalidConfigurationException(
+                  "Cannot read configuraton for counterexmple check from file: " + e.getMessage(),
+                  e);
+            }
+          }
           // other checkers use only one time limit (XXX cpu or wall, lets say cpu)
           builder.setOption("limits.time.cpu", timeForCex.toString());
           break;
@@ -521,13 +502,13 @@ final class CFAMutationManager {
     ShutdownManager fMan = ShutdownManager.createWithParent(parentNotifier);
 
     startCheckLimits(checkLogger, fMan);
-    return createCexChecker(checkConfig, checkLogger, fMan.getNotifier(), pResult);
+    return createCexChecker(checkConfig, checkLogger, fMan, pResult);
   }
 
   private CounterexampleChecker createCexChecker(
       Configuration checkConfig,
       LogManager checkLogger,
-      ShutdownNotifier pShutdownNotifier,
+      ShutdownManager pShutdownManager,
       AnalysisResult pResult)
       throws InvalidConfigurationException, AssertionError {
 
@@ -540,55 +521,8 @@ final class CFAMutationManager {
     }
 
     CFA mutatedCfa = pResult.getCfa();
-    NavigableSet<String> alreadyPresentFunctions = mutatedCfa.getAllFunctionNames();
-
-    switch (checkerType) {
-      case CBMC:
-        return new CBMCChecker(checkConfig, checkLogger, mutatedCfa) {
-          @Override
-          public void writeCexFile(
-              ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
-              throws CounterexampleAnalysisFailed {
-            super.writeCexFile(pRootState, pErrorState, pErrorPathStates, cFile);
-            writeRestoredFunctions(cFile, alreadyPresentFunctions);
-          }
-        };
-
-      case CPACHECKER:
-        AssumptionToEdgeAllocator assumptionToEdgeAllocator =
-            AssumptionToEdgeAllocator.create(
-                checkConfig, checkLogger, mutatedCfa.getMachineModel());
-
-        Function<ARGState, Optional<CounterexampleInfo>> tryGetCex =
-            s ->
-                ARGUtils.tryGetOrCreateCounterexampleInformation(
-                    s, usedCpa, assumptionToEdgeAllocator);
-
-        return new CounterexampleCPAchecker(
-            checkConfig, originalSpec, checkLogger, pShutdownNotifier, mutatedCfa, tryGetCex) {
-          @Override
-          public void writeCexFile(
-              ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
-              throws CounterexampleAnalysisFailed, InterruptedException {
-            super.writeCexFile(pRootState, pErrorState, pErrorPathStates, cFile);
-            writeRestoredFunctions(cFile, alreadyPresentFunctions);
-          }
-        };
-
-      case CONCRETE_EXECUTION:
-        return new ConcretePathExecutionChecker(checkConfig, checkLogger, mutatedCfa) {
-          @Override
-          public void writeCexFile(
-              ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path cFile)
-              throws CounterexampleAnalysisFailed {
-            super.writeCexFile(pRootState, pErrorState, pErrorPathStates, cFile);
-            writeRestoredFunctions(cFile, alreadyPresentFunctions);
-          }
-        };
-
-      default:
-        throw new AssertionError("Unhandled case statement: " + checkerType);
-    }
+    return new DelegatingCheckerWithRestoredFunctions(
+        checkConfig, checkLogger, mutatedCfa, pShutdownManager, checkerType, cfaMutator);
   }
 
   public void cancelCheckLimits() {
@@ -600,135 +534,5 @@ final class CFAMutationManager {
 
   public LogManager getCurrentLogger() {
     return currentLogger;
-  }
-
-  /**
-   * @param pCFile File that contains counterexample to check. Definitions of functions that were
-   *     removed when the counterexample was found will be added to this file.
-   * @param pAlreadyPresentFunctions Names of functions that were present during CEX export.
-   */
-  @SuppressWarnings("unused")
-  private void writeRestoredFunctions(Path pCFile, NavigableSet<String> pAlreadyPresentFunctions)
-      throws CounterexampleAnalysisFailed {
-    CFA restoredPart;
-    try {
-      CFA restoredCfa = cfaMutator.restoreCfa();
-      restoredPart = new AdditionalFunctionsCFA(restoredCfa, pAlreadyPresentFunctions);
-    } catch (InvalidConfigurationException | InterruptedException | ParserException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Cannot restore CFA for proper counterexample check: " + e.getMessage(), e);
-    }
-
-    try {
-      TranslatorConfig transConfig = new TranslatorConfig(config);
-      transConfig.setIncludeHeader(false);
-      String code = new CFAToCTranslator(transConfig).translateCfa(restoredPart);
-      try (Writer writer =
-          IO.openOutputFile(pCFile, Charset.defaultCharset(), StandardOpenOption.APPEND)) {
-        writer.write("\n// Above is counterexample to check.\n// Below are restored functions.\n");
-        writer.write(code);
-      }
-
-    } catch (CPAException | InvalidConfigurationException | IOException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Cannot add definitions of absent functons to the counterexample file "
-              + "produced with mutated CFA: "
-              + e.getMessage(),
-          e);
-    }
-  }
-
-  private static final class AdditionalFunctionsCFA implements CFA {
-    private final CFA delegate;
-    private final NavigableMap<String, FunctionEntryNode> functions = new TreeMap<>();
-
-    AdditionalFunctionsCFA(CFA pRestoredCfa, NavigableSet<String> pAlreadyPresentFunctions) {
-      assert pRestoredCfa.getAllFunctionNames().containsAll(pAlreadyPresentFunctions);
-      delegate = pRestoredCfa;
-      functions.putAll(pRestoredCfa.getAllFunctions());
-      functions.keySet().removeAll(pAlreadyPresentFunctions);
-    }
-
-    @Override
-    public MachineModel getMachineModel() {
-      return delegate.getMachineModel();
-    }
-
-    @Override
-    public boolean isEmpty() {
-      return delegate.isEmpty();
-    }
-
-    @Override
-    public int getNumberOfFunctions() {
-      return functions.size();
-    }
-
-    @Override
-    public NavigableSet<String> getAllFunctionNames() {
-      return (NavigableSet<String>) functions.keySet();
-    }
-
-    @Override
-    public Collection<FunctionEntryNode> getAllFunctionHeads() {
-      return functions.values();
-    }
-
-    @Override
-    public FunctionEntryNode getFunctionHead(String pName) {
-      FunctionEntryNode result = functions.get(pName);
-      assert result != null
-          : "Function "
-              + pName
-              + " not found, and original CFA "
-              + (delegate.getAllFunctionNames().contains(pName) ? "does " : "does not ")
-              + "contain this function";
-      return result;
-    }
-
-    @Override
-    public NavigableMap<String, FunctionEntryNode> getAllFunctions() {
-      return functions;
-    }
-
-    @Override
-    public Collection<CFANode> getAllNodes() {
-      return delegate.getAllNodes();
-    }
-
-    @Override
-    public FunctionEntryNode getMainFunction() {
-      return delegate.getMainFunction();
-    }
-
-    @Override
-    public Optional<LoopStructure> getLoopStructure() {
-      return delegate.getLoopStructure();
-    }
-
-    @Override
-    public Optional<ImmutableSet<CFANode>> getAllLoopHeads() {
-      return delegate.getAllLoopHeads();
-    }
-
-    @Override
-    public Optional<VariableClassification> getVarClassification() {
-      return delegate.getVarClassification();
-    }
-
-    @Override
-    public Optional<LiveVariables> getLiveVariables() {
-      return delegate.getLiveVariables();
-    }
-
-    @Override
-    public Language getLanguage() {
-      return delegate.getLanguage();
-    }
-
-    @Override
-    public List<Path> getFileNames() {
-      return delegate.getFileNames();
-    }
   }
 }

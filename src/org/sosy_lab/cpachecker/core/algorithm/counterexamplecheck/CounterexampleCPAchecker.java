@@ -39,7 +39,7 @@ import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.io.PathTemplate;
 import org.sosy_lab.common.io.TempFile;
-import org.sosy_lab.common.io.TempFile.DeleteOnCloseFile;
+import org.sosy_lab.common.io.TempFile.TempFileBuilder;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
@@ -72,7 +72,7 @@ import org.sosy_lab.cpachecker.util.CPAs;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 
 @Options(prefix = "counterexample.checker")
-public class CounterexampleCPAchecker implements CounterexampleChecker {
+public class CounterexampleCPAchecker extends CounterexampleChecker {
 
   // The following options will be forced in the counterexample check
   // to have the same value as in the actual analysis.
@@ -147,33 +147,7 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
   }
 
   @Override
-  public boolean checkCounterexample(
-      ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates)
-      throws CounterexampleAnalysisFailed, InterruptedException {
-
-    if (specFile != null) {
-      int cexId =
-          pErrorState.getCounterexampleInformation().map(cex -> cex.getUniqueId()).orElse(0);
-      writeCexFile(pRootState, pErrorState, pErrorPathStates, specFile.getPath(cexId));
-      return checkCounterexample(
-          pRootState, pErrorState, pErrorPathStates, specFile.getPath(cexId));
-    }
-
-    // This temp file will be automatically deleted when the try block terminates.
-    try (DeleteOnCloseFile automatonFile =
-        TempFile.builder()
-            .prefix("counterexample-automaton")
-            .suffix(".graphml")
-            .createDeleteOnClose()) {
-      writeCexFile(pRootState, pErrorState, pErrorPathStates, automatonFile.toPath());
-      return checkCounterexample(pRootState, pErrorState, pErrorPathStates, automatonFile.toPath());
-    } catch (IOException e) {
-      throw new CounterexampleAnalysisFailed(
-          "Could not write path automaton to file " + e.getMessage(), e);
-    }
-  }
-
-  private boolean checkCounterexample(
+  protected boolean checkCounterexample0(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path automatonFile)
       throws CounterexampleAnalysisFailed, InterruptedException {
 
@@ -282,7 +256,7 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
   }
 
   @Override
-  public void writeCexFile(
+  protected void writeCexFile(
       ARGState pRootState, ARGState pErrorState, Set<ARGState> pErrorPathStates, Path automatonFile)
       throws CounterexampleAnalysisFailed, InterruptedException {
     final Predicate<ARGState> relevantState = Predicates.in(pErrorPathStates);
@@ -451,5 +425,15 @@ public class CounterexampleCPAchecker implements CounterexampleChecker {
                   : ARGUtils.getOnePathTo(pStateWithCounterexample),
               pNewInfo.getCFAPathWithAssignments()));
     }
+  }
+
+  @Override
+  protected TempFileBuilder getTempFileBuilder() {
+    return TempFile.builder().prefix("counterexample-automaton").suffix(".graphml");
+  }
+
+  @Override
+  protected @Nullable PathTemplate getCexFileTemplate() {
+    return specFile;
   }
 }
