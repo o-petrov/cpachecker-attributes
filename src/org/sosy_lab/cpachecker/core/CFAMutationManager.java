@@ -369,7 +369,7 @@ final class CFAMutationManager {
 
     } else {
       // analysis
-      builder.setOptions(getRoundLimitOptions());
+      builder.setOptions(getRoundLimitOptions(getLimitsForAnalysis()));
     }
 
     return builder
@@ -377,23 +377,35 @@ final class CFAMutationManager {
         .build();
   }
 
-  private Map<String, String> getRoundLimitOptions() {
+  private static Map<String, String> getRoundLimitOptions(
+      ImmutableList<ResourceLimit> pRoundLimits) {
     ImmutableMap.Builder<String, String> result = ImmutableMap.builder();
-    ImmutableList<ResourceLimit> roundLimits = getLimitsForAnalysis();
 
-    for (ResourceLimit limit : roundLimits) {
+    for (ResourceLimit limit : pRoundLimits) {
       String key;
+      // time will be checked this time faster then limit is
+      int exceedingToCheckingFactor = 1;
+
       if (limit instanceof ProcessCpuTimeLimit) {
         key = "limits.time.cpu";
+        // cpu time checks are processor-count times more frequent
+        exceedingToCheckingFactor = Runtime.getRuntime().availableProcessors();
+
       } else if (limit instanceof ThreadCpuTimeLimit) {
         key = "limits.time.cpu.thread";
+        exceedingToCheckingFactor = 2;
+
       } else if (limit instanceof WalltimeLimit) {
         key = "limits.time.wall";
+        // no factor
+        exceedingToCheckingFactor = 1;
+
       } else {
         throw new AssertionError("unexpeted " + limit.getClass() + " class of time limit " + limit);
       }
 
-      result.put(key, String.format("%dns", limit.nanoSecondsToNextCheck(limit.getCurrentValue())));
+      long wait = limit.nanoSecondsToNextCheck(limit.getCurrentValue()) * exceedingToCheckingFactor;
+      result.put(key, String.format("%dns", wait));
     }
 
     return result.build();
