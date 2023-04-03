@@ -17,41 +17,27 @@ Mutate CFA so analysis can find an error that is present in original program.
 
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
 <benchmark tool="cpachecker" walltimelimit="2100">
-  <option name="-setprop">limits.time.wall=1900</option>
-  <option name="-setprop">limits.time.cpu=-1ns</option>
+  <option name="-setprop">limits.time.cpu=2000</option>
   <option name="-setprop">cfaMutation.dd.minProperty=VERDICT_UNKNOWN_BECAUSE_OF_TIMEOUT</option>
-  <propertyfile>../../../programs/benchmarks/properties/unreach-call.prp</propertyfile>
+  <propertyfile>../../../../config/specification/sv-comp-reachability.spc</propertyfile>
 
   <rundefinition name="bare-analysis">
     <option name="-config">test/config/svcomp22-without-timelimit.properties</option>
   </rundefinition>
 
   <rundefinition name="DD+Min+">
-    <option name="-config">test/config/cfa-mutation-svcomp22.properties</option>
+    <option name="-cfaMutation-svcomp22"/>
     <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
     <option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
     <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
   </rundefinition>
 
   <rundefinition name="DD+Max+">
-    <option name="-config">test/config/cfa-mutation-svcomp22.properties</option>
+    <option name="-cfaMutation-svcomp22"/>
     <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
     <option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
     <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
   </rundefinition>
-
-  <option name="-heap">10000M</option>
-
-  <!--
-    We collect error- and proof-witness files for further steps in our BuildBot.
-    Currently we expect about 120MB of compressed witness files from a complete benchmark set.
-    CPAchecker can compress and handle compressed witnesses automatically.
-    Please disable compression for real SVComp benchmarks!
-  -->
-<!--  <resultfiles>**.graphml*</resultfiles>-->
-<!--  <option name="-setprop">cpa.arg.compressWitness=true</option>-->
-<!--  <option name="-setprop">counterexample.export.compressWitness=false</option>-->
-<!--  <option name="-setprop">termination.compressWitness=true</option>-->
 
   <tasks name="true">
     <include>../../../programs/benchmarks/array-cav19/array_doub_access_init_const.c</include>
