@@ -274,6 +274,7 @@ public final class CPAcheckerMutator extends CPAchecker {
     pTimer.start();
     Throwable t = null;
     CPAchecker cpachecker = cfaMutationManager.createCpacheckerAndStartLimits(pRun);
+    LogManager curLogger = cfaMutationManager.getCurrentLogger();
 
     try {
       cpachecker.setupMainStats();
@@ -286,13 +287,10 @@ public final class CPAcheckerMutator extends CPAchecker {
       cpachecker.runAnalysis();
 
     } catch (InterruptedException e) {
-      assert cpachecker.shutdownNotifier.shouldShutdown();
       // this round was too long
       t = e;
-      logger.logf(
-          Level.WARNING,
-          "Analysis round interrupted (%s)",
-          cpachecker.shutdownNotifier.getReason());
+      logger.logUserException(Level.WARNING, e, "Analysis round interrupted");
+      curLogger.logException(Level.WARNING, e, "Analysis round interrupted");
 
     } catch (AssertionError
         | IllegalArgumentException
@@ -305,13 +303,15 @@ public final class CPAcheckerMutator extends CPAchecker {
         | CPAException e) {
       // Expect exceptions as bugs of CPAchecker, and remember them to reproduce on a smaller CFA.
       // TODO which types exactly
+      t = e;
       if (e.getStackTrace().length == 0) {
         // too many same exceptions were thrown, it's JVM optimization
-        logger.log(Level.WARNING, "Recurring error:", e.getClass(), "(no stack trace)");
+        logger.logf(Level.WARNING, "Recurring %s (no stack trace)", e.getClass());
+        curLogger.logf(Level.WARNING, "Recurring %s (no stack trace)", e.getClass());
       } else {
         logger.logUserException(Level.WARNING, e, null);
+        curLogger.logException(Level.WARNING, e, null);
       }
-      t = e;
 
     } finally {
       cfaMutationManager.cancelAnalysisLimits();
@@ -321,7 +321,7 @@ public final class CPAcheckerMutator extends CPAchecker {
 
     CPAcheckerResult cur = cpachecker.produceResult();
     if (t == null) {
-      logger.log(Level.INFO, cur.getResultString());
+      curLogger.log(Level.INFO, cur.getResultString());
     } else {
       // exception was already logged
     }
