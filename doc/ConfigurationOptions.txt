@@ -907,7 +907,6 @@ cfaMutation.cex.checker.config = no default value
 
 # file to dump counterexample to
 cfaMutation.cex.checker.file = "counterexample-with-restored-functions.%d.c"
-cfaMutation.cex.checker.file = no default value
 
 # Limit time for countrexample feasibility check. This option is used only if
 # CFA mutations are used to find a feasible error. As with analysis
@@ -980,6 +979,10 @@ cfaMutation.oldStrategies = [
           DeclarationEdgeRemover.class,
           GlobalDeclarationRemover.class]
 
+# File to write how frequent CFA node is among resulted reached set states'
+# locations.
+cfaMutation.rankedNodesFile = "this-round-ranked-nodes.txt"
+
 # If a mutation round is unsuccessfull (i.e. sought-for bug does not occur),
 # the mutation is rollbacked. If this count of rollbacks occur in row, check
 # that rollbacked CFA produces the sought-for bug.
@@ -989,6 +992,9 @@ cfaMutation.oldStrategies = [
 # one, so if 5 rollbacks occur in a row, 2nd and 4th will be checked. And so
 # on.
 cfaMutation.rollbacksInRowCheck = 5
+
+# File to dump statistics of current round to
+cfaMutation.roundStatFile = "this-round-stats.txt"
 
 # Sometimes analysis run can be unpredictably long. To run many runs
 # successfully, CFA mutator hard-caps time for every run (200s by default),

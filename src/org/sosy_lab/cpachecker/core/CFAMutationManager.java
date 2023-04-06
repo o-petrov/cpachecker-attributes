@@ -11,11 +11,19 @@ package org.sosy_lab.cpachecker.core;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Multiset.Entry;
+import com.google.common.collect.TreeMultiset;
 import com.google.common.io.MoreFiles;
+import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.io.Writer;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +41,8 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.configuration.TimeSpanOption;
+import org.sosy_lab.common.configuration.converters.FileTypeConverter;
+import org.sosy_lab.common.io.IO;
 import org.sosy_lab.common.log.BasicLogManager;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.log.LoggingOptions;
@@ -42,6 +52,7 @@ import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.CParser;
 import org.sosy_lab.cpachecker.cfa.CParser.ParserOptions;
+import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.mutation.CFAMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerMutator.AnalysisResult;
 import org.sosy_lab.cpachecker.core.CPAcheckerMutator.AnalysisRun;
@@ -49,8 +60,10 @@ import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.Counterexample
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.CounterexampleChecker;
 import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.DelegatingCheckerWithRestoredFunctions;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
+import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.core.specification.Specification;
 import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
+import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.CPAs;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTime;
 import org.sosy_lab.cpachecker.util.resources.ProcessCpuTimeLimit;
@@ -77,6 +90,19 @@ final class CFAMutationManager {
           "Create log file for every round with this logging level.\n"
               + "Use main file logging level if that is lower.")
   private String roundLogFile = "this-round.log";
+
+  @Option(
+      secure = true,
+      name = "roundStatFile",
+      description = "File to dump statistics of current round to")
+  private String roundStatFile = "this-round-stats.txt";
+
+  @Option(
+      secure = true,
+      name = "rankedNodesFile",
+      description =
+          "File to write how frequent CFA node is among resulted reached set states' locations.")
+  private String rankedNodesFile = "this-round-ranked-nodes.txt";
 
   @Option(
       secure = true,
@@ -311,7 +337,7 @@ final class CFAMutationManager {
   private boolean shouldShutdown(
       ImmutableList<ResourceLimit> pLocalLimits, String pWillExceed, String pDescription) {
     if (shutdownManager.getNotifier().shouldShutdown()) {
-      logger.log(Level.INFO, pDescription, shutdownManager.getNotifier().getReason());
+      logger.log(Level.INFO, () -> pDescription + ": " + shutdownManager.getNotifier().getReason());
       return true;
     }
 
@@ -325,7 +351,8 @@ final class CFAMutationManager {
               + TimeSpan.ofSeconds(1).asNanos(); // plus 1s for my code before and after analysis
 
       if (globalLimit.isExceeded(globalLimit.getCurrentValue() + localTimeout)) {
-        logger.log(Level.INFO, pDescription, globalLimit.getName(), pWillExceed);
+        logger.log(
+            Level.INFO, () -> pDescription + ": " + globalLimit.getName() + ' ' + pWillExceed);
         return true;
       }
     }
@@ -335,7 +362,7 @@ final class CFAMutationManager {
 
   public Configuration createRoundConfig(AnalysisRun pRun) throws InvalidConfigurationException {
     ConfigurationBuilder builder =
-        Configuration.builder().copyFrom(config).setOption("log.file", roundLogFile);
+        Configuration.builder().copyFrom(config).setOption("log.file", roundLogFile.toString());
 
     if (pRun == AnalysisRun.FEASIBILITY_CHECK) {
       builder.setOption("counterexample.checker", checkerType.name());
@@ -546,5 +573,63 @@ final class CFAMutationManager {
 
   public LogManager getCurrentLogger() {
     return currentLogger;
+  }
+
+  public File getIntermediateStatisticsFile() {
+    FileTypeConverter fileConverter =
+        (FileTypeConverter) Configuration.getDefaultConverters().get(FileOption.class);
+    return fileConverter.getOutputPath().resolve(roundStatFile).toFile();
+  }
+
+  void printCfaNodeRank(PrintStream pOut, UnmodifiableReachedSet pReached) {
+    pOut.println();
+    pOut.println("Rank of CFA nodes by states:");
+    pOut.println("============================");
+
+    ImmutableList<Multiset.Entry<CFANode>> rankedNodes = rankNodes(pReached);
+
+    int topSize = 15;
+    ImmutableList<Entry<CFANode>> top =
+        rankedNodes.subList(0, Math.min(rankedNodes.size(), topSize));
+    {
+      int i = 0;
+      for (Multiset.Entry<CFANode> p : top) {
+        pOut.println(++i + ". " + describeEntry(p));
+      }
+    }
+    if (rankedNodes.size() > topSize) {
+      pOut.println("... " + (rankedNodes.size() - topSize) + " more");
+    }
+    pOut.println();
+
+    FileTypeConverter fileConverter =
+        (FileTypeConverter) Configuration.getDefaultConverters().get(FileOption.class);
+    Path thisRoundRankedNodesFile = fileConverter.getOutputPath().resolve(rankedNodesFile);
+    try (Writer file = IO.openOutputFile(thisRoundRankedNodesFile, Charset.defaultCharset())) {
+      int i = 0;
+      for (Multiset.Entry<CFANode> p : rankedNodes) {
+        file.append(++i + ". " + describeEntry(p));
+      }
+    } catch (IOException e) {
+      logger.logUserException(Level.WARNING, e, "Cannot write node rank to file");
+    }
+  }
+
+  private static String describeEntry(Multiset.Entry<CFANode> pEntry) {
+    String result =
+        pEntry.getElement().getFunctionName() + ":N" + pEntry.getElement().getNodeNumber();
+    if (pEntry.getCount() != 1) {
+      result += " x " + pEntry.getCount();
+    }
+    return result;
+  }
+
+  private static ImmutableList<Multiset.Entry<CFANode>> rankNodes(UnmodifiableReachedSet pReached) {
+    TreeMultiset<CFANode> nodes =
+        TreeMultiset.create(
+            FluentIterable.from(pReached).transformAndConcat(AbstractStates::extractLocations));
+
+    return FluentIterable.from(nodes.entrySet())
+        .toSortedList((p1, p2) -> p2.getCount() - p1.getCount());
   }
 }

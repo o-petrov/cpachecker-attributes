@@ -12,9 +12,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.FluentIterable.from;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableSet;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -151,6 +153,8 @@ public final class CPAcheckerMutator extends CPAchecker {
           if (cfaMutationManager.exceedsLimitsForFeasibility()) {
             return lastResult.asMutatorResult(Result.FALSE, cfaMutator, totalStats);
           }
+
+          logger.log(Level.INFO, "Found a counterexample. Checking it on original program.");
 
           resetExportDirectory(AnalysisRun.FEASIBILITY_CHECK);
           boolean errorIsFeasible = false;
@@ -326,6 +330,16 @@ public final class CPAcheckerMutator extends CPAchecker {
       // exception was already logged
     }
 
+    try (PrintStream w = new PrintStream(cfaMutationManager.getIntermediateStatisticsFile())) {
+      MainCPAStatistics curStats = cpachecker.getStats();
+      StatisticsUtils.printStatistics(curStats, w, curLogger, cur.getResult(), cur.getReached());
+      StatisticsUtils.writeOutputFiles(curStats, curLogger, cur.getResult(), cur.getReached());
+      cfaMutationManager.printCfaNodeRank(w, cur.getReached());
+
+    } catch (IOException e) {
+      logger.logUserException(Level.WARNING, e, "Cannot write intermediate statistics");
+    }
+
     return new AnalysisResult(cur, t);
   }
 
@@ -442,12 +456,9 @@ public final class CPAcheckerMutator extends CPAchecker {
 
     public CPAcheckerResult asMutatorResult(
         Result pResult, CFAMutator pCfaMutator, MainCFAMutationStatistics pTotalStats) {
-      if (pTotalStats != null) {
-        if (pCfaMutator != null) {
-          pCfaMutator.collectStatistics(pTotalStats.subStats);
-        }
-        pTotalStats.lastMainStats = getStats();
-      }
+      Preconditions.checkNotNull(pCfaMutator);
+      Preconditions.checkNotNull(pTotalStats);
+      pCfaMutator.collectStatistics(pTotalStats.subStats);
       String desc = getVerdict() == Result.FALSE ? result.getTargetDescription() : "";
       return new CPAcheckerResult(pResult, desc, result.getReached(), result.getCfa(), pTotalStats);
     }
@@ -470,7 +481,6 @@ public final class CPAcheckerMutator extends CPAchecker {
   }
 
   class MainCFAMutationStatistics implements Statistics {
-    private MainCPAStatistics lastMainStats = null;
     private Statistics cfaCreatorStats = null;
     private List<Statistics> subStats = new ArrayList<>();
 
@@ -484,14 +494,6 @@ public final class CPAcheckerMutator extends CPAchecker {
 
     @Override
     public void printStatistics(PrintStream pOut, Result pResult, UnmodifiableReachedSet pReached) {
-
-      if (lastMainStats != null) {
-        pOut.println("Last analysis statistics");
-        pOut.println("========================");
-        StatisticsUtils.printStatistics(lastMainStats, pOut, logger, pResult, pReached);
-        StatisticsUtils.writeOutputFiles(lastMainStats, logger, pResult, pReached);
-        pOut.println();
-      }
 
       if (cfaCreatorStats != null) {
         pOut.println("CFA creation statistics");
@@ -534,10 +536,6 @@ public final class CPAcheckerMutator extends CPAchecker {
 
     @Override
     public void writeOutputFiles(Result pResult, UnmodifiableReachedSet pReached) {
-      if (lastMainStats != null) {
-        lastMainStats.writeOutputFiles(pResult, pReached);
-      }
-
       subStats.forEach(s -> StatisticsUtils.writeOutputFiles(s, logger, pResult, pReached));
     }
   }
