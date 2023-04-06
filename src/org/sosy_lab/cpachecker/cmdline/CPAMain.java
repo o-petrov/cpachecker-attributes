@@ -296,9 +296,9 @@ public class CPAMain {
         secure = true,
         name = "cfaMutation",
         description =
-            "Run multiple runs on mutated CFAs. For example, try to make CFA of the input program smaller "
-                + "when original analysis run throws an exception, i.e. minimize a failing test. "
-                + "See more in the Delta Debugging (dd) options below.")
+            "Run multiple runs on mutated CFAs. For example, try to make CFA of the input program "
+                + "smaller when original analysis run throws an exception, i.e. minimize a "
+                + "failing test. See more in the Delta Debugging (dd) options below.")
     private boolean cfaMutation = false;
   }
 

@@ -67,7 +67,9 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.cpachecker.cfa.Language;
 import org.sosy_lab.cpachecker.core.CPAchecker;
+import org.sosy_lab.cpachecker.core.CPAcheckerMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult;
+import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 import org.sosy_lab.cpachecker.util.test.TestDataTools;
 
 /** Test that the bundled configuration files are all valid. */
@@ -198,6 +200,15 @@ public class ConfigurationFileChecks {
                 + " of the first analysis returning in time. All other mpi-processes will get"
                 + " aborted.")
     private boolean useMPIProcessAlgorithm = false;
+
+    @Option(
+        secure = true,
+        name = "cfaMutation",
+        description =
+            "Run multiple runs on mutated CFAs. For example, try to make CFA of the input program "
+                + "smaller when original analysis run throws an exception, i.e. minimize a "
+                + "failing test. See more in the Delta Debugging (dd) options below.")
+    private boolean doCfaMutation = false;
 
     @Option(
         secure = true,
@@ -471,10 +482,17 @@ public class ConfigurationFileChecks {
     final TestLogHandler logHandler = new TestLogHandler();
     logHandler.setLevel(Level.ALL);
     final LogManager logger = BasicLogManager.createWithHandler(logHandler);
+    final ShutdownManager shMan = ShutdownManager.create();
 
     final CPAchecker cpachecker;
     try {
-      cpachecker = new CPAchecker(config, logger, ShutdownManager.create());
+      if (options.doCfaMutation) {
+        ResourceLimitChecker limits =
+            new ResourceLimitChecker(shMan, ImmutableList.of());
+        cpachecker = new CPAcheckerMutator(config, logger, shMan, limits);
+      } else {
+        cpachecker = new CPAchecker(config, logger, shMan);
+      }
     } catch (InvalidConfigurationException e) {
       assertWithMessage(
               "Invalid configuration in configuration file %s : %s", configFile, e.getMessage())
