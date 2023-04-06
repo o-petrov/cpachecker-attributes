@@ -57,6 +57,7 @@ import org.sosy_lab.common.log.LoggingOptions;
 import org.sosy_lab.cpachecker.cfa.Language;
 import org.sosy_lab.cpachecker.cmdline.CmdLineArguments.InvalidCmdlineArgumentException;
 import org.sosy_lab.cpachecker.core.CPAchecker;
+import org.sosy_lab.cpachecker.core.CPAcheckerMutator;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.algorithm.pcc.ProofGenerator;
@@ -143,7 +144,12 @@ public class CPAMain {
       limits = ResourceLimitChecker.fromConfiguration(cpaConfig, logManager, shutdownManager);
       limits.start();
 
-      cpachecker = new CPAchecker(cpaConfig, logManager, shutdownManager);
+      if (options.cfaMutation) {
+        cpachecker =
+            new CPAcheckerMutator(cpaConfig, logManager, shutdownManager, limits, logOptions);
+      } else {
+        cpachecker = new CPAchecker(cpaConfig, logManager, shutdownManager);
+      }
       if (options.doPCC) {
         proofGenerator = new ProofGenerator(cpaConfig, logManager, shutdownNotifier);
       }
@@ -286,6 +292,15 @@ public class CPAMain {
 
     @Option(secure = true, name = "pcc.proofgen.doPCC", description = "Generate and dump a proof")
     private boolean doPCC = false;
+
+    @Option(
+        secure = true,
+        name = "cfaMutation",
+        description =
+            "Run multiple runs on mutated CFAs. For example, try to make CFA of the input program smaller "
+                + "when original analysis run throws an exception, i.e. minimize a failing test. "
+                + "See more in the Delta Debugging (dd) options below.")
+    private boolean cfaMutation = false;
   }
 
   private static void dumpConfiguration(
@@ -746,10 +761,10 @@ public class CPAMain {
 
       // print result
       if (!options.printStatistics) {
-        stream =
-            makePrintStream(
-                mergeStreams(System.out, file)); // ensure that result is printed to System.out
+        // ensure that result is printed to System.out
+        stream = makePrintStream(mergeStreams(System.out, file));
       }
+
       mResult.printResult(stream);
 
       // write output files

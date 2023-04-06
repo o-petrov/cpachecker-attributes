@@ -30,13 +30,13 @@ import org.sosy_lab.cpachecker.util.Pair;
  */
 public class ParseResult {
 
-  private final NavigableMap<String, FunctionEntryNode> functions;
+  protected final NavigableMap<String, FunctionEntryNode> functions;
 
-  private final TreeMultimap<String, CFANode> cfaNodes;
+  protected final TreeMultimap<String, CFANode> cfaNodes;
 
-  private final List<Pair<ADeclaration, String>> globalDeclarations;
+  protected final List<Pair<ADeclaration, String>> globalDeclarations;
 
-  private final List<Path> fileNames;
+  protected final List<Path> fileNames;
 
   public ParseResult(
       NavigableMap<String, FunctionEntryNode> pFunctions,

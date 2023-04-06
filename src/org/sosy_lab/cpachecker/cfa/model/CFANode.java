@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cfa.model;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.io.Serializable;
@@ -327,5 +328,109 @@ public class CFANode implements Comparable<CFANode>, Serializable {
       return ImmutableSet.of();
     }
     return Collections.unmodifiableSet(outOfScopeVariables);
+  }
+
+  /**
+   * Insert new leaving edge instead of old one. Used only for consistent CFA mutation. Warning:
+   * everything is checked for equality by ==, not equals, as there should not be any copies.
+   */
+  @Deprecated
+  public void replaceLeavingEdge(CFAEdge pOldEdge, CFAEdge pNewEdge) {
+    Preconditions.checkArgument(this == pOldEdge.getPredecessor());
+    Preconditions.checkArgument(this == pNewEdge.getPredecessor());
+    for (int i = 0; i < leavingEdges.size(); i++) {
+      if (leavingEdges.get(i) == pOldEdge) {
+        leavingEdges.set(i, pNewEdge);
+        return;
+      }
+    }
+    throw new AssertionError(); // old edge not found
+  }
+
+  /**
+   * Insert new entering edge instead of old one. Used only for consistent CFA mutation. Warning:
+   * everything is checked for equality by ==, not equals, as there should not be any copies.
+   */
+  @Deprecated
+  public void replaceEnteringEdge(CFAEdge pOldEdge, CFAEdge pNewEdge) {
+    Preconditions.checkArgument(this == pOldEdge.getSuccessor());
+    Preconditions.checkArgument(this == pNewEdge.getSuccessor());
+    for (int i = 0; i < enteringEdges.size(); i++) {
+      if (enteringEdges.get(i) == pOldEdge) {
+        enteringEdges.set(i, pNewEdge);
+        return;
+      }
+    }
+    throw new AssertionError(); // old edge not found
+  }
+
+  /** Insert new entering edge at given index. Used only for consistent CFA mutation. */
+  @Deprecated
+  public void insertEnteringEdge(int pIndex, CFAEdge pEdge) {
+    Preconditions.checkArgument(pEdge.getSuccessor() == this);
+    enteringEdges.add(pIndex, pEdge);
+  }
+
+  /**
+   * Check that current entering edges are the same and in same order as in given list. Edges must
+   * be identical, as #equals compares incident nodes and nothing more, so edges can be different.
+   * Entering summary edge is nulled.
+   */
+  @Deprecated
+  public void resetEnteringEdges(ImmutableList<CFAEdge> pEnteringEdges) {
+    for (int i = 0; i < pEnteringEdges.size(); i++) {
+      CFAEdge newEdge = pEnteringEdges.get(i);
+
+      if (enteringEdges.size() <= i) {
+        // add edge to the end, nothing to remove
+        enteringEdges.add(newEdge);
+
+      } else if (enteringEdges.get(i) != newEdge) {
+        // other instance, replace
+        enteringEdges.set(i, newEdge);
+      }
+    }
+
+    for (int i = enteringEdges.size() - 1; i >= pEnteringEdges.size(); i--) {
+      // remove excessive edges at the end of stored list
+      enteringEdges.remove(i);
+    }
+
+    enteringSummaryEdge = null;
+  }
+
+  /**
+   * Check that current leaving edges are the same and in same order as in given list. Edges must be
+   * identical, as #equals compares incident nodes and nothing more, so edges can be different.
+   * Leaving summary edge is nulled.
+   */
+  @Deprecated
+  public void resetLeavingEdges(ImmutableList<CFAEdge> pLeavingEdges) {
+    for (int i = 0; i < pLeavingEdges.size(); i++) {
+      CFAEdge newEdge = pLeavingEdges.get(i);
+
+      if (leavingEdges.size() <= i) {
+        // add edge to the end, nothing to remove
+        leavingEdges.add(newEdge);
+
+      } else if (leavingEdges.get(i) != newEdge) {
+        // other instance, replace
+        leavingEdges.set(i, newEdge);
+      }
+    }
+
+    for (int i = leavingEdges.size() - 1; i >= pLeavingEdges.size(); i--) {
+      // remove excessive edges at the end of stored list
+      leavingEdges.remove(i);
+    }
+
+    leavingSummaryEdge = null;
+  }
+
+  @Deprecated
+  public void resetNodeInfo() {
+    isLoopStart = false;
+    outOfScopeVariables = null;
+    reversePostorderId = 0;
   }
 }

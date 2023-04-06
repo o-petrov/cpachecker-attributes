@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiPredicate;
+import org.sosy_lab.cpachecker.cfa.DummyCFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.AssumeEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
@@ -80,7 +81,9 @@ enum GraphBuilder {
           CFAEdge edgeToNextState;
 
           if (allEdgeToNextState.isEmpty()) {
-            edgeToNextState = null; // TODO no next state, what to do?
+            // TODO no next state, what to do?
+            CFANode dummyNode = CFANode.newDummyCFANode();
+            edgeToNextState = new DummyCFAEdge(dummyNode, dummyNode);
 
           } else if (allEdgeToNextState.size() == 1) {
             edgeToNextState = Iterables.getOnlyElement(allEdgeToNextState);

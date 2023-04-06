@@ -767,10 +767,8 @@ cegar.useRefinementSelection = false
 # Which functions should be interpreted as encoding assumptions
 cfa.assumeFunctions = {"__VERIFIER_assume"}
 
-# dump a simple call graph
+# dump graphs of all function calls and used functions calls in .dot format
 cfa.callgraph.export = true
-
-# file name for call graph as .dot file
 cfa.callgraph.file = "functionCalls.dot"
 cfa.callgraph.fileUsed = "functionCallsUsed.dot"
 
@@ -789,13 +787,20 @@ cfa.checkNullPointers.singleTargetPerFunction = true
 # create a series of if-else edges with explicit indizes instead.
 cfa.expandFunctionPointerArrayAssignments = false
 
-# export CFA as .dot file
+# export program as CFA in .dot format
 cfa.export = true
 
-# export individual CFAs for function as .dot files
+# subdirectory in main output directory to export all CFA-related files to
+cfa.export.directory = "."
+
+# export individual CFAs for function as .dot files in given subdirectory
 cfa.exportPerFunction = true
 
-# export CFA as C file
+# subdirectory in CFA export subdirectory to export individual CFAs for
+# function as .dot files
+cfa.exportPerFunction.directory = "cfa"
+
+# export program CFA as C source file
 cfa.exportToC = false
 cfa.exportToC.file = "cfa.c"
 
@@ -803,7 +808,7 @@ cfa.exportToC.file = "cfa.c"
 # (only possible for a single input file)
 cfa.exportToC.stayCloserToInput = false
 
-# export CFA as .dot file
+# export program as CFA in .dot format
 cfa.file = "cfa.dot"
 
 # By enabling this option the variables that are live are computed for each
@@ -829,8 +834,8 @@ cfa.moveDeclarationsToFunctionStart = false
 cfa.nonReturningFunctions = {"abort", "exit"}
 
 # Export CFA as pixel graphic to the given file name. The suffix is added
-# corresponding to the value of option pixelgraphic.export.formatIf set to
-# 'null', no pixel graphic is exported.
+# corresponding to the value of option pixelgraphic.export.format
+cfa.pixelGraphic = false
 cfa.pixelGraphicFile = "cfaPixel"
 
 # export CFA as .ser file (dump Java objects)
@@ -881,6 +886,96 @@ cfa.variableClassification.printStatsOnStartup = false
 
 # Dump variable type mapping to a file.
 cfa.variableClassification.typeMapFile = "VariableTypeMapping.txt"
+
+# Run multiple runs on mutated CFAs. For example, try to make CFA of the
+# input program smaller when original analysis run throws an exception, i.e.
+# minimize a failing test. See more in the Delta Debugging (dd) options
+# below.
+cfaMutation = false
+
+# which DD algorithm implementation to use to mutate CFA: my previous
+# implementation of original (flat) DD; new implementation of original (flat)
+# DD; DD*, that iterates cause-isolating DD to minimize or maximize;
+# DDSearch, that iterates over optimums found by DD*; or hierarchical DD.
+cfaMutation.dd = DD
+  enum:     [OLD, DD, DDSTAR, DDSEARCH, HDD]
+
+# Delta Debugging can minimize input program or maximize it while preserving
+# given property.Here properties are results of analysis run:
+# 1. True;
+# 2. False with same description as False for original program;
+# 3. Any False;
+# 4. Timeout;
+# 5. Exception similar to the exception original program causes;
+# 6. Any exception;
+# 7. Unknown (or Not yet started) not because of exception or time limit.
+# Express property for minimized/maximized program as a set of allowed
+# outcomes.Also DD can find minimal difference ('cause') between given
+# properties, I.e. if 'cause' is removed, property for minimization ceases,
+# and property for maximization holds. If 'cause' is present, property for
+# minimization holds, and property for maximization does not.
+# By default, dd minimizes for same exception, so maximization property is
+# 'turned off'.If you specify {True, Any False} for maximization property
+# with {Same exception} for minimization property, DD will find a minimal
+# difference that changes a program from reproducing the exception to correct
+# analysis run with conclusive verdict.
+# The two properties should be mutually exclusive (impossible together);
+# minimization property should hold for original input program, and
+# maximization property should hold for 'empty' program `int main() {return
+# 0;}`.
+cfaMutation.dd.direction = MINIMIZATION
+  enum:     [MINIMIZATION, MAXIMIZATION, ISOLATION]
+cfaMutation.dd.maxProperty = {AnalysisOutcome.VERDICT_TRUE, AnalysisOutcome.VERDICT_FALSE}
+cfaMutation.dd.minProperty = {AnalysisOutcome.FAILURE_BECAUSE_OF_SAME_EXCEPTION}
+
+# which parts to remove? DD can remove deltas, complements, or both
+cfaMutation.dd.parts = DELTAS_AND_COMPLEMENTS
+  enum:     [ONLY_DELTAS, ONLY_COMPLEMENTS, DELTAS_AND_COMPLEMENTS]
+
+# directory to dump function CFAs with marked up structured blocks
+cfaMutation.exportBlocksDir = "cfa-structured-blocks"
+
+# Create log file for every round with this logging level.
+# Use main file logging level if that is lower.
+cfaMutation.logFilesLevel = Level.FINE
+
+# which elements to remove from CFA (one manipulator class)
+cfaMutation.manipulator = no default value
+
+# which strategies to use subsequently to mutate CFA
+cfaMutation.oldStrategies = [
+          FunctionBodyRemover.class,
+          AssumeEdgesRemover.class,
+          StatementChainRemover.class,
+          StatementEdgeRemover.class,
+          ExpressionRemover.class,
+          DeclarationEdgeRemover.class,
+          GlobalDeclarationRemover.class]
+
+# If a mutation round is unsuccessfull (i.e. sought-for bug does not occur),
+# the mutation is rollbacked. If this count of rollbacks occur in row, check
+# that rollbacked CFA produces the sought-for bug.
+# If set to 0, do not check any rollbacks.
+# If set to 1, check that bug occurs after every rollback.
+# If set to 2, check every other one that occurs immediately after another
+# one, so if 5 rollbacks occur in a row, 2nd and 4th will be checked. And so
+# on.
+cfaMutation.rollbacksInRowCheck = 5
+
+# Time limit for exporting a CFA. If an export exceeds this limit, CFA
+# exports are disabled for the following rounds. This time limit is not
+# checked if this option is set to zero.
+cfaMutation.timelimit.forExport = 2s
+
+# Sometimes analysis run can be unpredictably long. To run many runs
+# successfully, CFA mutator hard caps walltime for every run (200s by
+# default), and also soft caps walltime for the runs after original by
+# multiplying used time by the factor and adding the bias. By default soft
+# cap is orig.time * 2.0 + 5s. Original (first) run gets hard-cap time limit,
+# all others get the lower between the two.
+cfaMutation.walltimeLimit.add = 5s
+cfaMutation.walltimeLimit.factor = 2.0
+cfaMutation.walltimeLimit.hardcap = 200s
 
 # Output an input file, with invariants embedded as assume constraints.
 cinvariants.export = false

@@ -52,12 +52,14 @@ public class MutableCFA implements CFA {
     fileNames = ImmutableList.copyOf(pFileNames);
     language = pLanguage;
 
-    assert functions.keySet().equals(allNodes.keySet());
-    assert mainFunction.equals(functions.get(mainFunction.getFunctionName()));
+    assert functions.keySet().equals(allNodes.keySet()) : "inconsistent set of functions";
+    assert mainFunction.equals(functions.get(mainFunction.getFunctionName()))
+        : "wrong main function entry node";
   }
 
   public void addNode(CFANode pNode) {
-    assert functions.containsKey(pNode.getFunctionName());
+    assert functions.containsKey(pNode.getFunctionName())
+        : "no such function in CFA: " + pNode.getFunctionName();
     allNodes.put(pNode.getFunctionName(), pNode);
   }
 

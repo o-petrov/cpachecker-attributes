@@ -1,0 +1,190 @@
+<?xml version="1.0" ?>
+
+<!-- This file is part of CPAchecker, -->
+<!-- a tool for configurable software verification: -->
+<!-- https://cpachecker.sosy-lab.org -->
+<!-- -->
+<!-- SPDX-FileCopyrightText: 2022 Dirk Beyer <https://www.sosy-lab.org> -->
+<!-- -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<!--
+CPAchecker crashes on these input files (that means, these programs are failing tests).
+These programs are used to test CFA mutator when it tries to make minimal failing test.
+-->
+
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
+<benchmark walltimelimit="1100s" tool="cpachecker">
+    <option name="-setprop">cpa.callstack.unsupportedFunctions=__VERIFIER_nonexisting_dummy_function</option>
+    <option name="-setprop">cpa.predicate.allowedUnsupportedFunctions=memset,memcpy,__builtin_add_overflow,__builtin_mul_overflow,__builtin_va_arg</option>
+    <option name="-setprop">counterexample.export.extendedWitnessFile=witness.%d.graphml</option>
+    <option name="-setprop">counterexample.export.exportExtendedWitness=true</option>
+    <option name="-setprop">counterexample.export.compressWitness=false</option>
+    <option name="-setprop">cpa.arg.witness.removeInsufficientEdges=false</option>
+    <option name="-heap">4000m</option>
+    <option name="-64"/>
+    <option name="-smg-ldv"/>
+    <option name="-setprop">CompositeCPA.cpas=cpa.location.LocationCPA,cpa.callstack.CallstackCPA,cpa.smg.SMGCPA</option>
+    <option name="-setprop">parser.readLineDirectives=false</option>
+
+	<option name="-setprop">cfaMutation=true</option>
+    <option name="-setprop">limits.time.wall=1000s</option>
+    <option name="-setprop">limits.time.cpu=-1ns</option>
+
+	<option name="-setprop">output.disable=false</option>
+    <option name="-setprop">cfa.export=true</option>
+    <option name="-setprop">cfa.exportPerFunction=true</option>
+    <option name="-setprop">cfa.exportToC=true</option>
+    <option name="-setprop">cfa.serialize=true</option>
+
+	<columns>
+		<column title="total rounds">total count of mutation rounds</column>
+<!--		<column title="rounds with same error">successful mutations (sought-for error)</column>-->
+<!--		<column title="rounds with no error">unsuccessfull mutations (no error)</column>-->
+<!--		<column title="rounds with other problem">unsuccessfull mutations (other problems)</column>-->
+
+		<column title="local nodes before">count of nodes in function CFAs before mutations</column>
+		<column title="local nodes after">count of nodes in function CFAs after mutations</column>
+<!--		<column title="local edges before">count of edges in function CFAs before mutations</column>-->
+<!--		<column title="local edges after">count of edges in function CFAs after mutations</column>-->
+<!--		<column title="global decls before">count of global declarations before mutations</column>-->
+<!--		<column title="global decls after">count of global declarations after mutations</column>-->
+<!--		<column title="functions before">count of functions in function CFAs before mutations</column>-->
+<!--		<column title="functions after">count of functions in function CFAs after mutations</column>-->
+		<column title="CFAs CC sum before">cyclomatic complexity of function CFAs before mutations</column>
+		<column title="CFAs CC sum after">cyclomatic complexity of function CFAs after mutations</column>
+
+<!--		<column title="full nodes before">count of nodes in full CFA before mutations</column>-->
+<!--		<column title="full nodes after">count of nodes in full CFA after mutations</column>-->
+<!--		<column title="full edges before">count of edges in full CFA before mutations</column>-->
+<!--		<column title="full edges after">count of edges in full CFA after mutations</column>-->
+<!--		<column title="full functions before">count of functions in full CFA before mutations</column>-->
+<!--		<column title="full functions after">count of functions in full CFA after mutations</column>-->
+<!--		<column title="CC of full CFA before">cyclomatic complexity of full CFA before mutations</column>-->
+<!--		<column title="CC of full CFA after">cyclomatic complexity of full CFA after mutations</column>-->
+
+		<column title="original time">time for original analysis run</column>
+		<column title="time after mutations">time for analysis after mutations</column>
+		<column title="time after rollbacks">time for analysis after rollback</column>
+	</columns>
+
+	<option name="-setprop">cfaMutation.manipulator=FunctionBodyManipulator</option>
+
+<!--	<option name="-setprop">cfaMutation.manipulator=StructuredBlockManipulator</option>-->
+
+	<rundefinition name="DD-Min-Both">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD-Min-CR">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD-Min-DR">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+
+	<rundefinition name="DD-Max-Both">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD-Max-CR">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD-Max-DR">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+
+	<rundefinition name="DD-Iso-Both">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD-Iso-CR">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="DD-Iso-DR">
+		<option name="-setprop">cfaMutation.dd=DD</option>
+		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+
+
+	<rundefinition name="HDD-Min-Both">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="HDD-Min-CR">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="HDD-Min-DR">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+
+	<rundefinition name="HDD-Max-Both">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="HDD-Max-CR">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="HDD-Max-DR">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+
+	<rundefinition name="HDD-Iso-Both">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="HDD-Iso-CR">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_COMPLEMENTS</option>
+	</rundefinition>
+	<rundefinition name="HDD-Iso-DR">
+		<option name="-setprop">cfaMutation.dd=HDD</option>
+		<option name="-setprop">cfaMutation.dd.direction=ISOLATION</option>
+		<option name="-setprop">cfaMutation.dd.parts=ONLY_DELTAS</option>
+	</rundefinition>
+
+    <!-- timeout
+    <tasks name="issue-779">
+        <include>../../programs/issues-for-mutation/issue-779.cil.i</include>
+        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+    </tasks> -->
+
+    <tasks name="issue-778">
+        <!-- parsing error <include>../../programs/issues-for-mutation/issue-778a.cil.i</include> -->
+        <include>../../programs/issues-for-mutation/issue-778b.cil.i</include>
+        <include>../../programs/issues-for-mutation/issue-778c.cil.i</include>
+        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+    </tasks>
+
+    <tasks name="issue-777">
+        <include>../../programs/issues-for-mutation/issue-777.cil.i</include>
+        <propertyfile>../../programs/benchmarks/properties/valid-memsafety.prp</propertyfile>
+    </tasks>
+
+</benchmark>

@@ -48,7 +48,6 @@ import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.time.TimeSpan;
 import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
-import org.sosy_lab.cpachecker.cfa.CFACreator;
 import org.sosy_lab.cpachecker.cfa.export.DOTBuilder;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
@@ -569,9 +568,9 @@ class MainCPAStatistics implements Statistics {
     }
   }
 
-  public void setCFACreator(CFACreator pCfaCreator) {
+  public void setCFACreatorStatistics(Statistics pStats) {
     Preconditions.checkState(cfaCreatorStatistics == null);
-    cfaCreatorStatistics = pCfaCreator.getStatistics();
+    cfaCreatorStatistics = pStats;
   }
 
   public void setCFA(CFA pCfa) {

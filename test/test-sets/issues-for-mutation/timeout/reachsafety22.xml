@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+
+<!--
+This file is part of CPAchecker,
+a tool for configurable software verification:
+https://cpachecker.sosy-lab.org
+
+SPDX-FileCopyrightText: 2023 Dirk Beyer <https://www.sosy-lab.org>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+<!--
+CPAchecker timeouts on these input files.
+Mutate CFA so analysis can find an error that is present in original program.
+-->
+
+<!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 2.3//EN" "https://www.sosy-lab.org/benchexec/benchmark-2.3.dtd">
+<benchmark tool="cpachecker" walltimelimit="2100">
+  <option name="-setprop">limits.time.wall=1900</option>
+  <option name="-setprop">limits.time.cpu=-1ns</option>
+  <option name="-setprop">cfaMutation.dd.minProperty=VERDICT_UNKNOWN_BECAUSE_OF_TIMEOUT</option>
+  <propertyfile>../../../programs/benchmarks/properties/unreach-call.prp</propertyfile>
+
+  <rundefinition name="bare-analysis">
+    <option name="-config">test/config/svcomp22-without-timelimit.properties</option>
+  </rundefinition>
+
+  <rundefinition name="DD+Min+">
+    <option name="-config">test/config/cfa-mutation-svcomp22.properties</option>
+    <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
+    <option name="-setprop">cfaMutation.dd.direction=MINIMIZATION</option>
+    <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+  </rundefinition>
+
+  <rundefinition name="DD+Max+">
+    <option name="-config">test/config/cfa-mutation-svcomp22.properties</option>
+    <option name="-setprop">cfaMutation.dd=DDSEARCH</option>
+    <option name="-setprop">cfaMutation.dd.direction=MAXIMIZATION</option>
+    <option name="-setprop">cfaMutation.dd.parts=DELTAS_AND_COMPLEMENTS</option>
+  </rundefinition>
+
+  <option name="-heap">10000M</option>
+
+  <!--
+    We collect error- and proof-witness files for further steps in our BuildBot.
+    Currently we expect about 120MB of compressed witness files from a complete benchmark set.
+    CPAchecker can compress and handle compressed witnesses automatically.
+    Please disable compression for real SVComp benchmarks!
+  -->
+<!--  <resultfiles>**.graphml*</resultfiles>-->
+<!--  <option name="-setprop">cpa.arg.compressWitness=true</option>-->
+<!--  <option name="-setprop">counterexample.export.compressWitness=false</option>-->
+<!--  <option name="-setprop">termination.compressWitness=true</option>-->
+
+  <tasks name="true">
+    <include>../../../programs/benchmarks/array-cav19/array_doub_access_init_const.c</include>
+    <include>../../../programs/benchmarks/array-crafted/bAnd1.i</include>
+    <include>../../../programs/benchmarks/array-fpi/brs1.c</include>
+    <include>../../../programs/benchmarks/array-lopstr16/base_case.i</include>
+    <include>../../../programs/benchmarks/array-multidimensional/add-2-n-u.c</include>
+    <include>../../../programs/benchmarks/array-patterns/array10_pattern.c</include>
+    <include>../../../programs/benchmarks/combinations/Problem05_label42+token_ring.05.cil-1.c</include>
+    <include>../../../programs/benchmarks/eca-rers2012/Problem17_label39.c</include>
+  </tasks>
+  <tasks name="false">
+    <include>../../../programs/benchmarks/array-examples/data_structures_set_multi_proc_ground-1.i</include>
+    <include>../../../programs/benchmarks/array-industry-pattern/array_assert_loop_dep.i</include>
+    <include>../../../programs/benchmarks/array-programs/copysome1-2.i</include>
+    <include>../../../programs/benchmarks/array-tiling/mlceu.c</include>
+    <include>../../../programs/benchmarks/bitvector-loops/overflow_1-2.c</include>
+    <include>../../../programs/benchmarks/bitvector/sum02-1.c</include>
+    <include>../../../programs/benchmarks/combinations/gcd_1+newton_3_8.i</include>
+    <include>../../../programs/benchmarks/combinations/pals_lcr.3.ufo.BOUNDED-6.pals+Problem12_label00.c</include>
+    <include>../../../programs/benchmarks/combinations/pc_sfifo_1.cil-2+token_ring.10.cil-1.c</include>
+    <include>../../../programs/benchmarks/eca-programs/Problem101_label00.c</include>
+    <include>../../../programs/benchmarks/eca-rers2012/Problem07_label03.c</include>
+    <include>../../../programs/benchmarks/floats-cdfpl/newton_3_6.i</include>
+    <include>../../../programs/benchmarks/floats-esbmc-regression/digits_bad_for.c</include>
+    <include>../../../programs/benchmarks/heap-manipulation/bubble_sort_linux-2.i</include>
+    <include>../../../programs/benchmarks/list-ext3-properties/sll_of_sll_nondet_append-2.i</include>
+    <include>../../../programs/benchmarks/loop-simple/deep-nested.c</include>
+    <include>../../../programs/benchmarks/nla-digbench-scaling/bresenham-ll_unwindbound10.c</include>
+    <include>../../../programs/benchmarks/recursive-simple/fibo_15-2.c</include>
+    <include>../../../programs/benchmarks/recursive-simple/fibo_2calls_15-1.c</include>
+    <include>../../../programs/benchmarks/reducercommutativity/rangesum.i</include>
+    <include>../../../programs/benchmarks/seq-mthreaded/pals_floodmax.3_overflow.ufo.UNBOUNDED.pals.c</include>
+  </tasks>
+</benchmark>
