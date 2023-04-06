@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -332,7 +333,10 @@ public final class CPAcheckerMutator extends CPAchecker {
       // exception was already logged
     }
 
-    try (PrintStream w = new PrintStream(cfaMutationManager.getIntermediateStatisticsFile())) {
+    try (@SuppressWarnings("checkstyle:IllegalInstantiation") // ok for statistics
+        PrintStream w =
+            new PrintStream(
+                cfaMutationManager.getIntermediateStatisticsFile(), Charset.defaultCharset())) {
       MainCPAStatistics curStats = cpachecker.getStats();
       StatisticsUtils.printStatistics(curStats, w, curLogger, cur.getResult(), cur.getReached());
       StatisticsUtils.writeOutputFiles(curStats, curLogger, cur.getResult(), cur.getReached());

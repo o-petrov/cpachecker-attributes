@@ -435,7 +435,7 @@ final class CFAMutationManager {
       result.put(key, String.format("%dns", wait));
     }
 
-    return result.build();
+    return result.buildOrThrow();
   }
 
   public LogManager createRoundLogger(Configuration pConfig) throws InvalidConfigurationException {
@@ -625,7 +625,7 @@ final class CFAMutationManager {
   }
 
   private static ImmutableList<Multiset.Entry<CFANode>> rankNodes(UnmodifiableReachedSet pReached) {
-    TreeMultiset<CFANode> nodes =
+    Multiset<CFANode> nodes =
         TreeMultiset.create(
             FluentIterable.from(pReached).transformAndConcat(AbstractStates::extractLocations));
 
