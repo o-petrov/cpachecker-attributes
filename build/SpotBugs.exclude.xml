@@ -63,12 +63,4 @@ SPDX-License-Identifier: Apache-2.0
           <Field type="org.sosy_lab.common.io.PathCounterTemplate"/>
         </Or>
     </And></Match>
-    
-    <Match><And>
-        <!-- Catch NullPointerException among other exceptions while automatically minimizing
-             the input program that caused CPAchecker to throw it. See Delta Debugging. -->
-        <Bug pattern="DCN_NULLPOINTER_EXCEPTION"/>
-        <Class name="org.sosy_lab.cpachecker.core.CPAcheckerMutator"/>
-        <Method name="analysisRound"/>
-    </And></Match>
 </FindBugsFilter>

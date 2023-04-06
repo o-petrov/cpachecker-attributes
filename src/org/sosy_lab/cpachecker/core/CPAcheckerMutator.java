@@ -15,6 +15,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableSet;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -271,6 +272,7 @@ public final class CPAcheckerMutator extends CPAchecker {
     Configuration.getDefaultConverters().put(FileOption.class, fileTypeConverter);
   }
 
+  @SuppressFBWarnings("DCN_NULLPOINTER_EXCEPTION")
   // run analysis, but for already stored CFA, and catch its errors
   private AnalysisResult analysisRound(CFA pCfa, StatTimer pTimer, AnalysisRun pRun)
       throws InvalidConfigurationException {
