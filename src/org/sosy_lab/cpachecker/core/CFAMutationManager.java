@@ -608,7 +608,10 @@ final class CFAMutationManager {
     try (Writer file = IO.openOutputFile(thisRoundRankedNodesFile, Charset.defaultCharset())) {
       int i = 0;
       for (Multiset.Entry<CFANode> p : rankedNodes) {
-        file.append(++i + ". " + describeEntry(p));
+        file.append(String.valueOf(++i));
+        file.append(". ");
+        file.append(describeEntry(p));
+        file.append('\n');
       }
     } catch (IOException e) {
       logger.logUserException(Level.WARNING, e, "Cannot write node rank to file");
